@@ -64,19 +64,19 @@ Demonstrate VMware Kubernetes Service (VKS) on VCF 9 with NSX VPC in a fully nes
 
 ### Remote Access
 
-A dual-homed jumpbox provides external access to the lab environment. It serves as the single entry point — all other lab components are on an isolated internal network.
+The Arista vEOS router is the only multi-homed device in the lab — it has both an internal trunk interface and a public-facing interface with a DHCP address from vCloud Director. External RDP access arrives at the vEOS public IP and is port-forwarded to the jumpbox (10.0.10.2) on the management VLAN. All other lab components are on the isolated internal network.
 
 ### Infrastructure Services
 
-The lab requires DNS, NTP, and a certificate authority (CA). These services run on the jumpbox to minimise component count and because the jumpbox is dual-homed (reachable from both external and internal networks).
+The lab requires DNS, NTP, and a certificate authority (CA). These services run on the jumpbox to minimise component count. The jumpbox sits on the management VLAN, reachable by all internal VMs.
 
-- **DNS** — authoritative for the `lab.dreamfold.dev` domain, forwards unknown queries upstream
-- **NTP** — syncs to public time sources externally, serves time to all lab components internally
+- **DNS** — authoritative for the `lab.dreamfold.dev` domain, forwards unknown queries upstream via vEOS NAT
+- **NTP** — syncs to public time sources via vEOS NAT, serves time to all lab components internally
 - **CA** — lightweight ACME-capable CA (step-ca) for issuing TLS certificates to VCF components
 
 ### Layer 3 Routing
 
-A virtual router provides inter-VLAN routing across all VCF network segments. It also participates in BGP peering with the NSX Tier-0 gateway, enabling north-south connectivity from VPC workloads out through the lab to external networks.
+The Arista vEOS router provides inter-VLAN routing across all VCF network segments and serves as the lab's internet gateway. It performs source NAT (masquerade) for outbound traffic from all internal VLANs via its public-facing interface. It also participates in BGP peering with the NSX Tier-0 gateway, enabling north-south connectivity from VPC workloads out through the Edge cluster to external networks.
 
 ### VCF Domains
 
@@ -97,14 +97,15 @@ A VKS cluster deployed via the Supervisor demonstrates Kubernetes lifecycle mana
                          │            (vApp)                 │
                          │                                   │
     External Access ────►│  ┌──────────┐                     │
-                         │  │ Jumpbox  │                     │
-                         │  │ DNS/NTP  │                     │
-                         │  │ CA       │                     │
-                         │  └────┬─────┘                     │
-                         │       │                           │
-                         │  ┌────┴─────┐                     │
                          │  │ Virtual  │                     │
                          │  │ Router   │◄─── BGP ──┐         │
+                         │  │ (gateway)│           │         │
+                         │  └────┬─────┘           │         │
+                         │       │                 │         │
+                         │  ┌────┴─────┐           │         │
+                         │  │ Jumpbox  │           │         │
+                         │  │ DNS/NTP  │           │         │
+                         │  │ CA       │           │         │
                          │  └────┬─────┘           │         │
                          │       │                 │         │
                          │  ┌────┴──────────┐  ┌───┴──────┐  │
@@ -141,7 +142,7 @@ See [Logical Design](logical-design.md) for phase details and [Delivery Guide](d
 |---|------|--------|--------|
 | 1 | Virtual router licensing for lab use | Open | May require a licence key — check if lab/eval licence is available |
 | 2 | vCD resource allocation approval | Open | Substantial resource request — needs org approval |
-| 3 | Internet access from nested environment | Open | VKS content library and VCF depot sync require outbound internet — routing path through jumpbox may need NAT/masquerade |
+| 3 | Internet access from nested environment | Resolved | vEOS NAT/masquerade on Ethernet2 (public NIC) provides outbound internet for all internal VLANs |
 | 4 | VCF depot access | Open | VCF Installer and SDDC Manager need access to VMware depot — may need offline bundles if internet is restricted |
 | 5 | Nested ESXi performance | Risk | Nested virtualisation adds overhead — vSAN and overlay performance degraded. Acceptable for lab only |
 | 6 | Certificate distribution | Open | Need automation to distribute root CA cert to ESXi hosts and appliances during deployment |

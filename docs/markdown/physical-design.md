@@ -86,25 +86,24 @@ date: "March 2026"
 | vCPU | 2 |
 | RAM | 4 GB |
 | Disk | 60 GB |
-| NIC1 | vCD public network (DHCP or static from vCD) |
-| NIC2 | vCD private network — VLAN 10 (management), IP 10.0.10.2 |
+| NIC | vCD private network — VLAN 10 (management), IP 10.0.10.2 |
 
 ### Network Configuration
 
 See [Delivery Guide](deliver.md) for netplan configuration. Key parameters:
 
-- NIC1 (ens160): vCD public network, DHCP
-- NIC2 (ens192): vCD private network, static 10.0.10.2/24, gateway 10.0.10.1
+- NIC (ens160): vCD private network, static 10.0.10.2/24, gateway 10.0.10.1 (vEOS)
 - IP forwarding disabled — jumpbox is not a router
+- Default gateway is vEOS, which provides internet access via NAT
 
 ### Services Configuration
 
 | Service | Package | Config |
 |---------|---------|--------|
-| DNS | dnsmasq | Zone: `lab.dreamfold.dev`, upstream forwarder via NIC1 |
-| NTP | chrony | `allow 10.0.0.0/16`, servers: public NTP pools |
+| DNS | dnsmasq | Zone: `lab.dreamfold.dev`, upstream forwarder via vEOS NAT |
+| NTP | chrony | `allow 10.0.0.0/16`, servers: public NTP pools (via vEOS NAT) |
 | CA | step-ca | Root CA for `lab.dreamfold.dev`, ACME enabled |
-| Remote access | xrdp | Listening on port 3389 (NIC1) |
+| Remote access | xrdp | Listening on port 3389 (reached via vEOS port-forward) |
 | Web browser | Firefox | Access vCenter, NSX Manager, SDDC Manager UIs |
 
 All VCF components point to 10.0.10.2 for DNS and NTP. The CA root certificate is distributed to ESXi hosts and management appliances during deployment.
@@ -117,17 +116,20 @@ All VCF components point to 10.0.10.2 for DNS and NTP. The CA root certificate i
 | vCPU | 2 |
 | RAM | 4 GB |
 | Disk | 8 GB |
-| NIC | vCD private network (trunk, all VLANs) |
+| NIC1 (Ethernet1) | vCD private network (trunk, all VLANs) |
+| NIC2 (Ethernet2) | vCD public network (DHCP — internet gateway) |
 
-See [Delivery Guide](deliver.md) for complete vEOS startup-config including interface and BGP configuration.
+See [Delivery Guide](deliver.md) for complete vEOS startup-config including interface, NAT, port-forward, and BGP configuration.
 
 | Parameter | Value |
 |-----------|-------|
 | vEOS ASN | 65000 |
 | NSX Tier-0 ASN | 65001 |
 | Peering subnet | 10.0.60.0/24 |
+| NAT | Source NAT (masquerade) on Ethernet2 for all internal VLANs |
+| Port-forward | TCP 3389 on Ethernet2 → 10.0.10.2:3389 (jumpbox xrdp) |
 
-BGP advertises all connected subnets to NSX, and receives VPC/overlay prefixes from the Tier-0. This gives VKS workloads a routed path out through the vEOS to the jumpbox and beyond.
+BGP advertises all connected subnets to NSX, and receives VPC/overlay prefixes from the Tier-0. vEOS NAT on Ethernet2 provides outbound internet for all lab components.
 
 ## 5. Nested ESXi Host Specification
 
@@ -286,7 +288,7 @@ Edge VMs are sized as **Large** (8 vCPU, 32 GB RAM) to support VKS workloads.
 
 ### Content Library
 
-A subscribed content library provides Kubernetes release images (VKr). The library syncs from VMware's public endpoint. Internet access from the nested environment is required (routed via vEOS → jumpbox → vCD public network).
+A subscribed content library provides Kubernetes release images (VKr). The library syncs from VMware's public endpoint. Internet access from the nested environment is required (routed via vEOS NAT on Ethernet2).
 
 ## 10. Resource Summary Tables
 

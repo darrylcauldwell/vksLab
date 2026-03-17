@@ -252,14 +252,14 @@ SDDC Manager coordinates updates to vCenter, NSX Manager, SDDC Manager itself, a
 | Node shows NotReady | kubelet not running | SSH to node, check `systemctl status kubelet` |
 | Node unreachable | NSX VPC connectivity issue | Check VPC status, verify Tier-0/Tier-1 routing |
 | Pods stuck Pending | Insufficient node resources | Check `kubectl describe node`; consider scaling VM class |
-| Image pull failures | No internet access from VPC | Verify NAT rule on Tier-0; check route to internet via vEOS/jumpbox |
+| Image pull failures | No internet access from VPC | Verify NAT rule on Tier-0; check route to internet via vEOS NAT (`show ip nat translations` on vEOS); verify Ethernet2 has DHCP address |
 
 #### DNS Resolution Failures
 
 | Symptom | Possible Cause | Resolution |
 |---------|---------------|------------|
 | Cannot resolve lab hostnames | dnsmasq not running | `sudo systemctl restart dnsmasq` on jumpbox |
-| Upstream DNS fails | Jumpbox external NIC issue | Check ens160 connectivity; verify upstream DNS servers |
+| Upstream DNS fails | vEOS NAT or Ethernet2 issue | Check vEOS Ethernet2 status and NAT translations (`show ip nat translations`); verify upstream DNS servers |
 | Stale records | dnsmasq config not reloaded | Edit config, then `sudo systemctl restart dnsmasq` |
 
 ### 4.2 Log Locations

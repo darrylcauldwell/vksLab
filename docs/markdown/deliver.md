@@ -69,9 +69,9 @@ The following credentials must be prepared before deployment. Use consistent, do
 | Step | Action | Expected Result | Verification |
 |------|--------|-----------------|--------------|
 | 3.2.1 | Deploy Ubuntu 24.04 VM (2 vCPU, 4 GB RAM, 60 GB disk) | VM powered on | VM accessible via vCD console |
-| 3.2.2 | Configure NIC1 (ens160) on public network | DHCP address obtained | `ip addr show ens160` shows IP |
-| 3.2.3 | Configure NIC2 (ens192) on private network, IP 10.0.10.2/24 | Static IP configured | `ping 10.0.10.2` from local |
-| 3.2.4 | Install XFCE desktop and xrdp | Remote desktop available | RDP connection on port 3389 |
+| 3.2.2 | Connect NIC (ens160) to vCD private network | Network connected | VM shows NIC in `ip link` |
+| 3.2.3 | Configure ens160 static IP 10.0.10.2/24, gateway 10.0.10.1 (vEOS) | Static IP configured | `ping 10.0.10.1` succeeds |
+| 3.2.4 | Install XFCE desktop and xrdp | Remote desktop available | RDP via vEOS port-forward |
 | 3.2.5 | Install and configure dnsmasq for lab.dreamfold.dev | DNS server running | `dig @10.0.10.2 jumpbox.lab.dreamfold.dev` |
 | 3.2.6 | Install and configure chrony | NTP server running | `chronyc sources` shows upstream |
 | 3.2.7 | Install and configure step-ca | CA running with ACME | `step ca health` returns ok |
@@ -85,12 +85,10 @@ network:
   version: 2
   ethernets:
     ens160:
-      dhcp4: true
-    ens192:
       addresses:
         - 10.0.10.2/24
       routes:
-        - to: 10.0.0.0/16
+        - to: default
           via: 10.0.10.1
       mtu: 1500
       nameservers:
@@ -98,7 +96,7 @@ network:
           - 127.0.0.1
 ```
 
-Apply with `sudo netplan apply`.
+Apply with `sudo netplan apply`. The default gateway (10.0.10.1) is the vEOS router, which provides internet access via NAT on its public interface.
 
 #### dnsmasq configuration
 
@@ -161,46 +159,19 @@ scp /tmp/lab-root-ca.crt root@esxi-XX:/tmp/
 ssh root@esxi-XX 'esxcli security cert import --cert-file /tmp/lab-root-ca.crt'
 ```
 
-### 3.2b Internet Access from Nested Environment
-
-VCF depot sync, content library updates, and VKS image pulls require outbound internet access from the nested environment. Components on the management VLAN (10.0.10.x) must be able to reach external URLs.
-
-The jumpbox is dual-homed (public NIC + management VLAN) and is the only component with direct internet access. Enable IP masquerading on the jumpbox so management VLAN traffic can reach the internet:
-
-```bash
-# Enable IP forwarding
-sudo sysctl -w net.ipv4.ip_forward=1
-echo 'net.ipv4.ip_forward=1' | sudo tee -a /etc/sysctl.d/99-lab-forwarding.conf
-
-# Add masquerade rule for traffic from the lab network exiting via the public NIC
-sudo iptables -t nat -A POSTROUTING -s 10.0.0.0/16 -o ens160 -j MASQUERADE
-
-# Persist iptables rules
-sudo apt install -y iptables-persistent
-sudo netfilter-persistent save
-```
-
-The vEOS router must have a default route pointing to the jumpbox for internet-bound traffic:
-
-```text
-ip route 0.0.0.0/0 10.0.10.2
-```
-
-| Verification | Command | Expected Result |
-|-------------|---------|-----------------|
-| Jumpbox forwarding | `cat /proc/sys/net/ipv4/ip_forward` | 1 |
-| Masquerade rule | `sudo iptables -t nat -L POSTROUTING` | MASQUERADE rule present |
-| ESXi internet access | `ssh root@esxi-01 'vmkping -I vmk0 8.8.8.8'` | Success |
-
 ### 3.3 Deploy and Configure Arista vEOS
 
 | Step | Action | Expected Result | Verification |
 |------|--------|-----------------|--------------|
 | 3.3.1 | Deploy vEOS VM (2 vCPU, 4 GB RAM, 8 GB disk) | VM powered on | vEOS console accessible |
-| 3.3.2 | Connect NIC to vCD private network (trunk) | Trunk interface active | `show interfaces status` |
-| 3.3.3 | Configure management SVI (VLAN 10, 10.0.10.1/24) | SVI up | `ping 10.0.10.2` (jumpbox) |
-| 3.3.4 | Configure all SVIs (VLANs 20-60) | All SVIs up | `show ip interface brief` |
-| 3.3.5 | Configure IP routing | Inter-VLAN routing active | `show ip route` |
+| 3.3.2 | Connect NIC1 to vCD private network (trunk) | Trunk interface active | `show interfaces status` |
+| 3.3.3 | Connect NIC2 to vCD public network | Public interface active | `show interfaces Ethernet2` |
+| 3.3.4 | Configure management SVI (VLAN 10, 10.0.10.1/24) | SVI up | `ping 10.0.10.2` (jumpbox) |
+| 3.3.5 | Configure all SVIs (VLANs 20-60) | All SVIs up | `show ip interface brief` |
+| 3.3.6 | Configure Ethernet2 (DHCP from vCD public) | Public IP obtained | `show ip interface Ethernet2` |
+| 3.3.7 | Configure NAT/masquerade for outbound internet | NAT active | `show ip nat translations` |
+| 3.3.8 | Configure port-forward TCP 3389 → jumpbox 10.0.10.2 | Port-forward active | RDP to vEOS public IP |
+| 3.3.9 | Configure IP routing | Inter-VLAN routing active | `show ip route` |
 
 #### vEOS startup-config
 
@@ -214,40 +185,58 @@ interface Ethernet1
    switchport trunk allowed vlan 10,20,30,40,50,60
    mtu 9000
 !
+interface Ethernet2
+   description Public uplink (internet gateway)
+   no switchport
+   ip address dhcp
+   ip nat outside
+!
 interface Vlan10
    ip address 10.0.10.1/24
+   ip nat inside
    mtu 1500
 !
 interface Vlan20
    ip address 10.0.20.1/24
+   ip nat inside
    mtu 9000
 !
 interface Vlan30
    ip address 10.0.30.1/24
+   ip nat inside
    mtu 9000
 !
 interface Vlan40
    ip address 10.0.40.1/24
+   ip nat inside
    mtu 9000
 !
 interface Vlan50
    ip address 10.0.50.1/24
+   ip nat inside
    mtu 9000
 !
 interface Vlan60
    ip address 10.0.60.1/24
+   ip nat inside
    mtu 1500
 !
-ip routing
+ip access-list LAB-INTERNAL
+   permit ip 10.0.0.0/16 any
 !
-ip route 0.0.0.0/0 10.0.10.2
+ip nat source list LAB-INTERNAL interface Ethernet2 overload
+!
+ip nat destination static tcp interface Ethernet2 3389 10.0.10.2 3389
+!
+ip routing
 ```
 
 ### 3.4 Foundation Verification
 
 | Check | Command / Method | Expected Result |
 |-------|------------------|-----------------|
-| Jumpbox external access | RDP to jumpbox public IP | Desktop accessible |
+| Jumpbox external access | RDP to vEOS public IP (port-forwarded to jumpbox) | Desktop accessible |
+| Internet from lab | `ping 8.8.8.8` from jumpbox | Success (via vEOS NAT) |
 | Jumpbox DNS | `dig @10.0.10.2 jumpbox.lab.dreamfold.dev` | Returns 10.0.10.2 |
 | Jumpbox NTP | `chronyc sources` | Shows upstream servers |
 | Jumpbox CA | `step ca health` | Returns "ok" |
@@ -602,7 +591,7 @@ Final verification checklist before the lab is considered operational.
 
 | # | Check | Method | Expected Result | Pass |
 |---|-------|--------|-----------------|------|
-| 1 | External RDP access | RDP to jumpbox public IP | Desktop loads | ☐ |
+| 1 | External RDP access | RDP to vEOS public IP (port-forwarded to jumpbox) | Desktop loads | ☐ |
 | 2 | DNS forward resolution | `dig @10.0.10.2 vcenter-mgmt.lab.dreamfold.dev` | Returns 10.0.10.4 | ☐ |
 | 3 | DNS reverse resolution | `dig @10.0.10.2 -x 10.0.10.4` | Returns vcenter-mgmt.lab.dreamfold.dev | ☐ |
 | 4 | NTP synchronisation | `chronyc sources` on jumpbox | Upstream servers reachable | ☐ |
