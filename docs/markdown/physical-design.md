@@ -320,4 +320,44 @@ These run inside the nested environment and consume resources from the ESXi host
 | VCF Automation | 4 | 24 | 100 |
 | **Nested Total** | **52** | **234** | **1,800** |
 
-> **Note**: The nested appliance resources are consumed from the 504 GB RAM and 1,400 GB storage provisioned to the ESXi VMs. The remaining ~270 GB RAM is available for VKS workloads and Supervisor VMs. Cross-reference with Holodeck benchmarks (~325 GB RAM for VCF 9.0 single-site with Automation). See Workload Domain Headroom Analysis below for detailed breakdown.
+> **Note**: The nested appliance resources are consumed from the 504 GB RAM and 1,400 GB storage provisioned to the ESXi VMs. Cross-reference with Holodeck benchmarks (~325 GB RAM for VCF 9.0 single-site with Automation). See Workload Domain Headroom Analysis below for detailed breakdown.
+
+### Workload Domain Headroom Analysis
+
+#### Management Domain (288 GB total)
+
+| Consumer | RAM (GB) | Notes |
+|----------|----------|-------|
+| VCF Installer (temporary) | 24 | Reclaimed after bringup |
+| vCenter (Management) | 21 | — |
+| SDDC Manager | 16 | — |
+| NSX Manager (Management) | 24 | — |
+| VCF Operations | 16 | — |
+| VCF Automation | 24 | — |
+| ESXi overhead (4 hosts × 4 GB) | 16 | Hypervisor memory per host |
+| **Subtotal (permanent)** | **117** | Excluding temporary installer |
+| **Headroom** | **171** | Available for additional management workloads |
+
+> The VCF Installer (24 GB) is temporary — its resources are reclaimed after bringup, bringing the permanent total to 101 GB with 187 GB remaining.
+
+#### Workload Domain (216 GB total)
+
+| Consumer | RAM (GB) | Notes |
+|----------|----------|-------|
+| vCenter (Workload) | 21 | — |
+| NSX Manager (Workload) | 24 | — |
+| NSX Edge (2x Large) | 64 | 32 GB each |
+| ESXi overhead (3 hosts × 4 GB) | 12 | Hypervisor memory per host |
+| Supervisor control plane (3 VMs) | 12 | ~4 GB each |
+| **Subtotal** | **133** | — |
+| **Available for VKS workloads** | **83** | — |
+
+#### VKS Worker Sizing
+
+| Configuration | Workers | RAM per Worker | Total RAM | Remaining |
+|---------------|---------|---------------|-----------|-----------|
+| Initial (best-effort-medium) | 3 | 8 GB | 24 GB | 59 GB |
+| Scaled (best-effort-large) | 3 | 16 GB | 48 GB | 35 GB |
+| Maximum (best-effort-medium) | 7 | 8 GB | 56 GB | 27 GB |
+
+The initial 3-worker deployment (24 GB) leaves ~59 GB for scaling. This supports adding up to 4 additional medium workers or upgrading existing workers to a larger VM class.
