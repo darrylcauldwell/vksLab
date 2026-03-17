@@ -1,5 +1,8 @@
 name: Generate PDFs
 
+permissions:
+  contents: write
+
 on:
   push:
     paths:
@@ -26,17 +29,17 @@ jobs:
       - name: Generate PDFs
         run: |
           PANDOC_FLAGS="--template eisvogel --pdf-engine=xelatex --toc --toc-depth=3 --number-sections"
-          pandoc docs/conceptual-design.md -o docs/conceptual-design.pdf $PANDOC_FLAGS --metadata-file=docs/metadata/design.yaml
-          pandoc docs/logical-design.md -o docs/logical-design.pdf $PANDOC_FLAGS --metadata-file=docs/metadata/design.yaml
-          pandoc docs/physical-design.md -o docs/physical-design.pdf $PANDOC_FLAGS --metadata-file=docs/metadata/design.yaml
-          pandoc docs/deliver.md -o docs/deliver.pdf $PANDOC_FLAGS --metadata-file=docs/metadata/deliver.yaml
-          pandoc docs/operate.md -o docs/operate.pdf $PANDOC_FLAGS --metadata-file=docs/metadata/operate.yaml
+          pandoc docs/markdown/conceptual-design.md -o docs/pdf/conceptual-design.pdf $PANDOC_FLAGS --metadata-file=docs/markdown/metadata/design.yaml
+          pandoc docs/markdown/logical-design.md -o docs/pdf/logical-design.pdf $PANDOC_FLAGS --metadata-file=docs/markdown/metadata/design.yaml
+          pandoc docs/markdown/physical-design.md -o docs/pdf/physical-design.pdf $PANDOC_FLAGS --metadata-file=docs/markdown/metadata/design.yaml
+          pandoc docs/markdown/deliver.md -o docs/pdf/deliver.pdf $PANDOC_FLAGS --metadata-file=docs/markdown/metadata/deliver.yaml
+          pandoc docs/markdown/operate.md -o docs/pdf/operate.pdf $PANDOC_FLAGS --metadata-file=docs/markdown/metadata/operate.yaml
 
       - name: Upload PDFs as artifacts
         uses: actions/upload-artifact@v4
         with:
           name: vks-lab-docs
-          path: docs/*.pdf
+          path: docs/pdf/*.pdf
           retention-days: 90
 
   commit:
@@ -52,10 +55,10 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: vks-lab-docs
-          path: docs/
+          path: docs/pdf/
 
       - name: Commit PDFs
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: "docs: regenerate PDFs [skip ci]"
-          file_pattern: "docs/*.pdf"
+          file_pattern: "docs/pdf/*.pdf"

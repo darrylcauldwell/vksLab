@@ -2,9 +2,9 @@ PANDOC := pandoc
 PDF_ENGINE := xelatex
 TEMPLATE := eisvogel
 
-DESIGN_DOCS := docs/conceptual-design.pdf docs/logical-design.pdf docs/physical-design.pdf
-DELIVER_DOC := docs/deliver.pdf
-OPERATE_DOC := docs/operate.pdf
+DESIGN_DOCS := docs/pdf/conceptual-design.pdf docs/pdf/logical-design.pdf docs/pdf/physical-design.pdf
+DELIVER_DOC := docs/pdf/deliver.pdf
+OPERATE_DOC := docs/pdf/operate.pdf
 
 ALL_PDFS := $(DESIGN_DOCS) $(DELIVER_DOC) $(OPERATE_DOC)
 
@@ -15,20 +15,20 @@ PANDOC_FLAGS := --template $(TEMPLATE) --pdf-engine=$(PDF_ENGINE) --toc --toc-de
 pdf: $(ALL_PDFS)
 	@echo "All PDFs generated successfully."
 
-docs/conceptual-design.pdf: docs/conceptual-design.md docs/metadata/design.yaml
-	$(PANDOC) $< -o $@ $(PANDOC_FLAGS) --metadata-file=docs/metadata/design.yaml
+docs/pdf/conceptual-design.pdf: docs/markdown/conceptual-design.md docs/markdown/metadata/design.yaml
+	$(PANDOC) $< -o $@ $(PANDOC_FLAGS) --metadata-file=docs/markdown/metadata/design.yaml
 
-docs/logical-design.pdf: docs/logical-design.md docs/metadata/design.yaml
-	$(PANDOC) $< -o $@ $(PANDOC_FLAGS) --metadata-file=docs/metadata/design.yaml
+docs/pdf/logical-design.pdf: docs/markdown/logical-design.md docs/markdown/metadata/design.yaml
+	$(PANDOC) $< -o $@ $(PANDOC_FLAGS) --metadata-file=docs/markdown/metadata/design.yaml
 
-docs/physical-design.pdf: docs/physical-design.md docs/metadata/design.yaml
-	$(PANDOC) $< -o $@ $(PANDOC_FLAGS) --metadata-file=docs/metadata/design.yaml
+docs/pdf/physical-design.pdf: docs/markdown/physical-design.md docs/markdown/metadata/design.yaml
+	$(PANDOC) $< -o $@ $(PANDOC_FLAGS) --metadata-file=docs/markdown/metadata/design.yaml
 
-docs/deliver.pdf: docs/deliver.md docs/metadata/deliver.yaml
-	$(PANDOC) $< -o $@ $(PANDOC_FLAGS) --metadata-file=docs/metadata/deliver.yaml
+docs/pdf/deliver.pdf: docs/markdown/deliver.md docs/markdown/metadata/deliver.yaml
+	$(PANDOC) $< -o $@ $(PANDOC_FLAGS) --metadata-file=docs/markdown/metadata/deliver.yaml
 
-docs/operate.pdf: docs/operate.md docs/metadata/operate.yaml
-	$(PANDOC) $< -o $@ $(PANDOC_FLAGS) --metadata-file=docs/metadata/operate.yaml
+docs/pdf/operate.pdf: docs/markdown/operate.md docs/markdown/metadata/operate.yaml
+	$(PANDOC) $< -o $@ $(PANDOC_FLAGS) --metadata-file=docs/markdown/metadata/operate.yaml
 
 clean:
 	rm -f $(ALL_PDFS)
