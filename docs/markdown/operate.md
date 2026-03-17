@@ -98,6 +98,79 @@ The lab must be powered on in a specific order to ensure service dependencies ar
 | 6 | Wait for workers (3 nodes) | `kubectl get machines` shows 6 Running |
 | 7 | Obtain new kubeconfig and verify | `kubectl get nodes` shows 6 Ready |
 
+### 1.7 Certificate Renewal SOP
+
+Certificates issued by step-ca have a default 24-hour validity. Use ACME auto-renewal or manually renew before expiry.
+
+#### Inspect Certificate Expiry
+
+```bash
+# Check a specific certificate
+step certificate inspect /path/to/cert.crt --short
+
+# Check remote endpoint
+step certificate inspect https://vcenter-mgmt.lab.dreamfold.dev --short
+```
+
+#### Renew via ACME
+
+```bash
+# Renew a certificate (auto-detects CA)
+step ca renew /path/to/cert.crt /path/to/key.pem
+
+# Force renewal (ignores remaining validity window)
+step ca renew --force /path/to/cert.crt /path/to/key.pem
+```
+
+#### Distribute to VCF Components
+
+| Component | Method | Restart Required |
+|-----------|--------|-----------------|
+| ESXi hosts | `esxcli security cert import` | `services.sh restart` |
+| vCenter | VAMI → Certificate Management → Replace | vCenter services restart |
+| NSX Manager | API or UI → System → Certificates | NSX services restart |
+| SDDC Manager | SDDC Manager UI → Security → Certificates | SDDC Manager services restart |
+| Keycloak | Copy to `/etc/keycloak/certs/`, `docker restart keycloak` | Container restart |
+
+### 1.8 Backup & Restore SOPs
+
+#### Primary: vApp Snapshot
+
+The primary backup/restore method is vApp snapshot (see Section 1.3). This captures the entire lab state and is sufficient for most recovery scenarios.
+
+#### Component-Level Backups
+
+For granular recovery without full snapshot restore:
+
+| Component | Backup Method | Restore Method | Storage Location |
+|-----------|--------------|----------------|------------------|
+| vCenter | File-based backup (VAMI → Backup) | Restore from backup during OVA redeploy | Jumpbox: `~/backups/vcenter/` |
+| NSX Manager | NSX Manager → System → Backup & Restore | Restore from backup file | Jumpbox: `~/backups/nsx/` |
+| SDDC Manager | SDDC Manager → Administration → Backup | Restore during SDDC Manager redeploy | Jumpbox: `~/backups/sddc/` |
+| Keycloak | `docker exec` realm export (see Section 2.6) | Import realm JSON after container redeploy | Jumpbox: `~/backups/keycloak/` |
+| vEOS | `copy running-config startup-config` | Load startup-config on redeploy | Git repo: `configs/veos-startup.cfg` |
+
+All component backups are stored on the jumpbox local filesystem. For off-site protection, copy backup files out of the lab periodically.
+
+### 1.9 Content Library Sync/Update
+
+| Step | Action | Verification |
+|------|--------|-------------|
+| 1 | In workload vCenter, navigate to Content Libraries | Library list visible |
+| 2 | Select VKS subscribed library → Sync | Sync initiates |
+| 3 | Wait for sync to complete | Status: Successful |
+| 4 | Verify VKr images updated | New versions appear in library |
+| 5 | Check available Kubernetes versions | `kubectl get tkr` shows new TanzuKubernetesRelease |
+
+#### Troubleshooting Sync Failures
+
+| Symptom | Possible Cause | Resolution |
+|---------|---------------|------------|
+| Sync fails with timeout | No internet access from vCenter | Verify vEOS Ethernet2 DHCP address and NAT; `ping 8.8.8.8` from jumpbox |
+| Sync fails with certificate error | VMware endpoint certificate not trusted | Verify step-ca root cert is trusted by vCenter |
+| No new VKr versions | Library endpoint URL changed | Check VMware docs for current VKr library URL |
+| Insufficient storage | vSAN capacity full | Check vSAN capacity; clean unused library items |
+
 ## 2. Lifecycle Management
 
 ### 2.1 ESXi Patching (vLCM)
@@ -235,8 +308,10 @@ Manage users via the Keycloak admin console at `https://jumpbox.lab.dreamfold.de
 | 3 | DNS resolution | `dig @10.0.10.2 vcenter-mgmt.lab.dreamfold.dev` | Correct response |
 | 4 | NTP synchronisation | `chronyc tracking` on jumpbox | System clock synchronised |
 | 5 | ESXi NTP sync | `esxcli system ntp get` on each host | Server reachable |
-| 6 | Certificate expiry | `step ca certificate list` or check expiry dates | No certs expiring within 30 days |
-| 7 | NSX Edge status | NSX Manager → Edge Clusters | Both Edges Up |
+| 6 | Certificate expiry | `step certificate inspect https://vcenter-mgmt.lab.dreamfold.dev --short` | No certs expiring within 30 days |
+| 7 | Keycloak health | `curl -k https://jumpbox.lab.dreamfold.dev:8443/health/ready` | Status: UP |
+| 8 | NSX Edge status | NSX Manager → Edge Clusters | Both Edges Up |
+| 9 | vEOS NAT/internet | `show ip nat translations` on vEOS; `ping 8.8.8.8` from jumpbox | Translations active; ping succeeds |
 
 ### 3.3 Monthly Checks
 
@@ -350,6 +425,56 @@ show ip route
 
 ! Check logs
 show logging last 50
+```
+
+#### NSX Central CLI (via NSX Manager SSH)
+
+```bash
+# Logical switch/segment status
+get logical-switches
+
+# Logical router status
+get logical-routers
+
+# BGP neighbor status on Tier-0
+get bgp neighbor summary
+
+# Routing table for a logical router
+get logical-router <router-id> route
+
+# Edge cluster status
+get edge-cluster status
+```
+
+#### NSX Edge CLI (via Edge VM SSH)
+
+```bash
+# Interface status
+get interfaces
+
+# Routing table
+get route
+
+# NAT translations
+get nat rules
+
+# BGP summary
+get bgp neighbor summary
+
+# Firewall rules
+get firewall rules
+```
+
+#### NSX VPC Troubleshooting
+
+```bash
+# VPC status (NSX Manager API)
+# GET /policy/api/v1/orgs/default/projects/<project>/vpcs/<vpc>
+
+# Traceflow — inject trace packet to diagnose connectivity
+# NSX Manager → Plan & Troubleshoot → Traceflow
+# Source: VKS pod interface, Destination: external IP
+# Observe: forwarded/dropped/delivered at each hop
 ```
 
 #### VKS / Kubernetes
