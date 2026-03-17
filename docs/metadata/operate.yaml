@@ -16,7 +16,7 @@ classoption: oneside
 listings-disable-line-numbers: true
 code-block-font-size: \scriptsize
 colorlinks: true
-linkcolor: "6c63ff"
-urlcolor: "6c63ff"
-toccolor: "6c63ff"
+linkcolor: "blue"
+urlcolor: "blue"
+toccolor: "blue"
 lang: en-GB
