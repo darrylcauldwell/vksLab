@@ -68,7 +68,7 @@ The following credentials must be prepared before deployment. Use consistent, do
 
 | Step | Action | Expected Result | Verification |
 |------|--------|-----------------|--------------|
-| 3.2.1 | Deploy Ubuntu 24.04 VM (2 vCPU, 4 GB RAM, 60 GB disk) | VM powered on | VM accessible via vCD console |
+| 3.2.1 | Deploy Ubuntu 24.04 VM (2 vCPU, 10 GB RAM, 60 GB disk) | VM powered on | VM accessible via vCD console |
 | 3.2.2 | Configure NIC1 (ens160) on public network | DHCP address obtained | `ip addr show ens160` shows IP |
 | 3.2.3 | Configure NIC2 (ens192) on private network, IP 10.0.10.2/24 | Static IP configured | `ping 10.0.10.2` from local |
 | 3.2.4 | Install XFCE desktop and xrdp | Remote desktop available | RDP connection on port 3389 |
@@ -100,12 +100,14 @@ network:
 
 Apply with `sudo netplan apply`.
 
-#### dnsmasq configuration
+#### dnsmasq configuration (DNS + DHCP)
 
 ```ini
 # /etc/dnsmasq.d/lab.conf
 domain=lab.dreamfold.dev
 local=/lab.dreamfold.dev/
+
+# --- DNS Records ---
 # Infrastructure
 address=/jumpbox.lab.dreamfold.dev/10.0.10.2
 address=/vcf-installer.lab.dreamfold.dev/10.0.10.3
@@ -127,6 +129,21 @@ address=/esxi-07.lab.dreamfold.dev/10.0.10.17
 # NSX Edges
 address=/edge-01.lab.dreamfold.dev/10.0.10.20
 address=/edge-02.lab.dreamfold.dev/10.0.10.21
+
+# --- DHCP on VLAN 10 (management) ---
+dhcp-range=10.0.10.100,10.0.10.199,255.255.255.0,12h
+dhcp-option=option:router,10.0.10.1
+dhcp-option=option:dns-server,10.0.10.2
+dhcp-option=option:ntp-server,10.0.10.2,10.0.10.1
+
+# Static MAC→IP reservations (replace xx:xx with actual MACs from vCD)
+dhcp-host=00:50:56:xx:xx:01,esxi-01,10.0.10.11
+dhcp-host=00:50:56:xx:xx:02,esxi-02,10.0.10.12
+dhcp-host=00:50:56:xx:xx:03,esxi-03,10.0.10.13
+dhcp-host=00:50:56:xx:xx:04,esxi-04,10.0.10.14
+dhcp-host=00:50:56:xx:xx:05,esxi-05,10.0.10.15
+dhcp-host=00:50:56:xx:xx:06,esxi-06,10.0.10.16
+dhcp-host=00:50:56:xx:xx:07,esxi-07,10.0.10.17
 ```
 
 #### chrony configuration
@@ -192,6 +209,44 @@ ip route 0.0.0.0/0 10.0.10.2
 | Masquerade rule | `sudo iptables -t nat -L POSTROUTING` | MASQUERADE rule present |
 | ESXi internet access | `ssh root@esxi-01 'vmkping -I vmk0 8.8.8.8'` | Success |
 
+### 3.2c OpenBao Secret Store
+
+Deploy OpenBao as a Docker container on the jumpbox for centralised credential management.
+
+| Step | Action | Expected Result | Verification |
+|------|--------|-----------------|--------------|
+| 3.2c.1 | Install Docker Engine on jumpbox | Docker running | `docker --version` |
+| 3.2c.2 | Run OpenBao container (port 8200) | Container running | `docker ps` shows openbao |
+| 3.2c.3 | Initialise and unseal the vault | Vault unsealed | `bao status` shows sealed=false |
+| 3.2c.4 | Enable KV secrets engine v2 | Engine enabled | `bao secrets list` shows `secret/` |
+| 3.2c.5 | Store initial credentials | Secrets stored | `bao kv get secret/esxi/root-password` |
+
+```bash
+# Run OpenBao container
+docker run -d --name openbao \
+  -p 8200:8200 \
+  -e BAO_ADDR=http://127.0.0.1:8200 \
+  -v openbao-data:/openbao/data \
+  --cap-add=IPC_LOCK \
+  --restart unless-stopped \
+  quay.io/openbao/openbao:latest server -dev
+
+# Initialise (production mode — not -dev)
+# export BAO_ADDR=http://127.0.0.1:8200
+# bao operator init -key-shares=1 -key-threshold=1
+# bao operator unseal <unseal-key>
+# bao login <root-token>
+
+# Enable KV v2 secrets engine
+bao secrets enable -path=secret kv-v2
+
+# Store credentials
+bao kv put secret/esxi/root-password value='<CHANGE-ME>'
+bao kv put secret/vcenter/sso-password value='<CHANGE-ME>'
+bao kv put secret/sddc-manager/admin-password value='<CHANGE-ME>'
+bao kv put secret/nsx/admin-password value='<CHANGE-ME>'
+```
+
 ### 3.3 Deploy and Configure Arista vEOS
 
 | Step | Action | Expected Result | Verification |
@@ -204,10 +259,15 @@ ip route 0.0.0.0/0 10.0.10.2
 
 #### vEOS startup-config
 
+See [`configs/veos-startup.cfg`](../../configs/veos-startup.cfg) for the complete configuration. Key excerpt:
+
 ```text
 hostname veos-router
 !
 vlan 10,20,30,40,50,60
+!
+ntp server pool.ntp.org prefer
+ntp serve all
 !
 interface Ethernet1
    switchport mode trunk
@@ -259,36 +319,67 @@ ip route 0.0.0.0/0 10.0.10.2
 
 ### 4.1 Deploy Management Domain Hosts
 
+ESXi hosts receive their management IP via DHCP from the jumpbox dnsmasq (configured in Phase 1). Note the MAC address assigned by vCD for each VM and update the `dhcp-host` entries in `/etc/dnsmasq.d/lab.conf` before first boot.
+
 | Step | Action | Expected Result | Verification |
 |------|--------|-----------------|--------------|
-| 4.1.1 | Deploy esxi-01 (8 vCPU, 72 GB RAM, 200 GB + 10 GB disk) | VM powered on | ESXi DCUI accessible |
-| 4.1.2 | Configure vmnic0 on VLAN 10 (access), vmnic1 on trunk | Networking connected | Management IP pingable |
-| 4.1.3 | Set management IP 10.0.10.11/24, GW 10.0.10.1 | Management network configured | `ping 10.0.10.11` |
-| 4.1.4 | Set hostname esxi-01.lab.dreamfold.dev, DNS 10.0.10.2, NTP 10.0.10.2 | Services configured | `esxcli system hostname get` |
-| 4.1.5 | Repeat steps 4.1.1-4.1.4 for esxi-02 (10.0.10.12) | Host configured | Pingable, DNS/NTP set |
-| 4.1.6 | Repeat for esxi-03 (10.0.10.13) | Host configured | Pingable, DNS/NTP set |
-| 4.1.7 | Repeat for esxi-04 (10.0.10.14) | Host configured | Pingable, DNS/NTP set |
+| 4.1.1 | Deploy esxi-01 (8 vCPU, 72 GB RAM, 200 GB NVMe disk) | VM powered on | ESXi DCUI accessible |
+| 4.1.2 | Note vmnic0 MAC address, update dnsmasq DHCP reservation | DHCP reservation configured | `sudo systemctl restart dnsmasq` |
+| 4.1.3 | Configure vmnic0 on VLAN 10 (access), vmnic1 on trunk | Networking connected | Host receives IP 10.0.10.11 via DHCP |
+| 4.1.4 | Repeat steps 4.1.1-4.1.3 for esxi-02 through esxi-04 | All 4 hosts deployed | All pingable on 10.0.10.{11..14} |
 
 ### 4.2 Deploy Workload Domain Hosts
 
 | Step | Action | Expected Result | Verification |
 |------|--------|-----------------|--------------|
-| 4.2.1 | Deploy esxi-05 (8 vCPU, 72 GB RAM, 200 GB + 10 GB disk) | VM powered on | ESXi DCUI accessible |
-| 4.2.2 | Configure networking and management IP 10.0.10.15/24 | Management configured | `ping 10.0.10.15` |
-| 4.2.3 | Set hostname esxi-05.lab.dreamfold.dev, DNS/NTP to jumpbox | Services configured | Hostname and DNS verified |
-| 4.2.4 | Repeat for esxi-06 (10.0.10.16) | Host configured | Pingable |
-| 4.2.5 | Repeat for esxi-07 (10.0.10.17) | Host configured | Pingable |
+| 4.2.1 | Deploy esxi-05 through esxi-07 (same spec as management hosts) | VMs powered on | ESXi DCUI accessible |
+| 4.2.2 | Note MAC addresses, update dnsmasq DHCP reservations, restart dnsmasq | Reservations configured | Hosts receive correct IPs |
+| 4.2.3 | Configure vmnic0 on VLAN 10 (access), vmnic1 on trunk | Networking connected | All pingable on 10.0.10.{15..17} |
 
-### 4.3 ESXi Host Verification
+### 4.3 Prepare Hosts (Automated)
+
+Use the `vkslab-esxi` tool to configure all hosts. This sets hostname, DNS, NTP, root password, and prepares vSAN ESA in a single operation.
+
+```bash
+# From the jumpbox
+cd esxi-prep
+pip install -e .
+
+# Prepare all hosts (hostname, DNS, NTP, password, vSAN ESA, CA cert)
+vkslab-esxi prepare --domain all
+
+# Or prepare a single host
+vkslab-esxi prepare --host esxi-01
+```
+
+The `prepare` command performs these steps on each host via SSH:
+
+1. Set hostname (`esxcli system hostname set`)
+2. Configure DNS server (`esxcli network ip dns server add`)
+3. Configure NTP servers — 10.0.10.2 (primary) and 10.0.10.1 (secondary)
+4. Set root password
+5. **vSAN ESA preparation**:
+   - Set acceptance level to CommunitySupported (for mock VIB)
+   - Install mock HCL VIB for nested vSAN ESA compatibility
+   - Restart vSAN management service
+   - Enable FakeSCSIReservations advanced setting
+   - Mark NVMe storage devices as SSD
+   - Enable vSAN firewall rules (vsan-transport, vsanEncryption)
+6. Import CA root certificate
+7. Verify network connectivity (`vmkping` to gateway)
+
+### 4.4 ESXi Host Verification
 
 | Check | Command / Method | Expected Result |
 |-------|------------------|-----------------|
 | All hosts reachable | `ping 10.0.10.{11..17}` from jumpbox | All respond |
 | DNS resolution | `nslookup esxi-01.lab.dreamfold.dev 10.0.10.2` | Returns correct IP for all hosts |
 | Reverse DNS | `nslookup 10.0.10.11 10.0.10.2` | Returns esxi-01.lab.dreamfold.dev |
-| NTP sync | `esxcli system ntp get` on each host | NTP server 10.0.10.2 configured |
+| NTP sync | `esxcli system ntp get` on each host | Two NTP servers configured (10.0.10.2, 10.0.10.1) |
 | Time sync | Compare time across all hosts | Within 1 second |
-| vSAN disk visibility | `esxcli vsan storage list` on each host | Capacity and cache disks visible |
+| vSAN ESA ready | `esxcli vsan storage list` on each host | NVMe device marked as SSD |
+| Mock VIB installed | `esxcli software vib list \| grep mock` | Mock HCL VIB present |
+| Host status | `vkslab-esxi status --domain all` | All hosts show prepared |
 
 ## 5. Phase 3 — VCF Management Domain
 

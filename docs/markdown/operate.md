@@ -178,6 +178,34 @@ SDDC Manager coordinates updates to vCenter, NSX Manager, SDDC Manager itself, a
 | 6 | Reboot if kernel update | `sudo reboot` |
 | 7 | Verify all lab services post-reboot | DNS, NTP, CA, RDP all functional |
 
+### 2.7 OpenBao Secret Store
+
+#### Seal/Unseal
+
+OpenBao automatically seals on container restart. Unseal after any Docker restart or jumpbox reboot:
+
+```bash
+export BAO_ADDR=http://127.0.0.1:8200
+bao operator unseal <unseal-key>
+```
+
+#### Password Rotation
+
+When VCF rotates a password (e.g., ESXi root password via SDDC Manager), update OpenBao to keep secrets in sync:
+
+```bash
+bao kv put secret/esxi/root-password value='<new-password>'
+```
+
+#### Backup
+
+```bash
+# Export all secrets (for disaster recovery)
+for path in esxi/root-password vcenter/sso-password sddc-manager/admin-password nsx/admin-password; do
+  bao kv get -format=json "secret/$path" > ~/backups/openbao/$path.json
+done
+```
+
 ## 3. Health Checks
 
 ### 3.1 Daily Checks
@@ -262,6 +290,24 @@ SDDC Manager coordinates updates to vCenter, NSX Manager, SDDC Manager itself, a
 | Upstream DNS fails | Jumpbox external NIC issue | Check ens160 connectivity; verify upstream DNS servers |
 | Stale records | dnsmasq config not reloaded | Edit config, then `sudo systemctl restart dnsmasq` |
 
+#### DHCP Issues
+
+| Symptom | Possible Cause | Resolution |
+|---------|---------------|------------|
+| ESXi host not getting IP | MAC address mismatch | Verify MAC in vCD matches `dhcp-host` entry in `/etc/dnsmasq.d/lab.conf`; restart dnsmasq |
+| Host gets wrong IP | Duplicate DHCP reservation | Check for duplicate MAC entries in dnsmasq config |
+| DHCP lease expired | Host powered off too long | Restart dnsmasq; host will get new lease on next boot |
+| No DHCP offers | dnsmasq not listening on VLAN 10 | Verify dnsmasq is bound to ens192 (management VLAN interface); check `dhcp-range` config |
+
+#### OpenBao Issues
+
+| Symptom | Possible Cause | Resolution |
+|---------|---------------|------------|
+| Cannot read secrets | Vault sealed | `bao operator unseal <key>` on jumpbox |
+| Container not running | Docker restart or OOM | `docker start openbao`; check `docker logs openbao` |
+| Authentication failed | Token expired | Re-authenticate: `bao login <root-token>` |
+| Connection refused on 8200 | Container port not mapped | Verify `docker ps` shows port 8200 mapping |
+
 ### 4.2 Log Locations
 
 | Component | Log Location | Access Method |
@@ -277,6 +323,7 @@ SDDC Manager coordinates updates to vCenter, NSX Manager, SDDC Manager itself, a
 | Jumpbox chrony | `/var/log/syslog` (filter: chronyd) | `journalctl -u chronyd` |
 | Jumpbox step-ca | `journalctl -u step-ca` | systemd journal |
 | vEOS | `show logging` | vEOS CLI |
+| OpenBao | Container stdout | `docker logs openbao` |
 
 ### 4.3 Useful Diagnostic Commands
 

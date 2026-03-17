@@ -35,7 +35,7 @@ Demonstrate VMware Kubernetes Service (VKS) on VCF 9 with NSX VPC in a fully nes
 | R-004 | Lab MUST deploy two VCF domains — management and workload |
 | R-005 | Lab MUST deploy a VKS cluster via Supervisor with NSX VPC networking |
 | R-006 | Lab MUST provide BGP peering between NSX Tier-0 and a virtual router for north-south routing |
-| R-007 | Lab SHOULD use vSAN OSA with FTT=1 for all clusters |
+| R-007 | Lab SHOULD use vSAN ESA with FTT=1 for all clusters |
 | R-008 | Lab SHOULD use NSX VPC with centralised Edge connectivity |
 | R-009 | All TLS certificates SHOULD be issued by the internal step-ca CA |
 | R-010 | Lab MAY be powered off, snapshot, and redeployed as a single vApp |

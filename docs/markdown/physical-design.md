@@ -84,7 +84,7 @@ date: "March 2026"
 | OS | Ubuntu 24.04 LTS |
 | Desktop | XFCE + xrdp (remote desktop access) |
 | vCPU | 2 |
-| RAM | 4 GB |
+| RAM | 10 GB |
 | Disk | 60 GB |
 | NIC1 | vCD public network (DHCP or static from vCD) |
 | NIC2 | vCD private network — VLAN 10 (management), IP 10.0.10.2 |
@@ -102,12 +102,31 @@ See [Delivery Guide](deliver.md) for netplan configuration. Key parameters:
 | Service | Package | Config |
 |---------|---------|--------|
 | DNS | dnsmasq | Zone: `lab.dreamfold.dev`, upstream forwarder via NIC1 |
+| DHCP | dnsmasq | Static MAC→IP reservations for ESXi hosts on VLAN 10 |
 | NTP | chrony | `allow 10.0.0.0/16`, servers: public NTP pools |
 | CA | step-ca | Root CA for `lab.dreamfold.dev`, ACME enabled |
+| OIDC | Keycloak (Docker) | Port 8443, centralised identity provider for vCenter and NSX |
+| Secrets | OpenBao (Docker) | Port 8200, KV secret store for lab credentials |
 | Remote access | xrdp | Listening on port 3389 (NIC1) |
 | Web browser | Firefox | Access vCenter, NSX Manager, SDDC Manager UIs |
 
 All VCF components point to 10.0.10.2 for DNS and NTP. The CA root certificate is distributed to ESXi hosts and management appliances during deployment.
+
+### DHCP Reservations (VLAN 10)
+
+ESXi hosts receive their management IP via DHCP with static MAC→IP reservations. MAC addresses are assigned when creating the ESXi VMs in vCloud Director.
+
+| MAC Address | Hostname | IP Address |
+|-------------|----------|------------|
+| 00:50:56:xx:xx:01 | esxi-01 | 10.0.10.11 |
+| 00:50:56:xx:xx:02 | esxi-02 | 10.0.10.12 |
+| 00:50:56:xx:xx:03 | esxi-03 | 10.0.10.13 |
+| 00:50:56:xx:xx:04 | esxi-04 | 10.0.10.14 |
+| 00:50:56:xx:xx:05 | esxi-05 | 10.0.10.15 |
+| 00:50:56:xx:xx:06 | esxi-06 | 10.0.10.16 |
+| 00:50:56:xx:xx:07 | esxi-07 | 10.0.10.17 |
+
+> Replace `xx:xx` placeholders with actual MAC addresses from vCD after VM creation.
 
 ## 4. Arista vEOS Router Specification
 
@@ -119,15 +138,18 @@ All VCF components point to 10.0.10.2 for DNS and NTP. The CA root certificate i
 | Disk | 8 GB |
 | NIC | vCD private network (trunk, all VLANs) |
 
-See [Delivery Guide](deliver.md) for complete vEOS startup-config including interface and BGP configuration.
+See [Delivery Guide](deliver.md) for complete vEOS startup-config including interface, NTP, and BGP configuration.
 
 | Parameter | Value |
 |-----------|-------|
 | vEOS ASN | 65000 |
 | NSX Tier-0 ASN | 65001 |
 | Peering subnet | 10.0.60.0/24 |
+| NTP server | Secondary NTP source (10.0.10.1) for VCF validation |
 
 BGP advertises all connected subnets to NSX, and receives VPC/overlay prefixes from the Tier-0. This gives VKS workloads a routed path out through the vEOS to the jumpbox and beyond.
+
+vEOS also serves as a secondary NTP source. VCF validation requires two NTP servers — jumpbox chrony (10.0.10.2) is primary and vEOS (10.0.10.1) is secondary.
 
 ## 5. Nested ESXi Host Specification
 
@@ -137,8 +159,7 @@ BGP advertises all connected subnets to NSX, and receives VPC/overlay prefixes f
 |----------|----------|-----------------|
 | vCPU | 8 | 32 |
 | RAM | 72 GB | 288 GB |
-| Disk (vSAN capacity) | 200 GB | 800 GB |
-| Disk (vSAN cache) | 10 GB | 40 GB |
+| Disk (vSAN NVMe) | 200 GB | 800 GB |
 | NICs | 2 (management + trunk) | — |
 | ESXi Version | 9.0 | — |
 
@@ -148,8 +169,7 @@ BGP advertises all connected subnets to NSX, and receives VPC/overlay prefixes f
 |----------|----------|-----------------|
 | vCPU | 8 | 24 |
 | RAM | 72 GB | 216 GB |
-| Disk (vSAN capacity) | 200 GB | 600 GB |
-| Disk (vSAN cache) | 10 GB | 30 GB |
+| Disk (vSAN NVMe) | 200 GB | 600 GB |
 | NICs | 2 (management + trunk) | — |
 | ESXi Version | 9.0 | — |
 
@@ -171,9 +191,10 @@ BGP advertises all connected subnets to NSX, and receives VPC/overlay prefixes f
 
 ### vSAN Disk Layout
 
-- **Mode**: vSAN OSA (Original Storage Architecture)
+- **Mode**: vSAN ESA (Express Storage Architecture)
 - **Storage policy**: Failures to Tolerate = 1 (RAID-1 mirroring)
-- Each host: 1x 200 GB capacity disk + 1x 10 GB cache disk (flash-simulated)
+- Each host: 1x 200 GB NVMe storage device in a single storage pool (no separate cache tier)
+- Nested ESXi preparation: NVMe devices marked as SSD, mock HCL VIB installed, FakeSCSIReservations enabled
 
 ## 6. VCF Management Domain
 
@@ -294,11 +315,11 @@ A subscribed content library provides Kubernetes release images (VKr). The libra
 
 | Component | vCPU | RAM (GB) | Storage (GB) |
 |-----------|------|----------|-------------|
-| Ubuntu Jumpbox | 2 | 4 | 60 |
+| Ubuntu Jumpbox | 2 | 10 | 60 |
 | Arista vEOS | 2 | 4 | 8 |
 | ESXi (Management, 4x) | 32 | 288 | 800 |
 | ESXi (Workload, 3x) | 24 | 216 | 600 |
-| **vCD Total** | **60** | **512** | **1,468** |
+| **vCD Total** | **60** | **518** | **1,468** |
 
 ### VCF Appliances (Nested, on ESXi)
 

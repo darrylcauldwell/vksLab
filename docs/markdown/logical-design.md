@@ -16,7 +16,7 @@ date: "March 2026"
    Internet         │  ┌──────────┐    vCD Private Network (Trunk)                    │
        │            │  │  Ubuntu   │◄──────────────────────────────────────────┐       │
        │            │  │ Jumpbox   │         │              │                  │       │
-       ▼            │  │ CA/DNS/NTP│         │              │                  │       │
+       ▼            │  │DNS/DHCP/CA│         │              │                  │       │
   vCD Public Net    │  │          ─┼─────────┤              │                  │       │
   ──────────────────┼──┼─ NIC1     │         │              │                  │       │
                     │  │  NIC2 ────┼─────┐   │              │                  │       │
@@ -77,7 +77,7 @@ See [Delivery Guide](deliver.md) for step-by-step deployment procedures with exa
 
 | Component | Quantity | Role |
 |-----------|----------|------|
-| Ubuntu Jumpbox | 1 | External access, CA, DNS, NTP |
+| Ubuntu Jumpbox | 1 | External access, CA, DNS, DHCP, NTP, secrets (OpenBao) |
 | Arista vEOS | 1 | Inter-VLAN routing, BGP peer |
 | Nested ESXi (Management) | 4 | VCF management domain hosts |
 | Nested ESXi (Workload) | 3 | VCF workload domain hosts |
@@ -172,23 +172,44 @@ The jumpbox runs dnsmasq, authoritative for the `lab.dreamfold.dev` zone. Unknow
 
 All three infrastructure services (DNS, NTP, CA) run on the Ubuntu jumpbox.
 
-**Rationale**: The jumpbox is dual-homed — reachable by all internal VMs on the management VLAN and by external networks on the public NIC. This makes it the natural host for services that need to bridge both networks (NTP syncing upstream, DNS forwarding). Running all three on one VM also minimises resource consumption and component count.
+**Rationale**: The jumpbox sits on the management VLAN (10.0.10.2), reachable by all internal VMs. It uses the vEOS router (10.0.10.1) as its default gateway for upstream DNS forwarding and NTP synchronisation. Running all services on one VM minimises resource consumption and component count.
 
 | Service | Technology | Role |
 |---------|------------|------|
 | DNS | dnsmasq | Authoritative for `lab.dreamfold.dev`, forwards unknown queries upstream |
+| DHCP | dnsmasq | Static MAC→IP reservations for ESXi hosts on VLAN 10 |
 | NTP | chrony | Stratum 2 server, syncs to public pools externally, serves lab internally |
 | CA | step-ca | ACME-capable CA for TLS certs across VCF components |
+| Secrets | OpenBao (Docker) | KV secret store for passwords and credentials (REST API, port 8200) |
+
+The Arista vEOS router (10.0.10.1) also serves as a secondary NTP source. VCF validation requires two NTP servers — the jumpbox chrony (primary) and vEOS NTP (secondary) satisfy this requirement.
 
 The CA root certificate must be distributed to ESXi hosts and management appliances during deployment.
+
+### OpenBao Secret Store
+
+OpenBao (an open-source fork of HashiCorp Vault, licensed under MPL 2.0) runs as a Docker container on the jumpbox. It provides a centralised KV secret store for all lab credentials, accessible via REST API and the Python `hvac` library.
+
+Secret paths:
+
+| Path | Content |
+|------|---------|
+| `secret/esxi/root-password` | Shared root password for all ESXi hosts |
+| `secret/vcenter/sso-password` | vCenter SSO administrator password |
+| `secret/sddc-manager/admin-password` | SDDC Manager admin password |
+| `secret/nsx/admin-password` | NSX Manager admin password |
+| `secret/keycloak/admin-password` | Keycloak admin password |
 
 ### Design Decisions
 
 | Req. | Decision ID | Design Decision | Design Justification | Risk / Mitigation |
 |------|-------------|-----------------|----------------------|-------------------|
-| R-003 | SVC-01 | All infrastructure services (DNS, NTP, CA) co-located on the jumpbox | Minimises VM count; jumpbox is dual-homed so can bridge internal and external networks | Risk: Jumpbox overloaded or single point of failure. Mitigation: Services are lightweight; lab-grade availability is acceptable |
-| R-009 | SVC-02 | step-ca provides ACME-capable CA for TLS certificates | Automated certificate issuance via ACME protocol; avoids manual certificate management | Risk: Root CA compromise affects all lab TLS. Mitigation: Lab-only CA — no production trust chain |
-| R-003 | SVC-03 | chrony as NTP server syncing to public pools | Provides accurate time source for VCF components; stratum 2 sufficient for lab | Risk: Upstream NTP unreachable from nested environment. Mitigation: chrony maintains local time accuracy during short outages |
+| R-003 | VKS-SVC-RCMD-001 | All infrastructure services (DNS, NTP, CA, DHCP, secrets) co-located on the jumpbox | Minimises VM count; jumpbox on management VLAN is reachable by all internal VMs; upstream access via vEOS NAT | Risk: Jumpbox overloaded or single point of failure. Mitigation: Services are lightweight; lab-grade availability is acceptable |
+| R-009 | VKS-SVC-RCMD-002 | step-ca provides ACME-capable CA for TLS certificates | Automated certificate issuance via ACME protocol; avoids manual certificate management | Risk: Root CA compromise affects all lab TLS. Mitigation: Lab-only CA — no production trust chain |
+| R-003 | VKS-SVC-RCMD-003 | chrony as NTP server syncing to public pools | Provides accurate time source for VCF components; stratum 2 sufficient for lab | Risk: Upstream NTP unreachable from nested environment. Mitigation: chrony maintains local time accuracy during short outages |
+| R-003 | VKS-SVC-RCMD-004 | dnsmasq DHCP with static MAC→IP reservations for ESXi hosts | Eliminates manual IP configuration during ESXi deployment; hosts receive correct IP on first boot | Risk: MAC address mismatch prevents DHCP lease. Mitigation: Verify MAC assignments in vCD before first boot |
+| R-003 | VKS-SVC-RCMD-005 | vEOS as secondary NTP server (10.0.10.1) alongside jumpbox chrony (10.0.10.2) | VCF validation requires two NTP sources; vEOS provides a second time source with minimal additional configuration | Risk: vEOS NTP accuracy depends on upstream sync via Ethernet2. Mitigation: vEOS syncs to public NTP pools directly |
+| R-002 | VKS-SVC-RCMD-006 | OpenBao as centralised secret store for lab credentials | Provides secure, API-accessible password management; Python `hvac` library enables automation; open-source MPL 2.0 licence | Risk: Additional resource consumption (~200-500 MB RAM). Mitigation: Lightweight; jumpbox sized to accommodate |
 
 ## 5. Compute Design
 
@@ -218,9 +239,10 @@ Three nested ESXi hosts form the workload domain cluster. This is the minimum fo
 
 ### vSAN Design
 
-- **Mode**: vSAN OSA (Original Storage Architecture) — simpler for nested environments, well-proven
+- **Mode**: vSAN ESA (Express Storage Architecture) — single storage pool, NVMe-based, simplified management
 - **Storage policy**: Failures to Tolerate = 1 (RAID-1 mirroring)
-- Each host contributes one capacity disk and one cache disk (flash-simulated)
+- Each host contributes one NVMe storage device to a single storage pool (no separate cache/capacity tiers)
+- Nested environments require a mock HCL VIB and NVMe devices marked as SSD
 
 ### Host Networking Model
 
@@ -246,7 +268,7 @@ Inside each ESXi host, a VDS (created during VCF bringup) maps VLANs to VMkernel
 |------|-------------|-----------------|----------------------|-------------------|
 | C-001 | ESX-01 | All ESXi hosts run as nested VMs on vCloud Director | Enables full VCF stack without dedicated hardware | Risk: Significant performance overhead from nested virtualisation. Mitigation: Acceptable for lab; not for benchmarking |
 | R-004 | ESX-02 | 4 hosts for management domain, 3 hosts for workload domain | Minimum for vSAN FTT=1; 4 management hosts provide headroom for management appliances | Risk: No N+1 redundancy. Mitigation: Lab-grade — host failure tolerated via vSAN RAID-1 |
-| R-007 | ESX-03 | vSAN OSA (Original Storage Architecture) with FTT=1 | Simpler than ESA for nested environments; well-proven with nested ESXi | Risk: RAID-1 doubles storage consumption. Mitigation: Sized capacity disks accordingly (200 GB each) |
+| R-007 | VKS-ESX-RCMD-003 | vSAN ESA (Express Storage Architecture) with FTT=1 | Single storage pool eliminates cache/capacity tier management; NVMe-based; ESA is the VMware-recommended architecture for vSAN 8+ | Risk: Nested NVMe requires mock HCL VIB and SSD marking. Mitigation: Automated via esxi-prep tool; FakeSCSIReservations setting handles nested SCSI |
 | C-001 | ESX-04 | Two vNICs per host — access (management) and trunk (all other VLANs) | Separates management from data traffic while minimising vNIC count | Risk: Single trunk NIC is a bandwidth bottleneck. Mitigation: Acceptable for lab traffic volumes |
 
 ## 6. VCF Domain Architecture
