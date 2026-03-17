@@ -212,61 +212,7 @@ step ca certificate keycloak.lab.dreamfold.dev \
 
 #### vEOS startup-config
 
-```text
-hostname veos-router
-!
-vlan 10,20,30,40,50,60
-!
-interface Ethernet1
-   switchport mode trunk
-   switchport trunk allowed vlan 10,20,30,40,50,60
-   mtu 9000
-!
-interface Ethernet2
-   description Public uplink (internet gateway)
-   no switchport
-   ip address dhcp
-   ip nat outside
-!
-interface Vlan10
-   ip address 10.0.10.1/24
-   ip nat inside
-   mtu 1500
-!
-interface Vlan20
-   ip address 10.0.20.1/24
-   ip nat inside
-   mtu 9000
-!
-interface Vlan30
-   ip address 10.0.30.1/24
-   ip nat inside
-   mtu 9000
-!
-interface Vlan40
-   ip address 10.0.40.1/24
-   ip nat inside
-   mtu 9000
-!
-interface Vlan50
-   ip address 10.0.50.1/24
-   ip nat inside
-   mtu 9000
-!
-interface Vlan60
-   ip address 10.0.60.1/24
-   ip nat inside
-   mtu 1500
-!
-ip access-list LAB-INTERNAL
-   permit ip 10.0.0.0/16 any
-!
-ip nat source list LAB-INTERNAL interface Ethernet2 overload
-!
-ip nat destination static tcp interface Ethernet2 3389 10.0.10.2 3389
-!
-ip routing
-```
+See [`configs/veos-startup.cfg`](../../configs/veos-startup.cfg) for the complete vEOS configuration including VLANs, SVIs, Ethernet2 (public), NAT, port-forward, and BGP. Copy this file to the vEOS flash as `startup-config` before first boot.
 
 ### 3.4 Foundation Verification
 
@@ -366,7 +312,7 @@ The VCF bringup requires a JSON parameter workbook. Key fields to configure:
 | Licences | vSAN licence key | As obtained |
 | Licences | NSX licence key | As obtained |
 
-Refer to the VMware VCF documentation for the complete workbook JSON schema and a template file.
+A template parameter file is maintained at [`configs/vcf-bringup.json`](../../configs/vcf-bringup.json). Replace all `<CHANGE-ME>` placeholders with actual credentials and licence keys before use. Refer to the VMware VCF documentation for the complete workbook JSON schema.
 
 ### 5.3 Run VCF Bringup
 
@@ -462,16 +408,7 @@ Refer to the VMware VCF documentation for the complete workbook JSON schema and 
 
 #### vEOS BGP configuration
 
-```text
-router bgp 65000
-   router-id 10.0.60.1
-   neighbor 10.0.60.2 remote-as 65001
-   neighbor 10.0.60.2 description NSX-Tier0
-   !
-   address-family ipv4
-      neighbor 10.0.60.2 activate
-      redistribute connected
-```
+BGP configuration is included in [`configs/veos-startup.cfg`](../../configs/veos-startup.cfg). The router uses ASN 65000 and peers with the NSX Tier-0 at 10.0.60.2 (ASN 65001), redistributing all connected subnets.
 
 ### 7.4 Configure Tier-1 Gateway
 
