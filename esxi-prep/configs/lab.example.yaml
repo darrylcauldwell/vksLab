@@ -1,0 +1,54 @@
+# VKS Lab ESXi Prep Configuration
+# Copy to lab.yaml and fill in actual values
+
+domain: lab.dreamfold.dev
+gateway: 10.0.10.1
+dns_server: 10.0.10.2
+ntp_servers:
+  - 10.0.10.2
+  - 10.0.10.1
+
+# Password resolution: OpenBao → env var (VKSLAB_ESXI_PASSWORD) → this value → prompt
+esxi_password: "<CHANGE-ME>"
+
+# OpenBao (optional — comment out if not using)
+openbao:
+  url: "http://127.0.0.1:8200"
+  token_env: "BAO_TOKEN"
+  secret_path: "secret/esxi/root-password"
+
+# CA certificate for ESXi hosts (optional)
+ca_cert_path: "/tmp/lab-root-ca.crt"
+
+# Mock VIB for vSAN ESA (path on jumpbox)
+vsan_esa_vib_path: "/tmp/mock-hcl.vib"
+
+hosts:
+  - name: esxi-01
+    ip: 10.0.10.11
+    mac: "00:50:56:xx:xx:01"
+    domain: management
+  - name: esxi-02
+    ip: 10.0.10.12
+    mac: "00:50:56:xx:xx:02"
+    domain: management
+  - name: esxi-03
+    ip: 10.0.10.13
+    mac: "00:50:56:xx:xx:03"
+    domain: management
+  - name: esxi-04
+    ip: 10.0.10.14
+    mac: "00:50:56:xx:xx:04"
+    domain: management
+  - name: esxi-05
+    ip: 10.0.10.15
+    mac: "00:50:56:xx:xx:05"
+    domain: workload
+  - name: esxi-06
+    ip: 10.0.10.16
+    mac: "00:50:56:xx:xx:06"
+    domain: workload
+  - name: esxi-07
+    ip: 10.0.10.17
+    mac: "00:50:56:xx:xx:07"
+    domain: workload
