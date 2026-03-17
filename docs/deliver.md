@@ -1,0 +1,641 @@
+---
+title: "VKS Lab"
+subtitle: "Delivery Guide"
+author: "dreamfold"
+date: "March 2026"
+---
+
+# Delivery Guide
+
+## 1. Deployment Overview
+
+The lab is built in six sequential phases. Each phase depends on the successful completion of the previous one. The entire deployment can be completed in one to two days, depending on VCF bringup duration and resource availability.
+
+| Phase | Name | Depends On | Duration Estimate |
+|-------|------|------------|-------------------|
+| 1 | Foundation | — | 2-3 hours |
+| 2 | Nested ESXi | Phase 1 | 1-2 hours |
+| 3 | VCF Management Domain | Phase 2 | 3-4 hours |
+| 4 | VCF Workload Domain | Phase 3 | 2-3 hours |
+| 5 | NSX Networking | Phase 4 | 1-2 hours |
+| 6 | VKS | Phase 5 | 1-2 hours |
+
+**Phase 1** establishes the vApp, jumpbox (DNS, NTP, CA), and vEOS router with inter-VLAN routing. **Phase 2** deploys all seven nested ESXi hosts. **Phase 3** runs the VCF Installer to bring up the management domain (vCenter, SDDC Manager, NSX Manager, VCF Operations, VCF Automation). **Phase 4** commissions workload hosts and creates the workload domain. **Phase 5** deploys the NSX Edge cluster, configures Tier-0/Tier-1 gateways, establishes BGP peering, and creates the NSX VPC. **Phase 6** enables the Supervisor, creates a vSphere Namespace, and deploys a VKS cluster with a test workload.
+
+## 2. Prerequisites
+
+The following must be in place before starting Phase 1.
+
+| # | Prerequisite | Status |
+|---|-------------|--------|
+| 1 | vCD resources approved (60 vCPU, 512 GB RAM, 1.5 TB storage) | ☐ |
+| 2 | ISO images downloaded: Ubuntu 24.04 LTS, Arista vEOS 4.32.x, ESXi 9.0 | ☐ |
+| 3 | OVA images downloaded: VCF Installer | ☐ |
+| 4 | DNS zone `lab.dreamfold.dev` prepared (internal use only or delegated) | ☐ |
+| 5 | VLAN trunk configuration confirmed on vCD private network (MTU 9000 support) | ☐ |
+| 6 | Licences obtained: VCF, vSAN, NSX, Arista vEOS evaluation | ☐ |
+| 7 | VCF deployment parameter workbook prepared (JSON) | ☐ |
+| 8 | VCF depot access confirmed (online or offline bundles staged) | ☐ |
+| 9 | vCD org administrator credentials available | ☐ |
+| 10 | RDP client installed on operator workstation | ☐ |
+
+### 2.1 Credentials Checklist
+
+The following credentials must be prepared before deployment. Use consistent, documented values — VCF bringup requires matching ESXi root passwords.
+
+| # | Credential | Used By | Notes |
+|---|-----------|---------|-------|
+| 1 | ESXi root password | All 7 ESXi hosts | Must be identical across all hosts for VCF bringup |
+| 2 | vCenter SSO administrator password | vcenter-mgmt, vcenter-wld | administrator@vsphere.local |
+| 3 | SDDC Manager admin password | sddc-manager | Set during VCF bringup |
+| 4 | NSX Manager admin password | nsx-mgr-mgmt, nsx-mgr-wld | Set during VCF bringup |
+| 5 | vEOS admin password | veos-router | Set during initial configuration |
+| 6 | Jumpbox user password | jumpbox | Ubuntu user account |
+| 7 | step-ca provisioner password | jumpbox | Used for ACME certificate requests |
+| 8 | VCF deployment workbook passwords | VCF Installer | Embedded in the JSON parameter workbook |
+
+## 3. Phase 1 — Foundation
+
+### 3.1 Create vCD vApp
+
+| Step | Action | Expected Result |
+|------|--------|-----------------|
+| 3.1.1 | Create new vApp in vCloud Director | Empty vApp created |
+| 3.1.2 | Add routed network (public) to vApp | External connectivity available |
+| 3.1.3 | Add isolated network (private, MTU 9000) to vApp | Trunk-capable internal network available |
+
+### 3.2 Deploy and Configure Jumpbox
+
+| Step | Action | Expected Result | Verification |
+|------|--------|-----------------|--------------|
+| 3.2.1 | Deploy Ubuntu 24.04 VM (2 vCPU, 4 GB RAM, 60 GB disk) | VM powered on | VM accessible via vCD console |
+| 3.2.2 | Configure NIC1 (ens160) on public network | DHCP address obtained | `ip addr show ens160` shows IP |
+| 3.2.3 | Configure NIC2 (ens192) on private network, IP 10.0.10.2/24 | Static IP configured | `ping 10.0.10.2` from local |
+| 3.2.4 | Install XFCE desktop and xrdp | Remote desktop available | RDP connection on port 3389 |
+| 3.2.5 | Install and configure dnsmasq for lab.dreamfold.dev | DNS server running | `dig @10.0.10.2 jumpbox.lab.dreamfold.dev` |
+| 3.2.6 | Install and configure chrony | NTP server running | `chronyc sources` shows upstream |
+| 3.2.7 | Install and configure step-ca | CA running with ACME | `step ca health` returns ok |
+| 3.2.8 | Install Firefox for web management UIs | Browser available | Launch Firefox via RDP |
+
+#### Jumpbox netplan configuration
+
+```yaml
+# /etc/netplan/01-lab.yaml
+network:
+  version: 2
+  ethernets:
+    ens160:
+      dhcp4: true
+    ens192:
+      addresses:
+        - 10.0.10.2/24
+      routes:
+        - to: 10.0.0.0/16
+          via: 10.0.10.1
+      mtu: 1500
+      nameservers:
+        addresses:
+          - 127.0.0.1
+```
+
+Apply with `sudo netplan apply`.
+
+#### dnsmasq configuration
+
+```
+# /etc/dnsmasq.d/lab.conf
+domain=lab.dreamfold.dev
+local=/lab.dreamfold.dev/
+# Infrastructure
+address=/jumpbox.lab.dreamfold.dev/10.0.10.2
+address=/vcf-installer.lab.dreamfold.dev/10.0.10.3
+address=/vcenter-mgmt.lab.dreamfold.dev/10.0.10.4
+address=/sddc-manager.lab.dreamfold.dev/10.0.10.5
+address=/nsx-mgr-mgmt.lab.dreamfold.dev/10.0.10.6
+address=/vcf-ops.lab.dreamfold.dev/10.0.10.7
+address=/vcf-auto.lab.dreamfold.dev/10.0.10.8
+address=/vcenter-wld.lab.dreamfold.dev/10.0.10.9
+address=/nsx-mgr-wld.lab.dreamfold.dev/10.0.10.10
+# ESXi hosts
+address=/esxi-01.lab.dreamfold.dev/10.0.10.11
+address=/esxi-02.lab.dreamfold.dev/10.0.10.12
+address=/esxi-03.lab.dreamfold.dev/10.0.10.13
+address=/esxi-04.lab.dreamfold.dev/10.0.10.14
+address=/esxi-05.lab.dreamfold.dev/10.0.10.15
+address=/esxi-06.lab.dreamfold.dev/10.0.10.16
+address=/esxi-07.lab.dreamfold.dev/10.0.10.17
+# NSX Edges
+address=/edge-01.lab.dreamfold.dev/10.0.10.20
+address=/edge-02.lab.dreamfold.dev/10.0.10.21
+```
+
+#### chrony configuration
+
+```
+# /etc/chrony/chrony.conf
+pool pool.ntp.org iburst
+allow 10.0.0.0/16
+```
+
+### 3.2a Certificate Distribution
+
+After step-ca is running, the root CA certificate must be distributed to all components that will validate TLS certificates. This is done progressively as components are deployed.
+
+| Phase | Target | Method |
+|-------|--------|--------|
+| Phase 2 | ESXi hosts | Upload root cert via `esxcli security cert` after each host is configured |
+| Phase 3 | VCF Installer | Provide root cert during OVA deployment parameters |
+| Phase 3 | vCenter, SDDC Manager, NSX Manager | Deployed by VCF Installer — configure trusted root in bringup workbook |
+| Phase 4 | Workload vCenter, NSX Manager | Deployed by SDDC Manager — inherits trust from management domain |
+
+Export the root CA certificate from step-ca:
+
+```bash
+step ca root /tmp/lab-root-ca.crt
+```
+
+For each ESXi host (run after host is configured in Phase 2):
+
+```bash
+scp /tmp/lab-root-ca.crt root@esxi-XX:/tmp/
+ssh root@esxi-XX 'esxcli security cert import --cert-file /tmp/lab-root-ca.crt'
+```
+
+### 3.2b Internet Access from Nested Environment
+
+VCF depot sync, content library updates, and VKS image pulls require outbound internet access from the nested environment. Components on the management VLAN (10.0.10.x) must be able to reach external URLs.
+
+The jumpbox is dual-homed (public NIC + management VLAN) and is the only component with direct internet access. Enable IP masquerading on the jumpbox so management VLAN traffic can reach the internet:
+
+```bash
+# Enable IP forwarding
+sudo sysctl -w net.ipv4.ip_forward=1
+echo 'net.ipv4.ip_forward=1' | sudo tee -a /etc/sysctl.d/99-lab-forwarding.conf
+
+# Add masquerade rule for traffic from the lab network exiting via the public NIC
+sudo iptables -t nat -A POSTROUTING -s 10.0.0.0/16 -o ens160 -j MASQUERADE
+
+# Persist iptables rules
+sudo apt install -y iptables-persistent
+sudo netfilter-persistent save
+```
+
+The vEOS router must have a default route pointing to the jumpbox for internet-bound traffic:
+
+```
+ip route 0.0.0.0/0 10.0.10.2
+```
+
+| Verification | Command | Expected Result |
+|-------------|---------|-----------------|
+| Jumpbox forwarding | `cat /proc/sys/net/ipv4/ip_forward` | 1 |
+| Masquerade rule | `sudo iptables -t nat -L POSTROUTING` | MASQUERADE rule present |
+| ESXi internet access | `ssh root@esxi-01 'vmkping -I vmk0 8.8.8.8'` | Success |
+
+### 3.3 Deploy and Configure Arista vEOS
+
+| Step | Action | Expected Result | Verification |
+|------|--------|-----------------|--------------|
+| 3.3.1 | Deploy vEOS VM (2 vCPU, 4 GB RAM, 8 GB disk) | VM powered on | vEOS console accessible |
+| 3.3.2 | Connect NIC to vCD private network (trunk) | Trunk interface active | `show interfaces status` |
+| 3.3.3 | Configure management SVI (VLAN 10, 10.0.10.1/24) | SVI up | `ping 10.0.10.2` (jumpbox) |
+| 3.3.4 | Configure all SVIs (VLANs 20-60) | All SVIs up | `show ip interface brief` |
+| 3.3.5 | Configure IP routing | Inter-VLAN routing active | `show ip route` |
+
+#### vEOS startup-config
+
+```
+hostname veos-router
+!
+vlan 10,20,30,40,50,60
+!
+interface Ethernet1
+   switchport mode trunk
+   switchport trunk allowed vlan 10,20,30,40,50,60
+   mtu 9000
+!
+interface Vlan10
+   ip address 10.0.10.1/24
+   mtu 1500
+!
+interface Vlan20
+   ip address 10.0.20.1/24
+   mtu 9000
+!
+interface Vlan30
+   ip address 10.0.30.1/24
+   mtu 9000
+!
+interface Vlan40
+   ip address 10.0.40.1/24
+   mtu 9000
+!
+interface Vlan50
+   ip address 10.0.50.1/24
+   mtu 9000
+!
+interface Vlan60
+   ip address 10.0.60.1/24
+   mtu 1500
+!
+ip routing
+!
+ip route 0.0.0.0/0 10.0.10.2
+```
+
+### 3.4 Foundation Verification
+
+| Check | Command / Method | Expected Result |
+|-------|------------------|-----------------|
+| Jumpbox external access | RDP to jumpbox public IP | Desktop accessible |
+| Jumpbox DNS | `dig @10.0.10.2 jumpbox.lab.dreamfold.dev` | Returns 10.0.10.2 |
+| Jumpbox NTP | `chronyc sources` | Shows upstream servers |
+| Jumpbox CA | `step ca health` | Returns "ok" |
+| vEOS SVIs | `show ip interface brief` | All 6 SVIs up/up |
+| Jumpbox to vEOS | `ping 10.0.10.1` from jumpbox | Success |
+| Inter-VLAN routing | Create test hosts on different VLANs, ping across | Success |
+
+## 4. Phase 2 — Nested ESXi
+
+### 4.1 Deploy Management Domain Hosts
+
+| Step | Action | Expected Result | Verification |
+|------|--------|-----------------|--------------|
+| 4.1.1 | Deploy esxi-01 (8 vCPU, 72 GB RAM, 200 GB + 10 GB disk) | VM powered on | ESXi DCUI accessible |
+| 4.1.2 | Configure vmnic0 on VLAN 10 (access), vmnic1 on trunk | Networking connected | Management IP pingable |
+| 4.1.3 | Set management IP 10.0.10.11/24, GW 10.0.10.1 | Management network configured | `ping 10.0.10.11` |
+| 4.1.4 | Set hostname esxi-01.lab.dreamfold.dev, DNS 10.0.10.2, NTP 10.0.10.2 | Services configured | `esxcli system hostname get` |
+| 4.1.5 | Repeat steps 4.1.1-4.1.4 for esxi-02 (10.0.10.12) | Host configured | Pingable, DNS/NTP set |
+| 4.1.6 | Repeat for esxi-03 (10.0.10.13) | Host configured | Pingable, DNS/NTP set |
+| 4.1.7 | Repeat for esxi-04 (10.0.10.14) | Host configured | Pingable, DNS/NTP set |
+
+### 4.2 Deploy Workload Domain Hosts
+
+| Step | Action | Expected Result | Verification |
+|------|--------|-----------------|--------------|
+| 4.2.1 | Deploy esxi-05 (8 vCPU, 72 GB RAM, 200 GB + 10 GB disk) | VM powered on | ESXi DCUI accessible |
+| 4.2.2 | Configure networking and management IP 10.0.10.15/24 | Management configured | `ping 10.0.10.15` |
+| 4.2.3 | Set hostname esxi-05.lab.dreamfold.dev, DNS/NTP to jumpbox | Services configured | Hostname and DNS verified |
+| 4.2.4 | Repeat for esxi-06 (10.0.10.16) | Host configured | Pingable |
+| 4.2.5 | Repeat for esxi-07 (10.0.10.17) | Host configured | Pingable |
+
+### 4.3 ESXi Host Verification
+
+| Check | Command / Method | Expected Result |
+|-------|------------------|-----------------|
+| All hosts reachable | `ping 10.0.10.{11..17}` from jumpbox | All respond |
+| DNS resolution | `nslookup esxi-01.lab.dreamfold.dev 10.0.10.2` | Returns correct IP for all hosts |
+| Reverse DNS | `nslookup 10.0.10.11 10.0.10.2` | Returns esxi-01.lab.dreamfold.dev |
+| NTP sync | `esxcli system ntp get` on each host | NTP server 10.0.10.2 configured |
+| Time sync | Compare time across all hosts | Within 1 second |
+| vSAN disk visibility | `esxcli vsan storage list` on each host | Capacity and cache disks visible |
+
+## 5. Phase 3 — VCF Management Domain
+
+### 5.1 Pre-Bringup DNS Records
+
+Verify all DNS records are configured in dnsmasq (done in Phase 1). Forward and reverse records must exist for:
+
+| Hostname | IP | Purpose |
+|----------|-----|---------|
+| vcf-installer.lab.dreamfold.dev | 10.0.10.3 | VCF Installer |
+| vcenter-mgmt.lab.dreamfold.dev | 10.0.10.4 | Management vCenter |
+| sddc-manager.lab.dreamfold.dev | 10.0.10.5 | SDDC Manager |
+| nsx-mgr-mgmt.lab.dreamfold.dev | 10.0.10.6 | Management NSX Manager |
+
+### 5.2 Deploy VCF Installer
+
+| Step | Action | Expected Result | Verification |
+|------|--------|-----------------|--------------|
+| 5.2.1 | Upload VCF Installer OVA to esxi-01 datastore | OVA available | Datastore browser shows file |
+| 5.2.2 | Deploy VCF Installer OVA with IP 10.0.10.3, GW 10.0.10.1, DNS 10.0.10.2 | Appliance deployed | VM powered on |
+| 5.2.3 | Wait for installer services to start (5-10 minutes) | Services ready | `https://vcf-installer.lab.dreamfold.dev` accessible |
+
+#### VCF Deployment Parameter Workbook
+
+The VCF bringup requires a JSON parameter workbook. Key fields to configure:
+
+| Section | Parameter | Value |
+|---------|-----------|-------|
+| DNS / NTP | DNS server | 10.0.10.2 |
+| DNS / NTP | NTP server | 10.0.10.2 |
+| DNS / NTP | Domain | lab.dreamfold.dev |
+| Management Network | Subnet | 10.0.10.0/24 |
+| Management Network | Gateway | 10.0.10.1 |
+| Management Network | VLAN ID | 10 |
+| vMotion Network | Subnet | 10.0.20.0/24 |
+| vMotion Network | VLAN ID | 20 |
+| vSAN Network | Subnet | 10.0.30.0/24 |
+| vSAN Network | VLAN ID | 30 |
+| Host Overlay | Subnet | 10.0.40.0/24 |
+| Host Overlay | VLAN ID | 40 |
+| vCenter | Hostname | vcenter-mgmt.lab.dreamfold.dev |
+| vCenter | IP | 10.0.10.4 |
+| SDDC Manager | Hostname | sddc-manager.lab.dreamfold.dev |
+| SDDC Manager | IP | 10.0.10.5 |
+| NSX Manager | Hostname | nsx-mgr-mgmt.lab.dreamfold.dev |
+| NSX Manager | IP | 10.0.10.6 |
+| ESXi Hosts | esxi-01 through esxi-04 | 10.0.10.11 through 10.0.10.14 |
+| Licences | VCF licence key | As obtained |
+| Licences | vSAN licence key | As obtained |
+| Licences | NSX licence key | As obtained |
+
+Refer to the VMware VCF documentation for the complete workbook JSON schema and a template file.
+
+### 5.3 Run VCF Bringup
+
+| Step | Action | Expected Result | Verification |
+|------|--------|-----------------|--------------|
+| 5.3.1 | Access VCF Installer UI at `https://vcf-installer.lab.dreamfold.dev` | Login page | Browser loads |
+| 5.3.2 | Upload deployment parameter workbook (JSON) | Parameters validated | No validation errors |
+| 5.3.3 | Start bringup workflow | Deployment begins | Progress bar advancing |
+| 5.3.4 | Wait for vCenter deployment | vCenter Server deployed | `https://vcenter-mgmt.lab.dreamfold.dev` accessible |
+| 5.3.5 | Wait for VDS and vSAN configuration | Networking and storage configured | vSAN health green in vCenter |
+| 5.3.6 | Wait for SDDC Manager deployment | SDDC Manager deployed | `https://sddc-manager.lab.dreamfold.dev` accessible |
+| 5.3.7 | Wait for NSX Manager deployment | NSX Manager deployed | `https://nsx-mgr-mgmt.lab.dreamfold.dev` accessible |
+| 5.3.8 | Bringup completes | Management domain operational | SDDC Manager shows healthy domain |
+
+### 5.4 Post-Bringup Deployments
+
+| Step | Action | Expected Result | Verification |
+|------|--------|-----------------|--------------|
+| 5.4.1 | Deploy VCF Operations from SDDC Manager | VCF Ops deployed | `https://vcf-ops.lab.dreamfold.dev` accessible |
+| 5.4.2 | Deploy VCF Automation from SDDC Manager | VCF Auto deployed | `https://vcf-auto.lab.dreamfold.dev` accessible |
+| 5.4.3 | Remove VCF Installer VM (no longer needed) | Resources reclaimed | VM deleted |
+
+### 5.5 Management Domain Verification
+
+| Check | Method | Expected Result |
+|-------|--------|-----------------|
+| vCenter health | Login to `https://vcenter-mgmt.lab.dreamfold.dev` | Cluster shows 4 hosts, all connected |
+| vSAN health | vCenter → Cluster → Monitor → vSAN → Health | All health checks green |
+| SDDC Manager | Login to `https://sddc-manager.lab.dreamfold.dev` | Management domain shows Active |
+| NSX Manager | Login to `https://nsx-mgr-mgmt.lab.dreamfold.dev` | Dashboard accessible, transport nodes connected |
+| VCF Operations | Login to `https://vcf-ops.lab.dreamfold.dev` | Dashboard shows management domain |
+| VCF Automation | Login to `https://vcf-auto.lab.dreamfold.dev` | Console accessible |
+
+## 6. Phase 4 — VCF Workload Domain
+
+### 6.1 Commission Hosts
+
+| Step | Action | Expected Result | Verification |
+|------|--------|-----------------|--------------|
+| 6.1.1 | In SDDC Manager, navigate to Hosts → Commission | Commission wizard opens | — |
+| 6.1.2 | Add esxi-05, esxi-06, esxi-07 to free pool | Hosts commissioning | Task progress visible |
+| 6.1.3 | Wait for host validation and commissioning | Hosts in free pool | SDDC Manager shows 3 hosts available |
+
+### 6.2 Create Workload Domain
+
+| Step | Action | Expected Result | Verification |
+|------|--------|-----------------|--------------|
+| 6.2.1 | In SDDC Manager, navigate to Domains → Add Domain | Create domain wizard opens | — |
+| 6.2.2 | Configure workload domain with 3 hosts, vSAN storage | Domain configuration accepted | Validation passes |
+| 6.2.3 | Specify vcenter-wld (10.0.10.9) and nsx-mgr-wld (10.0.10.10) | Appliance config accepted | — |
+| 6.2.4 | Start domain creation | Deployment begins | Task progress visible |
+| 6.2.5 | Wait for workload domain deployment (60-90 minutes) | Domain created | SDDC Manager shows Active |
+
+### 6.3 Workload Domain Verification
+
+| Check | Method | Expected Result |
+|-------|--------|-----------------|
+| Workload vCenter | Login to `https://vcenter-wld.lab.dreamfold.dev` | Cluster shows 3 hosts, all connected |
+| Workload vSAN | vCenter → Cluster → Monitor → vSAN → Health | All checks green |
+| Workload NSX | Login to `https://nsx-mgr-wld.lab.dreamfold.dev` | Dashboard accessible |
+| Transport nodes | NSX Manager → System → Fabric → Nodes | 3 host transport nodes configured |
+| SDDC Manager | Domains overview | Both domains show Active |
+
+## 7. Phase 5 — NSX Networking
+
+### 7.1 Deploy NSX Edge Cluster
+
+| Step | Action | Expected Result | Verification |
+|------|--------|-----------------|--------------|
+| 7.1.1 | In workload NSX Manager, navigate to System → Fabric → Edge Clusters | Edge management page | — |
+| 7.1.2 | Deploy edge-01 (Large, 8 vCPU, 32 GB RAM) with management IP 10.0.10.20 | Edge VM deployed | `ping 10.0.10.20` |
+| 7.1.3 | Deploy edge-02 (Large) with management IP 10.0.10.21 | Edge VM deployed | `ping 10.0.10.21` |
+| 7.1.4 | Configure Edge TEP interfaces on VLAN 50 (10.0.50.20, 10.0.50.21) | TEP connectivity | Edge transport node status: Up |
+| 7.1.5 | Create Edge cluster with both Edge VMs | Edge cluster created | NSX Manager shows cluster healthy |
+
+### 7.2 Configure Tier-0 Gateway
+
+| Step | Action | Expected Result | Verification |
+|------|--------|-----------------|--------------|
+| 7.2.1 | Create Tier-0 gateway (Active-Standby, linked to Edge cluster) | Tier-0 created | Gateway shows Realised |
+| 7.2.2 | Add uplink interface on VLAN 60, IP 10.0.60.2/24 | Uplink configured | Interface status: Up |
+| 7.2.3 | Configure BGP: ASN 65001, neighbor 10.0.60.1 (ASN 65000) | BGP configured | — |
+| 7.2.4 | Enable route redistribution (connected subnets, NAT) | Routes advertised | — |
+
+### 7.3 Configure BGP on vEOS
+
+| Step | Action | Expected Result | Verification |
+|------|--------|-----------------|--------------|
+| 7.3.1 | SSH to vEOS or access console | CLI access | — |
+| 7.3.2 | Configure BGP (ASN 65000, neighbor 10.0.60.2, redistribute connected) | BGP configured | `show ip bgp summary` |
+| 7.3.3 | Verify BGP adjacency established | Session state: Established | `show ip bgp summary` shows Established |
+| 7.3.4 | Verify route exchange | Routes received from NSX | `show ip bgp` shows VPC prefixes |
+
+#### vEOS BGP configuration
+
+```
+router bgp 65000
+   router-id 10.0.60.1
+   neighbor 10.0.60.2 remote-as 65001
+   neighbor 10.0.60.2 description NSX-Tier0
+   !
+   address-family ipv4
+      neighbor 10.0.60.2 activate
+      redistribute connected
+```
+
+### 7.4 Configure Tier-1 Gateway
+
+| Step | Action | Expected Result | Verification |
+|------|--------|-----------------|--------------|
+| 7.4.1 | Create Tier-1 gateway linked to Tier-0 | Tier-1 created | Gateway shows Realised |
+| 7.4.2 | Configure route advertisement (connected subnets, NAT IPs, LB VIPs) | Advertisements enabled | — |
+
+### 7.5 Configure NSX VPC
+
+| Step | Action | Expected Result | Verification |
+|------|--------|-----------------|--------------|
+| 7.5.1 | Create VPC project in NSX Manager | Project created | — |
+| 7.5.2 | Create VPC (vks-vpc) with centralised connectivity | VPC created | VPC shows Realised |
+| 7.5.3 | Configure external connectivity via Tier-0 | Routing configured | — |
+| 7.5.4 | Configure Source NAT on Tier-0 for outbound traffic | NAT rule active | — |
+
+### 7.6 NSX Networking Verification
+
+| Check | Command / Method | Expected Result |
+|-------|------------------|-----------------|
+| BGP adjacency | `show ip bgp summary` on vEOS | Established with 10.0.60.2 |
+| Routes from NSX | `show ip bgp` on vEOS | VPC/overlay prefixes received |
+| Routes from vEOS | NSX Manager → Networking → Tier-0 → Routing Table | Infrastructure subnets received |
+| Edge cluster health | NSX Manager → System → Fabric → Edge Clusters | Both Edges Up |
+| Tier-0 status | NSX Manager → Networking → Tier-0 Gateways | Realised, interfaces Up |
+| VPC status | NSX Manager → VPC overview | vks-vpc shows Realised |
+
+## 8. Phase 6 — VKS
+
+### 8.1 Create Content Library
+
+| Step | Action | Expected Result | Verification |
+|------|--------|-----------------|--------------|
+| 8.1.1 | In workload vCenter, navigate to Content Libraries | Library management page | — |
+| 8.1.2 | Create subscribed library pointing to VMware VKr endpoint | Library created | Sync status: Active |
+| 8.1.3 | Wait for initial sync to complete | VKr images available | At least one Kubernetes version listed |
+
+### 8.2 Enable Supervisor
+
+| Step | Action | Expected Result | Verification |
+|------|--------|-----------------|--------------|
+| 8.2.1 | In workload vCenter, navigate to Workload Management | Supervisor setup wizard | — |
+| 8.2.2 | Select workload domain cluster | Cluster selected | — |
+| 8.2.3 | Configure networking: NSX, management network, workload network | Networking configured | — |
+| 8.2.4 | Configure storage: vSAN Default policy | Storage configured | — |
+| 8.2.5 | Start Supervisor enablement | Deployment begins | Task progress visible |
+| 8.2.6 | Wait for Supervisor deployment (30-45 minutes) | Supervisor running | Status: Running |
+
+### 8.3 Create vSphere Namespace
+
+| Step | Action | Expected Result | Verification |
+|------|--------|-----------------|--------------|
+| 8.3.1 | In workload vCenter, navigate to Workload Management → Namespaces | Namespace management | — |
+| 8.3.2 | Create namespace "vks-workloads" | Namespace created | Status: Active |
+| 8.3.3 | Assign VM classes: best-effort-small, best-effort-medium | VM classes assigned | Listed under namespace |
+| 8.3.4 | Assign storage policies: vSAN Default | Storage assigned | Listed under namespace |
+| 8.3.5 | Assign content library: VKS Kubernetes releases | Library assigned | Listed under namespace |
+
+### 8.4 Deploy VKS Cluster
+
+| Step | Action | Expected Result | Verification |
+|------|--------|-----------------|--------------|
+| 8.4.1 | Connect to Supervisor API (`kubectl vsphere login`) | Authenticated | Kubeconfig obtained |
+| 8.4.2 | Switch to vks-workloads namespace | Namespace active | `kubectl get ns` |
+| 8.4.3 | Apply VKS cluster manifest (Cluster v1beta1) | Cluster creation initiated | `kubectl get cluster` shows Provisioning |
+| 8.4.4 | Wait for control plane nodes (3x) | Control plane ready | `kubectl get machines` shows 3 Running |
+| 8.4.5 | Wait for worker nodes (3x) | Workers ready | `kubectl get machines` shows 6 Running |
+| 8.4.6 | Obtain VKS cluster kubeconfig | Kubeconfig available | `kubectl get secret` |
+
+#### VKS cluster manifest
+
+```yaml
+apiVersion: cluster.x-k8s.io/v1beta1
+kind: Cluster
+metadata:
+  name: vks-cluster-01
+  namespace: vks-workloads
+spec:
+  clusterNetwork:
+    pods:
+      cidrBlocks: ["192.168.0.0/16"]
+    services:
+      cidrBlocks: ["10.96.0.0/12"]
+  topology:
+    class: tanzukubernetescluster
+    version: # Latest available VKr
+    controlPlane:
+      replicas: 3
+      metadata: {}
+    workers:
+      machineDeployments:
+        - class: node-pool
+          name: worker-pool
+          replicas: 3
+          metadata: {}
+    variables:
+      - name: vmClass
+        value: best-effort-medium
+      - name: storageClass
+        value: vsan-default-storage-policy
+```
+
+### 8.5 Deploy Test Workload
+
+| Step | Action | Expected Result | Verification |
+|------|--------|-----------------|--------------|
+| 8.5.1 | Login to VKS cluster using obtained kubeconfig | Authenticated | `kubectl get nodes` shows 6 nodes |
+| 8.5.2 | Deploy nginx test deployment | Pods running | `kubectl get pods` shows Running |
+| 8.5.3 | Expose via LoadBalancer service | External IP assigned | `kubectl get svc` shows EXTERNAL-IP |
+| 8.5.4 | Access nginx from jumpbox | Page loads | `curl http://<EXTERNAL-IP>` returns nginx welcome |
+
+#### Test workload manifest
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-test
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: nginx-test
+  template:
+    metadata:
+      labels:
+        app: nginx-test
+    spec:
+      containers:
+        - name: nginx
+          image: nginx:latest
+          ports:
+            - containerPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-test
+spec:
+  type: LoadBalancer
+  selector:
+    app: nginx-test
+  ports:
+    - port: 80
+      targetPort: 80
+```
+
+## 9. Ready for Operations Testing
+
+Final verification checklist before the lab is considered operational.
+
+### 9.1 Infrastructure Services
+
+| # | Check | Method | Expected Result | Pass |
+|---|-------|--------|-----------------|------|
+| 1 | External RDP access | RDP to jumpbox public IP | Desktop loads | ☐ |
+| 2 | DNS forward resolution | `dig @10.0.10.2 vcenter-mgmt.lab.dreamfold.dev` | Returns 10.0.10.4 | ☐ |
+| 3 | DNS reverse resolution | `dig @10.0.10.2 -x 10.0.10.4` | Returns vcenter-mgmt.lab.dreamfold.dev | ☐ |
+| 4 | NTP synchronisation | `chronyc sources` on jumpbox | Upstream servers reachable | ☐ |
+| 5 | CA health | `step ca health` on jumpbox | Returns "ok" | ☐ |
+| 6 | Inter-VLAN routing | `ping 10.0.20.1` from jumpbox (via vEOS) | Success | ☐ |
+
+### 9.2 VCF Platform
+
+| # | Check | Method | Expected Result | Pass |
+|---|-------|--------|-----------------|------|
+| 7 | Management vCenter | Browse `https://vcenter-mgmt.lab.dreamfold.dev` | Login page loads | ☐ |
+| 8 | Workload vCenter | Browse `https://vcenter-wld.lab.dreamfold.dev` | Login page loads | ☐ |
+| 9 | SDDC Manager | Browse `https://sddc-manager.lab.dreamfold.dev` | Both domains Active | ☐ |
+| 10 | Management vSAN health | vCenter → Cluster → vSAN Health | All green | ☐ |
+| 11 | Workload vSAN health | vCenter → Cluster → vSAN Health | All green | ☐ |
+| 12 | All ESXi hosts connected | Both vCenters show hosts Connected | 4 mgmt + 3 wld | ☐ |
+
+### 9.3 NSX Networking
+
+| # | Check | Method | Expected Result | Pass |
+|---|-------|--------|-----------------|------|
+| 13 | BGP adjacency | `show ip bgp summary` on vEOS | Established | ☐ |
+| 14 | Route exchange | `show ip bgp` on vEOS | VPC prefixes received | ☐ |
+| 15 | Edge cluster health | NSX Manager → Edge Clusters | Both Edges Up | ☐ |
+| 16 | Tier-0 status | NSX Manager → Tier-0 Gateways | Realised | ☐ |
+| 17 | VPC status | NSX Manager → VPC | Realised | ☐ |
+
+### 9.4 VKS
+
+| # | Check | Method | Expected Result | Pass |
+|---|-------|--------|-----------------|------|
+| 18 | Supervisor status | vCenter → Workload Management | Running | ☐ |
+| 19 | VKS cluster health | `kubectl get cluster vks-cluster-01` | Phase: Provisioned | ☐ |
+| 20 | All nodes ready | `kubectl get nodes` on VKS cluster | 6 nodes Ready | ☐ |
+| 21 | Test workload | `curl http://<nginx-lb-ip>` | nginx welcome page | ☐ |
+| 22 | Pod-to-external | `kubectl exec` into pod, `curl google.com` | Response received | ☐ |

@@ -1,0 +1,22 @@
+titlepage: true
+titlepage-color: "1a1a2e"
+titlepage-text-color: "e0e0e0"
+titlepage-rule-color: "6c63ff"
+titlepage-rule-height: 4
+titlepage-logo:
+titlepage-background:
+page-background:
+header-left: "dreamfold"
+header-right: "VKS Lab Delivery Guide"
+footer-left: "Confidential"
+footer-center:
+footer-right: "\\thepage"
+book: false
+classoption: oneside
+listings-disable-line-numbers: true
+code-block-font-size: \scriptsize
+colorlinks: true
+linkcolor: "6c63ff"
+urlcolor: "6c63ff"
+toccolor: "6c63ff"
+lang: en-GB
