@@ -28,7 +28,7 @@ The following must be in place before starting Phase 1.
 
 | # | Prerequisite | Status |
 |---|-------------|--------|
-| 1 | vCD resources approved (60 vCPU, 512 GB RAM, 1.5 TB storage) | ☐ |
+| 1 | vCD resources approved (60 vCPU, 516 GB RAM, 1.5 TB storage) | ☐ |
 | 2 | ISO images downloaded: Ubuntu 24.04 LTS, Arista vEOS 4.32.x, ESXi 9.0 | ☐ |
 | 3 | OVA images downloaded: VCF Installer | ☐ |
 | 4 | DNS zone `lab.dreamfold.dev` prepared (internal use only or delegated) | ☐ |
@@ -68,10 +68,10 @@ The following credentials must be prepared before deployment. Use consistent, do
 
 | Step | Action | Expected Result | Verification |
 |------|--------|-----------------|--------------|
-| 3.2.1 | Deploy Ubuntu 24.04 VM (2 vCPU, 4 GB RAM, 60 GB disk) | VM powered on | VM accessible via vCD console |
-| 3.2.2 | Configure NIC1 (ens160) on public network | DHCP address obtained | `ip addr show ens160` shows IP |
-| 3.2.3 | Configure NIC2 (ens192) on private network, IP 10.0.10.2/24 | Static IP configured | `ping 10.0.10.2` from local |
-| 3.2.4 | Install XFCE desktop and xrdp | Remote desktop available | RDP connection on port 3389 |
+| 3.2.1 | Deploy Ubuntu 24.04 VM (2 vCPU, 8 GB RAM, 60 GB disk) | VM powered on | VM accessible via vCD console |
+| 3.2.2 | Connect NIC (ens160) to vCD private network | Network connected | VM shows NIC in `ip link` |
+| 3.2.3 | Configure ens160 static IP 10.0.10.2/24, gateway 10.0.10.1 (vEOS) | Static IP configured | `ping 10.0.10.1` succeeds |
+| 3.2.4 | Install XFCE desktop and xrdp | Remote desktop available | RDP via vEOS port-forward |
 | 3.2.5 | Install and configure dnsmasq for lab.dreamfold.dev | DNS server running | `dig @10.0.10.2 jumpbox.lab.dreamfold.dev` |
 | 3.2.6 | Install and configure chrony | NTP server running | `chronyc sources` shows upstream |
 | 3.2.7 | Install and configure step-ca | CA running with ACME | `step ca health` returns ok |
@@ -85,12 +85,10 @@ network:
   version: 2
   ethernets:
     ens160:
-      dhcp4: true
-    ens192:
       addresses:
         - 10.0.10.2/24
       routes:
-        - to: 10.0.0.0/16
+        - to: default
           via: 10.0.10.1
       mtu: 1500
       nameservers:
@@ -98,7 +96,7 @@ network:
           - 127.0.0.1
 ```
 
-Apply with `sudo netplan apply`.
+Apply with `sudo netplan apply`. The default gateway (10.0.10.1) is the vEOS router, which provides internet access via NAT on its public interface.
 
 #### dnsmasq configuration
 
@@ -161,93 +159,67 @@ scp /tmp/lab-root-ca.crt root@esxi-XX:/tmp/
 ssh root@esxi-XX 'esxcli security cert import --cert-file /tmp/lab-root-ca.crt'
 ```
 
-### 3.2b Internet Access from Nested Environment
+### 3.2b Keycloak Configuration
 
-VCF depot sync, content library updates, and VKS image pulls require outbound internet access from the nested environment. Components on the management VLAN (10.0.10.x) must be able to reach external URLs.
+Deploy Keycloak as a Docker container on the jumpbox for centralised OIDC identity management.
 
-The jumpbox is dual-homed (public NIC + management VLAN) and is the only component with direct internet access. Enable IP masquerading on the jumpbox so management VLAN traffic can reach the internet:
+| Step | Action | Expected Result | Verification |
+|------|--------|-----------------|--------------|
+| 3.2b.1 | Install Docker Engine on jumpbox | Docker running | `docker --version` |
+| 3.2b.2 | Run Keycloak container (port 8443, HTTPS) | Container running | `docker ps` shows keycloak |
+| 3.2b.3 | Create `lab` realm | Realm created | Keycloak admin console accessible |
+| 3.2b.4 | Create OIDC client for vCenter | Client registered | Client ID and secret available |
+| 3.2b.5 | Create OIDC client for NSX Manager | Client registered | Client ID and secret available |
+| 3.2b.6 | Create lab user accounts | Users created | Users visible in `lab` realm |
 
 ```bash
-# Enable IP forwarding
-sudo sysctl -w net.ipv4.ip_forward=1
-echo 'net.ipv4.ip_forward=1' | sudo tee -a /etc/sysctl.d/99-lab-forwarding.conf
-
-# Add masquerade rule for traffic from the lab network exiting via the public NIC
-sudo iptables -t nat -A POSTROUTING -s 10.0.0.0/16 -o ens160 -j MASQUERADE
-
-# Persist iptables rules
-sudo apt install -y iptables-persistent
-sudo netfilter-persistent save
+# Run Keycloak container
+docker run -d --name keycloak \
+  -p 8443:8443 \
+  -e KC_BOOTSTRAP_ADMIN_USERNAME=admin \
+  -e KC_BOOTSTRAP_ADMIN_PASSWORD=<CHANGE-ME> \
+  -e KC_HTTPS_CERTIFICATE_FILE=/opt/keycloak/conf/server.crt \
+  -e KC_HTTPS_CERTIFICATE_KEY_FILE=/opt/keycloak/conf/server.key \
+  -v /etc/keycloak/certs:/opt/keycloak/conf \
+  --restart unless-stopped \
+  quay.io/keycloak/keycloak:latest start
 ```
 
-The vEOS router must have a default route pointing to the jumpbox for internet-bound traffic:
+Use step-ca to issue a TLS certificate for Keycloak before starting the container:
 
-```text
-ip route 0.0.0.0/0 10.0.10.2
+```bash
+step ca certificate keycloak.lab.dreamfold.dev \
+  /etc/keycloak/certs/server.crt /etc/keycloak/certs/server.key
 ```
 
-| Verification | Command | Expected Result |
-|-------------|---------|-----------------|
-| Jumpbox forwarding | `cat /proc/sys/net/ipv4/ip_forward` | 1 |
-| Masquerade rule | `sudo iptables -t nat -L POSTROUTING` | MASQUERADE rule present |
-| ESXi internet access | `ssh root@esxi-01 'vmkping -I vmk0 8.8.8.8'` | Success |
+**Phase 3 post-bringup**: After management domain vCenter is deployed, configure vCenter SSO with Keycloak OIDC identity source (Administration → SSO → Identity Providers → Add OIDC Provider).
+
+**Phase 4 post-domain**: After workload domain NSX Manager is deployed, configure OIDC identity source in both NSX Managers (System → User Management → OIDC).
 
 ### 3.3 Deploy and Configure Arista vEOS
 
 | Step | Action | Expected Result | Verification |
 |------|--------|-----------------|--------------|
 | 3.3.1 | Deploy vEOS VM (2 vCPU, 4 GB RAM, 8 GB disk) | VM powered on | vEOS console accessible |
-| 3.3.2 | Connect NIC to vCD private network (trunk) | Trunk interface active | `show interfaces status` |
-| 3.3.3 | Configure management SVI (VLAN 10, 10.0.10.1/24) | SVI up | `ping 10.0.10.2` (jumpbox) |
-| 3.3.4 | Configure all SVIs (VLANs 20-60) | All SVIs up | `show ip interface brief` |
-| 3.3.5 | Configure IP routing | Inter-VLAN routing active | `show ip route` |
+| 3.3.2 | Connect NIC1 to vCD private network (trunk) | Trunk interface active | `show interfaces status` |
+| 3.3.3 | Connect NIC2 to vCD public network | Public interface active | `show interfaces Ethernet2` |
+| 3.3.4 | Configure management SVI (VLAN 10, 10.0.10.1/24) | SVI up | `ping 10.0.10.2` (jumpbox) |
+| 3.3.5 | Configure all SVIs (VLANs 20-60) | All SVIs up | `show ip interface brief` |
+| 3.3.6 | Configure Ethernet2 (DHCP from vCD public) | Public IP obtained | `show ip interface Ethernet2` |
+| 3.3.7 | Configure NAT/masquerade for outbound internet | NAT active | `show ip nat translations` |
+| 3.3.8 | Configure port-forward TCP 3389 → jumpbox 10.0.10.2 | Port-forward active | RDP to vEOS public IP |
+| 3.3.9 | Configure IP routing | Inter-VLAN routing active | `show ip route` |
 
 #### vEOS startup-config
 
-```text
-hostname veos-router
-!
-vlan 10,20,30,40,50,60
-!
-interface Ethernet1
-   switchport mode trunk
-   switchport trunk allowed vlan 10,20,30,40,50,60
-   mtu 9000
-!
-interface Vlan10
-   ip address 10.0.10.1/24
-   mtu 1500
-!
-interface Vlan20
-   ip address 10.0.20.1/24
-   mtu 9000
-!
-interface Vlan30
-   ip address 10.0.30.1/24
-   mtu 9000
-!
-interface Vlan40
-   ip address 10.0.40.1/24
-   mtu 9000
-!
-interface Vlan50
-   ip address 10.0.50.1/24
-   mtu 9000
-!
-interface Vlan60
-   ip address 10.0.60.1/24
-   mtu 1500
-!
-ip routing
-!
-ip route 0.0.0.0/0 10.0.10.2
-```
+See [`configs/veos-startup.cfg`](../../configs/veos-startup.cfg) for the complete vEOS configuration including VLANs, SVIs, Ethernet2 (public), NAT, port-forward, and BGP. Copy this file to the vEOS flash as `startup-config` before first boot.
 
 ### 3.4 Foundation Verification
 
 | Check | Command / Method | Expected Result |
 |-------|------------------|-----------------|
-| Jumpbox external access | RDP to jumpbox public IP | Desktop accessible |
+| Jumpbox external access | RDP to vEOS public IP (port-forwarded to jumpbox) | Desktop accessible |
+| Internet from lab | `ping 8.8.8.8` from jumpbox | Success (via vEOS NAT) |
 | Jumpbox DNS | `dig @10.0.10.2 jumpbox.lab.dreamfold.dev` | Returns 10.0.10.2 |
 | Jumpbox NTP | `chronyc sources` | Shows upstream servers |
 | Jumpbox CA | `step ca health` | Returns "ok" |
@@ -340,7 +312,7 @@ The VCF bringup requires a JSON parameter workbook. Key fields to configure:
 | Licences | vSAN licence key | As obtained |
 | Licences | NSX licence key | As obtained |
 
-Refer to the VMware VCF documentation for the complete workbook JSON schema and a template file.
+A template parameter file is maintained at [`configs/vcf-bringup.json`](../../configs/vcf-bringup.json). Replace all `<CHANGE-ME>` placeholders with actual credentials and licence keys before use. Refer to the VMware VCF documentation for the complete workbook JSON schema.
 
 ### 5.3 Run VCF Bringup
 
@@ -436,16 +408,7 @@ Refer to the VMware VCF documentation for the complete workbook JSON schema and 
 
 #### vEOS BGP configuration
 
-```text
-router bgp 65000
-   router-id 10.0.60.1
-   neighbor 10.0.60.2 remote-as 65001
-   neighbor 10.0.60.2 description NSX-Tier0
-   !
-   address-family ipv4
-      neighbor 10.0.60.2 activate
-      redistribute connected
-```
+BGP configuration is included in [`configs/veos-startup.cfg`](../../configs/veos-startup.cfg). The router uses ASN 65000 and peers with the NSX Tier-0 at 10.0.60.2 (ASN 65001), redistributing all connected subnets.
 
 ### 7.4 Configure Tier-1 Gateway
 
@@ -602,7 +565,7 @@ Final verification checklist before the lab is considered operational.
 
 | # | Check | Method | Expected Result | Pass |
 |---|-------|--------|-----------------|------|
-| 1 | External RDP access | RDP to jumpbox public IP | Desktop loads | ☐ |
+| 1 | External RDP access | RDP to vEOS public IP (port-forwarded to jumpbox) | Desktop loads | ☐ |
 | 2 | DNS forward resolution | `dig @10.0.10.2 vcenter-mgmt.lab.dreamfold.dev` | Returns 10.0.10.4 | ☐ |
 | 3 | DNS reverse resolution | `dig @10.0.10.2 -x 10.0.10.4` | Returns vcenter-mgmt.lab.dreamfold.dev | ☐ |
 | 4 | NTP synchronisation | `chronyc sources` on jumpbox | Upstream servers reachable | ☐ |

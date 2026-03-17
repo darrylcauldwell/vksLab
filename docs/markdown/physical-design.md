@@ -84,27 +84,27 @@ date: "March 2026"
 | OS | Ubuntu 24.04 LTS |
 | Desktop | XFCE + xrdp (remote desktop access) |
 | vCPU | 2 |
-| RAM | 4 GB |
+| RAM | 8 GB |
 | Disk | 60 GB |
-| NIC1 | vCD public network (DHCP or static from vCD) |
-| NIC2 | vCD private network — VLAN 10 (management), IP 10.0.10.2 |
+| NIC | vCD private network — VLAN 10 (management), IP 10.0.10.2 |
 
 ### Network Configuration
 
 See [Delivery Guide](deliver.md) for netplan configuration. Key parameters:
 
-- NIC1 (ens160): vCD public network, DHCP
-- NIC2 (ens192): vCD private network, static 10.0.10.2/24, gateway 10.0.10.1
+- NIC (ens160): vCD private network, static 10.0.10.2/24, gateway 10.0.10.1 (vEOS)
 - IP forwarding disabled — jumpbox is not a router
+- Default gateway is vEOS, which provides internet access via NAT
 
 ### Services Configuration
 
 | Service | Package | Config |
 |---------|---------|--------|
-| DNS | dnsmasq | Zone: `lab.dreamfold.dev`, upstream forwarder via NIC1 |
-| NTP | chrony | `allow 10.0.0.0/16`, servers: public NTP pools |
+| DNS | dnsmasq | Zone: `lab.dreamfold.dev`, upstream forwarder via vEOS NAT |
+| NTP | chrony | `allow 10.0.0.0/16`, servers: public NTP pools (via vEOS NAT) |
 | CA | step-ca | Root CA for `lab.dreamfold.dev`, ACME enabled |
-| Remote access | xrdp | Listening on port 3389 (NIC1) |
+| OIDC | Keycloak (Docker) | Port 8443, centralised identity provider for vCenter and NSX |
+| Remote access | xrdp | Listening on port 3389 (reached via vEOS port-forward) |
 | Web browser | Firefox | Access vCenter, NSX Manager, SDDC Manager UIs |
 
 All VCF components point to 10.0.10.2 for DNS and NTP. The CA root certificate is distributed to ESXi hosts and management appliances during deployment.
@@ -117,17 +117,20 @@ All VCF components point to 10.0.10.2 for DNS and NTP. The CA root certificate i
 | vCPU | 2 |
 | RAM | 4 GB |
 | Disk | 8 GB |
-| NIC | vCD private network (trunk, all VLANs) |
+| NIC1 (Ethernet1) | vCD private network (trunk, all VLANs) |
+| NIC2 (Ethernet2) | vCD public network (DHCP — internet gateway) |
 
-See [Delivery Guide](deliver.md) for complete vEOS startup-config including interface and BGP configuration.
+See [Delivery Guide](deliver.md) for complete vEOS startup-config including interface, NAT, port-forward, and BGP configuration.
 
 | Parameter | Value |
 |-----------|-------|
 | vEOS ASN | 65000 |
 | NSX Tier-0 ASN | 65001 |
 | Peering subnet | 10.0.60.0/24 |
+| NAT | Source NAT (masquerade) on Ethernet2 for all internal VLANs |
+| Port-forward | TCP 3389 on Ethernet2 → 10.0.10.2:3389 (jumpbox xrdp) |
 
-BGP advertises all connected subnets to NSX, and receives VPC/overlay prefixes from the Tier-0. This gives VKS workloads a routed path out through the vEOS to the jumpbox and beyond.
+BGP advertises all connected subnets to NSX, and receives VPC/overlay prefixes from the Tier-0. vEOS NAT on Ethernet2 provides outbound internet for all lab components.
 
 ## 5. Nested ESXi Host Specification
 
@@ -286,7 +289,7 @@ Edge VMs are sized as **Large** (8 vCPU, 32 GB RAM) to support VKS workloads.
 
 ### Content Library
 
-A subscribed content library provides Kubernetes release images (VKr). The library syncs from VMware's public endpoint. Internet access from the nested environment is required (routed via vEOS → jumpbox → vCD public network).
+A subscribed content library provides Kubernetes release images (VKr). The library syncs from VMware's public endpoint. Internet access from the nested environment is required (routed via vEOS NAT on Ethernet2).
 
 ## 10. Resource Summary Tables
 
@@ -294,11 +297,11 @@ A subscribed content library provides Kubernetes release images (VKr). The libra
 
 | Component | vCPU | RAM (GB) | Storage (GB) |
 |-----------|------|----------|-------------|
-| Ubuntu Jumpbox | 2 | 4 | 60 |
+| Ubuntu Jumpbox | 2 | 8 | 60 |
 | Arista vEOS | 2 | 4 | 8 |
 | ESXi (Management, 4x) | 32 | 288 | 800 |
 | ESXi (Workload, 3x) | 24 | 216 | 600 |
-| **vCD Total** | **60** | **512** | **1,468** |
+| **vCD Total** | **60** | **516** | **1,468** |
 
 ### VCF Appliances (Nested, on ESXi)
 
@@ -317,4 +320,44 @@ These run inside the nested environment and consume resources from the ESXi host
 | VCF Automation | 4 | 24 | 100 |
 | **Nested Total** | **52** | **234** | **1,800** |
 
-> **Note**: The nested appliance resources are consumed from the 504 GB RAM and 1,400 GB storage provisioned to the ESXi VMs. The remaining ~270 GB RAM is available for VKS workloads and Supervisor VMs. Cross-reference with Holodeck benchmarks (~325 GB RAM for VCF 9.0 single-site with Automation).
+> **Note**: The nested appliance resources are consumed from the 504 GB RAM and 1,400 GB storage provisioned to the ESXi VMs. Cross-reference with Holodeck benchmarks (~325 GB RAM for VCF 9.0 single-site with Automation). See Workload Domain Headroom Analysis below for detailed breakdown.
+
+### Workload Domain Headroom Analysis
+
+#### Management Domain (288 GB total)
+
+| Consumer | RAM (GB) | Notes |
+|----------|----------|-------|
+| VCF Installer (temporary) | 24 | Reclaimed after bringup |
+| vCenter (Management) | 21 | — |
+| SDDC Manager | 16 | — |
+| NSX Manager (Management) | 24 | — |
+| VCF Operations | 16 | — |
+| VCF Automation | 24 | — |
+| ESXi overhead (4 hosts × 4 GB) | 16 | Hypervisor memory per host |
+| **Subtotal (permanent)** | **117** | Excluding temporary installer |
+| **Headroom** | **171** | Available for additional management workloads |
+
+> The VCF Installer (24 GB) is temporary — its resources are reclaimed after bringup, bringing the permanent total to 101 GB with 187 GB remaining.
+
+#### Workload Domain (216 GB total)
+
+| Consumer | RAM (GB) | Notes |
+|----------|----------|-------|
+| vCenter (Workload) | 21 | — |
+| NSX Manager (Workload) | 24 | — |
+| NSX Edge (2x Large) | 64 | 32 GB each |
+| ESXi overhead (3 hosts × 4 GB) | 12 | Hypervisor memory per host |
+| Supervisor control plane (3 VMs) | 12 | ~4 GB each |
+| **Subtotal** | **133** | — |
+| **Available for VKS workloads** | **83** | — |
+
+#### VKS Worker Sizing
+
+| Configuration | Workers | RAM per Worker | Total RAM | Remaining |
+|---------------|---------|---------------|-----------|-----------|
+| Initial (best-effort-medium) | 3 | 8 GB | 24 GB | 59 GB |
+| Scaled (best-effort-large) | 3 | 16 GB | 48 GB | 35 GB |
+| Maximum (best-effort-medium) | 7 | 8 GB | 56 GB | 27 GB |
+
+The initial 3-worker deployment (24 GB) leaves ~59 GB for scaling. This supports adding up to 4 additional medium workers or upgrading existing workers to a larger VM class.

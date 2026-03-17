@@ -12,6 +12,13 @@ VMware Kubernetes Service (VKS) lab environment — infrastructure-as-documentat
 | [Delivery Guide](docs/markdown/deliver.md) | Step-by-step deployment instructions | [PDF](docs/pdf/deliver.pdf) |
 | [Operations Guide](docs/markdown/operate.md) | Standard operating procedures and troubleshooting | [PDF](docs/pdf/operate.pdf) |
 
+## Config Files
+
+| File | Description |
+|------|-------------|
+| [`configs/veos-startup.cfg`](configs/veos-startup.cfg) | Complete Arista vEOS startup-config (VLANs, SVIs, NAT, port-forward, BGP) |
+| [`configs/vcf-bringup.json`](configs/vcf-bringup.json) | VCF deployment parameter workbook template (passwords as `<CHANGE-ME>`) |
+
 ## Getting Started
 
 Start with the [Delivery Guide](docs/markdown/deliver.md) for deployment instructions.
