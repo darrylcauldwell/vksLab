@@ -1,0 +1,36 @@
+name: Python Lint & Test
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'esxi-prep/**'
+      - '.github/workflows/python.yml'
+
+jobs:
+  lint-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          cd esxi-prep
+          pip install -e ".[dev]"
+
+      - name: Lint with ruff
+        run: |
+          cd esxi-prep
+          ruff check src/ tests/
+
+      - name: Run tests
+        run: |
+          cd esxi-prep
+          pytest tests/ -v

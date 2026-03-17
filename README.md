@@ -12,6 +12,33 @@ VMware Kubernetes Service (VKS) lab environment — infrastructure-as-documentat
 | [Delivery Guide](docs/markdown/deliver.md) | Step-by-step deployment instructions | [PDF](docs/pdf/deliver.pdf) |
 | [Operations Guide](docs/markdown/operate.md) | Standard operating procedures and troubleshooting | [PDF](docs/pdf/operate.pdf) |
 
+## Config Files
+
+| File | Description |
+|------|-------------|
+| [`configs/veos-startup.cfg`](configs/veos-startup.cfg) | Complete Arista vEOS startup-config (VLANs, SVIs, NTP, NAT, BGP) |
+| [`configs/vcf-bringup.json`](configs/vcf-bringup.json) | VCF deployment parameter workbook template (passwords as `<CHANGE-ME>`) |
+
+## ESXi Prep Tool
+
+Python CLI tool for automated ESXi host preparation (Phase 2). Configures hostname, DNS, NTP, vSAN ESA, and CA certificates via SSH.
+
+```bash
+cd esxi-prep
+pip install -e ".[dev]"
+
+# Show all hosts
+vkslab-esxi status
+
+# Prepare all hosts for VCF bringup
+vkslab-esxi prepare --domain all
+
+# Verify network connectivity
+vkslab-esxi verify --domain all
+```
+
+See [`esxi-prep/`](esxi-prep/) for full documentation and [`esxi-prep/configs/lab.example.yaml`](esxi-prep/configs/lab.example.yaml) for configuration.
+
 ## Getting Started
 
 Start with the [Delivery Guide](docs/markdown/deliver.md) for deployment instructions.
