@@ -55,7 +55,7 @@ Demonstrate VMware Kubernetes Service (VKS) on VCF 9 with NSX VPC in a fully nes
 | ID    | Assumption |
 |-------|------------|
 | A-001 | The vCloud Director provider supports nested virtualisation and jumbo frames (MTU 9000) |
-| A-002 | Sufficient vCD resources are available (60 vCPU, 512 GB RAM, 1.5 TB storage) |
+| A-002 | Sufficient vCD resources are available (60 vCPU, 516 GB RAM, 1.5 TB storage) |
 | A-003 | Arista vEOS lab/evaluation licence is available for router use |
 | A-004 | VCF depot access is available (online or via offline bundles) |
 | A-005 | The lab.dreamfold.dev DNS zone is delegated or used internally only |

@@ -84,7 +84,7 @@ date: "March 2026"
 | OS | Ubuntu 24.04 LTS |
 | Desktop | XFCE + xrdp (remote desktop access) |
 | vCPU | 2 |
-| RAM | 4 GB |
+| RAM | 8 GB |
 | Disk | 60 GB |
 | NIC | vCD private network — VLAN 10 (management), IP 10.0.10.2 |
 
@@ -103,6 +103,7 @@ See [Delivery Guide](deliver.md) for netplan configuration. Key parameters:
 | DNS | dnsmasq | Zone: `lab.dreamfold.dev`, upstream forwarder via vEOS NAT |
 | NTP | chrony | `allow 10.0.0.0/16`, servers: public NTP pools (via vEOS NAT) |
 | CA | step-ca | Root CA for `lab.dreamfold.dev`, ACME enabled |
+| OIDC | Keycloak (Docker) | Port 8443, centralised identity provider for vCenter and NSX |
 | Remote access | xrdp | Listening on port 3389 (reached via vEOS port-forward) |
 | Web browser | Firefox | Access vCenter, NSX Manager, SDDC Manager UIs |
 
@@ -296,11 +297,11 @@ A subscribed content library provides Kubernetes release images (VKr). The libra
 
 | Component | vCPU | RAM (GB) | Storage (GB) |
 |-----------|------|----------|-------------|
-| Ubuntu Jumpbox | 2 | 4 | 60 |
+| Ubuntu Jumpbox | 2 | 8 | 60 |
 | Arista vEOS | 2 | 4 | 8 |
 | ESXi (Management, 4x) | 32 | 288 | 800 |
 | ESXi (Workload, 3x) | 24 | 216 | 600 |
-| **vCD Total** | **60** | **512** | **1,468** |
+| **vCD Total** | **60** | **516** | **1,468** |
 
 ### VCF Appliances (Nested, on ESXi)
 
@@ -319,4 +320,4 @@ These run inside the nested environment and consume resources from the ESXi host
 | VCF Automation | 4 | 24 | 100 |
 | **Nested Total** | **52** | **234** | **1,800** |
 
-> **Note**: The nested appliance resources are consumed from the 504 GB RAM and 1,400 GB storage provisioned to the ESXi VMs. The remaining ~270 GB RAM is available for VKS workloads and Supervisor VMs. Cross-reference with Holodeck benchmarks (~325 GB RAM for VCF 9.0 single-site with Automation).
+> **Note**: The nested appliance resources are consumed from the 504 GB RAM and 1,400 GB storage provisioned to the ESXi VMs. The remaining ~270 GB RAM is available for VKS workloads and Supervisor VMs. Cross-reference with Holodeck benchmarks (~325 GB RAM for VCF 9.0 single-site with Automation). See Workload Domain Headroom Analysis below for detailed breakdown.

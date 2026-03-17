@@ -166,7 +166,42 @@ SDDC Manager coordinates updates to vCenter, NSX Manager, SDDC Manager itself, a
 | 6 | Verify SVIs and routing | `show ip interface brief`, `show ip route` |
 | 7 | Verify BGP adjacency | `show ip bgp summary` — should re-establish |
 
-### 2.6 Jumpbox OS Patching
+### 2.6 Keycloak Maintenance
+
+#### Realm Backup/Export
+
+```bash
+# Export realm configuration (run inside container)
+docker exec keycloak /opt/keycloak/bin/kc.sh export \
+  --dir /tmp/export --realm lab
+docker cp keycloak:/tmp/export/lab-realm.json ~/keycloak-backup/
+```
+
+#### Container Upgrade
+
+| Step | Action | Notes |
+|------|--------|-------|
+| 1 | Export realm backup | See export command above |
+| 2 | Stop and remove old container | `docker stop keycloak && docker rm keycloak` |
+| 3 | Pull new image | `docker pull quay.io/keycloak/keycloak:latest` |
+| 4 | Start new container with same volume mounts | Same `docker run` command from delivery guide |
+| 5 | Verify realm and users intact | Login to admin console, check `lab` realm |
+| 6 | Verify vCenter and NSX OIDC login | Login to vCenter via OIDC |
+
+#### Certificate Renewal
+
+Keycloak's TLS certificate is issued by step-ca and must be renewed before expiry:
+
+```bash
+step ca renew /etc/keycloak/certs/server.crt /etc/keycloak/certs/server.key
+docker restart keycloak
+```
+
+#### User Management
+
+Manage users via the Keycloak admin console at `https://jumpbox.lab.dreamfold.dev:8443/admin`. Users in the `lab` realm are available for OIDC login to vCenter and NSX Manager.
+
+### 2.7 Jumpbox OS Patching
 
 | Step | Action | Notes |
 |------|--------|-------|

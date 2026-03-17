@@ -196,7 +196,30 @@ The CA root certificate must be distributed to ESXi hosts and management applian
 | R-009 | VKS-SVC-RCMD-002 | step-ca provides ACME-capable CA for TLS certificates | Automated certificate issuance via ACME protocol; avoids manual certificate management | Risk: Root CA compromise affects all lab TLS. Mitigation: Lab-only CA — no production trust chain |
 | R-003 | VKS-SVC-RCMD-003 | chrony as NTP server syncing to public pools | Provides accurate time source for VCF components; stratum 2 sufficient for lab | Risk: Upstream NTP unreachable from nested environment. Mitigation: chrony maintains local time accuracy during short outages |
 
-## 5. Compute Design
+## 5. Identity & Access Management
+
+### Keycloak as OIDC Provider
+
+The lab has no Active Directory domain. Keycloak runs as a Docker container on the jumpbox and provides a centralised identity service via OpenID Connect (OIDC).
+
+### OIDC Integration
+
+| Component | Integration | Purpose |
+|-----------|-------------|---------|
+| vCenter SSO | OIDC identity source → Keycloak | Centralised user authentication for both vCenter instances |
+| NSX Manager | OIDC identity source → Keycloak | Centralised user authentication for both NSX Managers |
+
+A single Keycloak realm (`lab`) hosts all lab users. OIDC clients are registered for each VCF component that supports external identity federation.
+
+### Design Decisions
+
+| Req. | Decision ID | Design Decision | Design Justification | Risk / Mitigation |
+|------|-------------|-----------------|----------------------|-------------------|
+| R-002 | VKS-IAM-RCMD-001 | Keycloak as centralised OIDC identity provider | No AD available; Keycloak provides enterprise-grade SSO in a lightweight Docker container | Risk: Additional resource consumption on jumpbox (~1.5 GB RAM). Mitigation: Jumpbox sized to 8 GB to accommodate |
+| R-002 | VKS-IAM-RCMD-002 | vCenter SSO federated to Keycloak via OIDC | Centralises user management; avoids maintaining separate local accounts per vCenter | Risk: Keycloak outage blocks OIDC login. Mitigation: Local administrator@vsphere.local account remains available as fallback |
+| R-002 | VKS-IAM-RCMD-003 | NSX Manager federated to Keycloak via OIDC | Same centralised identity for network management | Risk: Keycloak outage blocks OIDC login to NSX. Mitigation: Local admin account remains available as fallback |
+
+## 6. Compute Design
 
 ### Nested ESXi Approach
 
@@ -255,7 +278,7 @@ Inside each ESXi host, a VDS (created during VCF bringup) maps VLANs to VMkernel
 | R-007 | VKS-ESX-RCMD-003 | vSAN OSA (Original Storage Architecture) with FTT=1 | Simpler than ESA for nested environments; well-proven with nested ESXi | Risk: RAID-1 doubles storage consumption. Mitigation: Sized capacity disks accordingly (200 GB each) |
 | C-001 | VKS-ESX-RCMD-004 | Two vNICs per host — access (management) and trunk (all other VLANs) | Separates management from data traffic while minimising vNIC count | Risk: Single trunk NIC is a bandwidth bottleneck. Mitigation: Acceptable for lab traffic volumes |
 
-## 6. VCF Domain Architecture
+## 7. VCF Domain Architecture
 
 ### Management vs Workload Domain Separation
 
@@ -297,7 +320,7 @@ The workload domain is created via SDDC Manager by commissioning the workload ES
 | R-004 | VKS-VCF-RCMD-003 | VCF Operations and VCF Automation deployed in management domain | Provides monitoring, capacity analytics, and IaC capabilities for the lab | Risk: Additional resource consumption. Mitigation: Optional components — can be removed if resources are constrained |
 | R-004 | VKS-VCF-RCMD-004 | VCF Installer drives initial bringup then is decommissioned | Standard VCF deployment method — installer is temporary | Risk: Installer VM consumes resources during bringup. Mitigation: Remove after bringup to reclaim resources |
 
-## 7. NSX Networking Architecture
+## 8. NSX Networking Architecture
 
 ### Edge Cluster Model
 
@@ -352,7 +375,7 @@ NSX VPC provides project-level network isolation for VKS workloads:
 | R-008 | VKS-NSX-RCMD-003 | Centralised VPC connectivity model (via Edge cluster) | All north-south traffic traverses Edge — simpler than distributed model for lab | Risk: Edge cluster becomes throughput bottleneck. Mitigation: Acceptable for lab traffic volumes |
 | R-008 | VKS-NSX-RCMD-004 | Source NAT on Tier-0 for outbound VPC traffic | Simplifies return routing — external networks see traffic from Tier-0 uplink IP | Risk: NAT hides source IPs. Mitigation: Acceptable for lab; can add specific SNAT rules if needed |
 
-## 8. VKS Architecture
+## 9. VKS Architecture
 
 ### Supervisor
 

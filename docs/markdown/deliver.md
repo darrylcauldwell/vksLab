@@ -28,7 +28,7 @@ The following must be in place before starting Phase 1.
 
 | # | Prerequisite | Status |
 |---|-------------|--------|
-| 1 | vCD resources approved (60 vCPU, 512 GB RAM, 1.5 TB storage) | ☐ |
+| 1 | vCD resources approved (60 vCPU, 516 GB RAM, 1.5 TB storage) | ☐ |
 | 2 | ISO images downloaded: Ubuntu 24.04 LTS, Arista vEOS 4.32.x, ESXi 9.0 | ☐ |
 | 3 | OVA images downloaded: VCF Installer | ☐ |
 | 4 | DNS zone `lab.dreamfold.dev` prepared (internal use only or delegated) | ☐ |
@@ -68,7 +68,7 @@ The following credentials must be prepared before deployment. Use consistent, do
 
 | Step | Action | Expected Result | Verification |
 |------|--------|-----------------|--------------|
-| 3.2.1 | Deploy Ubuntu 24.04 VM (2 vCPU, 4 GB RAM, 60 GB disk) | VM powered on | VM accessible via vCD console |
+| 3.2.1 | Deploy Ubuntu 24.04 VM (2 vCPU, 8 GB RAM, 60 GB disk) | VM powered on | VM accessible via vCD console |
 | 3.2.2 | Connect NIC (ens160) to vCD private network | Network connected | VM shows NIC in `ip link` |
 | 3.2.3 | Configure ens160 static IP 10.0.10.2/24, gateway 10.0.10.1 (vEOS) | Static IP configured | `ping 10.0.10.1` succeeds |
 | 3.2.4 | Install XFCE desktop and xrdp | Remote desktop available | RDP via vEOS port-forward |
@@ -158,6 +158,43 @@ For each ESXi host (run after host is configured in Phase 2):
 scp /tmp/lab-root-ca.crt root@esxi-XX:/tmp/
 ssh root@esxi-XX 'esxcli security cert import --cert-file /tmp/lab-root-ca.crt'
 ```
+
+### 3.2b Keycloak Configuration
+
+Deploy Keycloak as a Docker container on the jumpbox for centralised OIDC identity management.
+
+| Step | Action | Expected Result | Verification |
+|------|--------|-----------------|--------------|
+| 3.2b.1 | Install Docker Engine on jumpbox | Docker running | `docker --version` |
+| 3.2b.2 | Run Keycloak container (port 8443, HTTPS) | Container running | `docker ps` shows keycloak |
+| 3.2b.3 | Create `lab` realm | Realm created | Keycloak admin console accessible |
+| 3.2b.4 | Create OIDC client for vCenter | Client registered | Client ID and secret available |
+| 3.2b.5 | Create OIDC client for NSX Manager | Client registered | Client ID and secret available |
+| 3.2b.6 | Create lab user accounts | Users created | Users visible in `lab` realm |
+
+```bash
+# Run Keycloak container
+docker run -d --name keycloak \
+  -p 8443:8443 \
+  -e KC_BOOTSTRAP_ADMIN_USERNAME=admin \
+  -e KC_BOOTSTRAP_ADMIN_PASSWORD=<CHANGE-ME> \
+  -e KC_HTTPS_CERTIFICATE_FILE=/opt/keycloak/conf/server.crt \
+  -e KC_HTTPS_CERTIFICATE_KEY_FILE=/opt/keycloak/conf/server.key \
+  -v /etc/keycloak/certs:/opt/keycloak/conf \
+  --restart unless-stopped \
+  quay.io/keycloak/keycloak:latest start
+```
+
+Use step-ca to issue a TLS certificate for Keycloak before starting the container:
+
+```bash
+step ca certificate keycloak.lab.dreamfold.dev \
+  /etc/keycloak/certs/server.crt /etc/keycloak/certs/server.key
+```
+
+**Phase 3 post-bringup**: After management domain vCenter is deployed, configure vCenter SSO with Keycloak OIDC identity source (Administration → SSO → Identity Providers → Add OIDC Provider).
+
+**Phase 4 post-domain**: After workload domain NSX Manager is deployed, configure OIDC identity source in both NSX Managers (System → User Management → OIDC).
 
 ### 3.3 Deploy and Configure Arista vEOS
 
