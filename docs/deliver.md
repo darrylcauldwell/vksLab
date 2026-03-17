@@ -102,7 +102,7 @@ Apply with `sudo netplan apply`.
 
 #### dnsmasq configuration
 
-```
+```ini
 # /etc/dnsmasq.d/lab.conf
 domain=lab.dreamfold.dev
 local=/lab.dreamfold.dev/
@@ -131,7 +131,7 @@ address=/edge-02.lab.dreamfold.dev/10.0.10.21
 
 #### chrony configuration
 
-```
+```ini
 # /etc/chrony/chrony.conf
 pool pool.ntp.org iburst
 allow 10.0.0.0/16
@@ -182,7 +182,7 @@ sudo netfilter-persistent save
 
 The vEOS router must have a default route pointing to the jumpbox for internet-bound traffic:
 
-```
+```text
 ip route 0.0.0.0/0 10.0.10.2
 ```
 
@@ -204,7 +204,7 @@ ip route 0.0.0.0/0 10.0.10.2
 
 #### vEOS startup-config
 
-```
+```text
 hostname veos-router
 !
 vlan 10,20,30,40,50,60
@@ -436,7 +436,7 @@ Refer to the VMware VCF documentation for the complete workbook JSON schema and 
 
 #### vEOS BGP configuration
 
-```
+```text
 router bgp 65000
    router-id 10.0.60.1
    neighbor 10.0.60.2 remote-as 65001

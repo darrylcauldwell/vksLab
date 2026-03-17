@@ -71,7 +71,7 @@ date: "March 2026"
                     └───────────────────────────────────────────────────────────┘       │
 ```
 
-See [Deliver](deliver.md) for step-by-step deployment procedures with exact dependencies.
+See [Delivery Guide](deliver.md) for step-by-step deployment procedures with exact dependencies.
 
 ### Component Inventory
 

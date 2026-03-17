@@ -91,7 +91,7 @@ date: "March 2026"
 
 ### Network Configuration
 
-See Delivery Guide for netplan configuration. Key parameters:
+See [Delivery Guide](deliver.md) for netplan configuration. Key parameters:
 
 - NIC1 (ens160): vCD public network, DHCP
 - NIC2 (ens192): vCD private network, static 10.0.10.2/24, gateway 10.0.10.1
@@ -119,7 +119,7 @@ All VCF components point to 10.0.10.2 for DNS and NTP. The CA root certificate i
 | Disk | 8 GB |
 | NIC | vCD private network (trunk, all VLANs) |
 
-See Delivery Guide for complete vEOS startup-config including interface and BGP configuration.
+See [Delivery Guide](deliver.md) for complete vEOS startup-config including interface and BGP configuration.
 
 | Parameter | Value |
 |-----------|-------|
@@ -197,7 +197,7 @@ Before running the VCF Installer:
 3. NTP is reachable from all hosts (jumpbox chrony)
 4. ESXi hosts have matching passwords and are in maintenance mode
 
-See Delivery Guide Phase 3 for the step-by-step bringup procedure.
+See [Delivery Guide](deliver.md) Phase 3 for the step-by-step bringup procedure.
 
 ## 7. VCF Workload Domain
 
@@ -208,7 +208,7 @@ See Delivery Guide Phase 3 for the step-by-step bringup procedure.
 | vCenter Server | vcenter-wld | 10.0.10.9 | Workload domain vCenter |
 | NSX Manager | nsx-mgr-wld | 10.0.10.10 | Workload domain NSX (single node) |
 
-See Delivery Guide Phase 4 for the host commissioning and domain creation procedure.
+See [Delivery Guide](deliver.md) Phase 4 for the host commissioning and domain creation procedure.
 
 ## 8. NSX Edge Cluster
 

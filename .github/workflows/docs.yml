@@ -1,0 +1,42 @@
+name: Generate PDFs
+
+on:
+  push:
+    paths:
+      - 'docs/**'
+      - 'Makefile'
+      - '.github/workflows/docs.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'docs/**'
+      - 'Makefile'
+      - '.github/workflows/docs.yml'
+
+jobs:
+  build-pdfs:
+    runs-on: ubuntu-latest
+    container:
+      image: pandoc/extra:latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Generate PDFs
+        run: make pdf
+
+      - name: Upload PDFs as artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: vks-lab-docs
+          path: docs/*.pdf
+          retention-days: 30
+
+      - name: Attach PDFs to release
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        uses: actions/upload-artifact@v4
+        with:
+          name: vks-lab-docs-latest
+          path: docs/*.pdf
+          retention-days: 90

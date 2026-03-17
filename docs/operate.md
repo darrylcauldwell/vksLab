@@ -302,7 +302,7 @@ nslookup vcenter-mgmt.lab.dreamfold.dev 10.0.10.2
 
 #### vEOS
 
-```
+```text
 ! Check all interfaces
 show ip interface brief
 
@@ -341,7 +341,7 @@ kubectl get events --sort-by=.lastTimestamp
 
 ### 5.1 Current Resource Allocation
 
-Refer to Physical Design Section 10 for the canonical vCD resource requirements and nested appliance resource tables. Use those tables as the baseline when assessing capacity.
+Refer to [Physical Design](physical-design.md) Section 10 for the canonical vCD resource requirements and nested appliance resource tables. Use those tables as the baseline when assessing capacity.
 
 ### 5.2 Scaling Guidance
 

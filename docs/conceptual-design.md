@@ -120,7 +120,7 @@ A VKS cluster deployed via the Supervisor demonstrates Kubernetes lifecycle mana
                          └──────────────────────────────────┘
 ```
 
-Functional blocks and relationships — no network details. See Logical Design for topology.
+Functional blocks and relationships — no network details. See [Logical Design](logical-design.md) for topology.
 
 ## 9. Deployment Approach
 
@@ -133,7 +133,7 @@ Deployment proceeds in six phases, each building on the previous:
 5. **NSX Networking** — Edge cluster, Tier-0/Tier-1 gateways, BGP, VPC
 6. **VKS** — Supervisor enablement, namespace creation, VKS cluster deployment
 
-See Logical Design for phase details and `deliver.md` for step-by-step procedures.
+See [Logical Design](logical-design.md) for phase details and [Delivery Guide](deliver.md) for step-by-step procedures.
 
 ## 10. Open Questions & Risks
 
