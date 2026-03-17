@@ -40,7 +40,19 @@ Demonstrate VMware Kubernetes Service (VKS) on VCF 9 with NSX VPC in a fully nes
 | R-009 | All TLS certificates SHOULD be issued by the internal step-ca CA |
 | R-010 | Lab MAY be powered off, snapshot, and redeployed as a single vApp |
 
-## 5. Constraints
+## 5. Service Level Objectives
+
+This is a lab environment — availability targets are best-effort with no DR or HA guarantees.
+
+| Objective | Target | Notes |
+|-----------|--------|-------|
+| Availability | Best-effort, no SLA | Lab may be powered off at any time |
+| RTO (full rebuild) | 4 hours | Complete redeployment from Phase 1 |
+| RTO (snapshot restore) | 30 minutes | vApp snapshot revert + power-on sequence |
+| RPO | N/A | No persistent production data; lab is rebuilt from documentation |
+| Backup strategy | vApp snapshot | Primary recovery method; component-level backups are supplementary |
+
+## 6. Constraints
 
 | ID    | Constraint |
 |-------|------------|
@@ -50,7 +62,7 @@ Demonstrate VMware Kubernetes Service (VKS) on VCF 9 with NSX VPC in a fully nes
 | C-004 | Lab-grade only — not intended for production workloads or performance benchmarking |
 | C-005 | Internet access required for VKS content library sync and VCF depot access |
 
-## 6. Assumptions
+## 7. Assumptions
 
 | ID    | Assumption |
 |-------|------------|
@@ -60,7 +72,7 @@ Demonstrate VMware Kubernetes Service (VKS) on VCF 9 with NSX VPC in a fully nes
 | A-004 | VCF depot access is available (online or via offline bundles) |
 | A-005 | The lab.dreamfold.dev DNS zone is delegated or used internally only |
 
-## 7. Functional Overview
+## 8. Functional Overview
 
 ### Remote Access
 
@@ -89,7 +101,7 @@ Two VCF domains provide separation of concerns:
 
 A VKS cluster deployed via the Supervisor demonstrates Kubernetes lifecycle management on VCF. The cluster uses NSX VPC for pod networking with centralised Edge connectivity.
 
-## 8. Conceptual Architecture
+## 9. Conceptual Architecture
 
 ```
                          ┌──────────────────────────────────┐
@@ -123,7 +135,7 @@ A VKS cluster deployed via the Supervisor demonstrates Kubernetes lifecycle mana
 
 Functional blocks and relationships — no network details. See [Logical Design](logical-design.md) for topology.
 
-## 9. Deployment Approach
+## 10. Deployment Approach
 
 Deployment proceeds in six phases, each building on the previous:
 
@@ -136,7 +148,22 @@ Deployment proceeds in six phases, each building on the previous:
 
 See [Logical Design](logical-design.md) for phase details and [Delivery Guide](deliver.md) for step-by-step procedures.
 
-## 10. Open Questions & Risks
+## 11. Requirements Traceability Matrix
+
+| Requirement | Design Decisions | Verification |
+|-------------|-----------------|--------------|
+| R-001: Single vApp | VKS-VCD-RCMD-001, VKS-VCD-RCMD-002 | vApp visible in vCD; all VMs inside single vApp |
+| R-002: Remote RDP access | VKS-NET-RCMD-001, VKS-NET-RCMD-007, VKS-IAM-RCMD-001 | RDP to vEOS public IP reaches jumpbox desktop |
+| R-003: DNS, NTP, CA on jumpbox | VKS-NET-RCMD-005, VKS-SVC-RCMD-001, VKS-SVC-RCMD-002, VKS-SVC-RCMD-003 | `dig`, `chronyc`, `step ca health` all pass |
+| R-004: Two VCF domains | VKS-NET-REQD-003, VKS-NET-REQD-004, VKS-ESX-RCMD-002, VKS-VCF-RCMD-001, VKS-VCF-RCMD-003, VKS-VCF-RCMD-004 | SDDC Manager shows both domains Active |
+| R-005: VKS cluster via Supervisor | VKS-K8S-REQD-001, VKS-K8S-RCMD-002, VKS-K8S-RCMD-003, VKS-K8S-RCMD-004 | `kubectl get cluster` shows Provisioned; `kubectl get nodes` shows 6 Ready |
+| R-006: BGP peering NSX ↔ vEOS | VKS-NET-RCMD-002, VKS-NSX-REQD-001, VKS-NSX-RCMD-002 | `show ip bgp summary` on vEOS shows Established |
+| R-007: vSAN OSA FTT=1 | VKS-ESX-RCMD-003 | vSAN health green; storage policy shows FTT=1 |
+| R-008: NSX VPC centralised | VKS-NSX-RCMD-003, VKS-NSX-RCMD-004 | NSX VPC shows Realised; test workload accessible via LB |
+| R-009: step-ca TLS certificates | VKS-SVC-RCMD-002 | Component certificates issued by lab root CA |
+| R-010: Snapshot/redeploy as vApp | VKS-VCD-RCMD-001 | vApp snapshot and restore verified |
+
+## 12. Open Questions & Risks
 
 | # | Item | Status | Impact |
 |---|------|--------|--------|
