@@ -47,173 +47,21 @@ The following must be in place before starting Phase 1.
 | 3.1.2 | Add routed network (public) to vApp | External connectivity available |
 | 3.1.3 | Add isolated network (private, MTU 9000) to vApp | Trunk-capable internal network available |
 
-### 3.2 Deploy and Configure Jumpbox
+### 3.2 Deploy Jumpbox VM (Manual in vCD)
 
 | Step | Action | Expected Result | Verification |
 |------|--------|-----------------|--------------|
-| 3.2.1 | Deploy Ubuntu 24.04 VM (2 vCPU, 10 GB RAM, 60 GB disk) | VM powered on | VM accessible via vCD console |
-| 3.2.2 | Configure NIC1 (ens160) on public network | DHCP address obtained | `ip addr show ens160` shows IP |
-| 3.2.3 | Configure NIC2 (ens192) on private network as VLAN trunk (MTU 9000) | Static IP configured | `ping 10.0.10.1` from local |
-| 3.2.4 | Install XFCE desktop and xrdp | Remote desktop available | RDP connection on port 3389 |
-| 3.2.5 | Install and configure dnsmasq for lab.dreamfold.dev | DNS server running | `dig @10.0.10.1 jumpbox.lab.dreamfold.dev` |
-| 3.2.6 | Install and configure chrony | NTP server running | `chronyc sources` shows upstream |
-| 3.2.7 | Install and configure step-ca | CA running with ACME | `step ca health` returns ok |
-| 3.2.8 | Install Firefox for web management UIs | Browser available | Launch Firefox via RDP |
+| 3.2.1 | Create Ubuntu 24.04 VM from Content Hub ISO (2 vCPU, 10 GB RAM, 60 GB disk) with NIC1 on Public network, NIC2 on private network | VM created | VM visible in vApp |
+| 3.2.2 | Power on and complete Ubuntu installer via vCD console | Ubuntu installed | Login prompt on console |
+| 3.2.3 | Note public IP assigned by DHCP to NIC1 (ens160) | IP obtained | `ip addr show ens160` |
+| 3.2.4 | Update `jumpbox_public_ip` in `ansible/inventory/group_vars/all.yml` | Inventory updated | SSH from operator laptop works |
 
-#### Jumpbox netplan configuration
-
-```yaml
-# /etc/netplan/01-lab.yaml
-network:
-  version: 2
-  ethernets:
-    ens160:
-      dhcp4: true
-    ens192:
-      mtu: 9000
-  vlans:
-    ens192.10:
-      id: 10
-      link: ens192
-      addresses: [10.0.10.1/24]
-      mtu: 1500
-      nameservers:
-        addresses: [127.0.0.1]
-    ens192.20:
-      id: 20
-      link: ens192
-      addresses: [10.0.20.1/24]
-      mtu: 9000
-    ens192.30:
-      id: 30
-      link: ens192
-      addresses: [10.0.30.1/24]
-      mtu: 9000
-    ens192.40:
-      id: 40
-      link: ens192
-      addresses: [10.0.40.1/24]
-      mtu: 9000
-    ens192.50:
-      id: 50
-      link: ens192
-      addresses: [10.0.50.1/24]
-      mtu: 9000
-    ens192.60:
-      id: 60
-      link: ens192
-      addresses: [10.0.60.1/24]
-      mtu: 1500
-```
-
-Apply with `sudo netplan apply`.
-
-#### dnsmasq configuration (DNS + DHCP)
-
-```ini
-# /etc/dnsmasq.d/lab.conf
-domain=lab.dreamfold.dev
-local=/lab.dreamfold.dev/
-server=192.19.189.20
-server=192.19.189.10
-server=192.19.189.30
-
-# --- DNS Records ---
-# Infrastructure
-address=/jumpbox.lab.dreamfold.dev/10.0.10.1
-address=/vcf-installer.lab.dreamfold.dev/10.0.10.3
-address=/vcenter-mgmt.lab.dreamfold.dev/10.0.10.4
-address=/sddc-manager.lab.dreamfold.dev/10.0.10.5
-address=/nsx-mgr-mgmt.lab.dreamfold.dev/10.0.10.6
-address=/vcf-ops.lab.dreamfold.dev/10.0.10.7
-address=/vcf-auto.lab.dreamfold.dev/10.0.10.8
-address=/vcenter-wld.lab.dreamfold.dev/10.0.10.9
-address=/nsx-mgr-wld.lab.dreamfold.dev/10.0.10.10
-# ESXi hosts
-address=/esxi-01.lab.dreamfold.dev/10.0.10.11
-address=/esxi-02.lab.dreamfold.dev/10.0.10.12
-address=/esxi-03.lab.dreamfold.dev/10.0.10.13
-address=/esxi-04.lab.dreamfold.dev/10.0.10.14
-address=/esxi-05.lab.dreamfold.dev/10.0.10.15
-address=/esxi-06.lab.dreamfold.dev/10.0.10.16
-address=/esxi-07.lab.dreamfold.dev/10.0.10.17
-# NSX Edges
-address=/edge-01.lab.dreamfold.dev/10.0.10.20
-address=/edge-02.lab.dreamfold.dev/10.0.10.21
-
-# --- DHCP on VLAN 10 (management) ---
-dhcp-range=10.0.10.100,10.0.10.199,255.255.255.0,12h
-dhcp-option=option:router,10.0.10.1
-dhcp-option=option:dns-server,10.0.10.1
-dhcp-option=option:ntp-server,10.0.10.1
-
-# Static MAC→IP reservations (replace xx:xx with actual MACs from vCD)
-dhcp-host=00:50:56:xx:xx:01,esxi-01,10.0.10.11
-dhcp-host=00:50:56:xx:xx:02,esxi-02,10.0.10.12
-dhcp-host=00:50:56:xx:xx:03,esxi-03,10.0.10.13
-dhcp-host=00:50:56:xx:xx:04,esxi-04,10.0.10.14
-dhcp-host=00:50:56:xx:xx:05,esxi-05,10.0.10.15
-dhcp-host=00:50:56:xx:xx:06,esxi-06,10.0.10.16
-dhcp-host=00:50:56:xx:xx:07,esxi-07,10.0.10.17
-```
-
-#### chrony configuration
-
-```ini
-# /etc/chrony/chrony.conf
-pool ntp.broadcom.net iburst
-allow 10.0.0.0/16
-```
-
-### 3.2a Certificate Distribution (R-009, SVC-02)
-
-After step-ca is running, the root CA certificate must be distributed to all components that will validate TLS certificates. This is done progressively as components are deployed.
-
-| Phase | Target | Method |
-|-------|--------|--------|
-| Phase 2 | ESXi hosts | **Automated by `esxi_prepare` role** — copies root cert and runs `esxcli security cert import` via `phase2_esxi.yml` |
-| Phase 3 | VCF Installer | Provide root cert during OVA deployment parameters |
-| Phase 3 | vCenter, SDDC Manager, NSX Manager | Deployed by VCF Installer — configure trusted root in bringup workbook |
-| Phase 4 | Workload vCenter, NSX Manager | Deployed by SDDC Manager — inherits trust from management domain |
-
-Export the root CA certificate from step-ca:
+All further jumpbox configuration (VLAN sub-interfaces, dnsmasq DNS/DHCP, chrony NTP, step-ca, XFCE/xrdp, IP masquerading, Quagga BGP, Firefox) is automated by the `jumpbox` and `docker_services` Ansible roles. Run Phase 1:
 
 ```bash
-step ca root /tmp/lab-root-ca.crt
+source .venv/bin/activate
+ansible-playbook -i ansible/inventory/hosts.yml ansible/playbooks/phase1_foundation.yml
 ```
-
-For reference — the following manual steps are automated by `phase2_esxi.yml` and do not need to be run separately:
-
-```bash
-# Automated by esxi_prepare role — shown for reference only
-scp /tmp/lab-root-ca.crt root@esxi-XX:/tmp/
-ssh root@esxi-XX 'esxcli security cert import --cert-file /tmp/lab-root-ca.crt'
-```
-
-### 3.2b Internet Access from Nested Environment
-
-VCF depot sync (via `depot.vcf-gcp.broadcom.net`), content library updates, and VKS image pulls require outbound internet access from the nested environment. Components on the management VLAN (10.0.10.x) must be able to reach external URLs.
-
-The jumpbox is dual-homed (public NIC + management VLAN) and provides outbound internet for the entire lab. IP masquerading on the jumpbox allows all hosts on the management VLAN (and other VLANs) to reach external URLs via the jumpbox's public NIC:
-
-```bash
-# Enable IP forwarding
-sudo sysctl -w net.ipv4.ip_forward=1
-echo 'net.ipv4.ip_forward=1' | sudo tee -a /etc/sysctl.d/99-lab-forwarding.conf
-
-# Add masquerade rule for traffic from the lab network exiting via the public NIC
-sudo iptables -t nat -A POSTROUTING -s 10.0.0.0/16 -o ens160 -j MASQUERADE
-
-# Persist iptables rules
-sudo apt install -y iptables-persistent
-sudo netfilter-persistent save
-```
-
-| Verification | Command | Expected Result |
-|-------------|---------|-----------------|
-| Jumpbox forwarding | `cat /proc/sys/net/ipv4/ip_forward` | 1 |
-| Masquerade rule | `sudo iptables -t nat -L POSTROUTING` | MASQUERADE rule present |
-| ESXi internet access | `ssh root@esxi-01 'vmkping -I vmk0 8.8.8.8'` | Success |
 
 ### 3.2c 1Password Secret Store
 
