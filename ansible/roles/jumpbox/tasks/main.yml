@@ -6,7 +6,7 @@
 #   - NTP (chrony) — all VCF components sync time from the jumpbox
 #   - CA (step-ca) — internal TLS certificates for all lab components
 #   - NAT/masquerade — outbound internet for nested hosts via the public NIC
-#   - BGP (Quagga) — peers with NSX Tier-0 for VKS pod/service route exchange
+#   - BGP (FRR) — peers with NSX Tier-0 for VKS pod/service route exchange
 #   - RDP (xrdp + XFCE) — remote desktop access for managing web UIs
 
 - name: Install required packages
@@ -98,43 +98,43 @@
     state: present
   notify: save iptables
 
-# Quagga BGP peers with the NSX Tier-0 gateway on the edge uplink VLAN (60).
+# FRR BGP peers with the NSX Tier-0 gateway on the edge uplink VLAN (60).
 # The jumpbox advertises infrastructure routes; NSX advertises VKS pod/service
 # CIDRs back. This enables pod-to-external and external-to-pod connectivity.
-- name: Deploy Quagga daemons configuration
+- name: Deploy FRR daemons configuration
   become: true
   ansible.builtin.template:
     src: daemons.j2
-    dest: /etc/quagga/daemons
-    owner: quagga
-    group: quagga
-    mode: "0644"
-  notify: restart quagga
+    dest: /etc/frr/daemons
+    owner: frr
+    group: frr
+    mode: "0640"
+  notify: restart frr
 
-- name: Deploy Quagga zebra configuration
+- name: Deploy FRR zebra configuration
   become: true
   ansible.builtin.template:
     src: zebra.conf.j2
-    dest: /etc/quagga/zebra.conf
-    owner: quagga
-    group: quagga
-    mode: "0644"
-  notify: restart quagga
+    dest: /etc/frr/zebra.conf
+    owner: frr
+    group: frr
+    mode: "0640"
+  notify: restart frr
 
-- name: Deploy Quagga BGP configuration
+- name: Deploy FRR BGP configuration
   become: true
   ansible.builtin.template:
     src: bgpd.conf.j2
-    dest: /etc/quagga/bgpd.conf
-    owner: quagga
-    group: quagga
-    mode: "0644"
-  notify: restart quagga
+    dest: /etc/frr/bgpd.conf
+    owner: frr
+    group: frr
+    mode: "0640"
+  notify: restart frr
 
-- name: Enable and start Quagga
+- name: Enable and start FRR
   become: true
   ansible.builtin.service:
-    name: quagga
+    name: frr
     state: started
     enabled: true
 

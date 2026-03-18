@@ -20,7 +20,7 @@ The lab is built in six sequential phases, each depending on the previous one.
 | 5 | NSX Networking |
 | 6 | VKS |
 
-**Phase 1** establishes the vApp, jumpbox (DNS, NTP, CA, inter-VLAN routing, Quagga BGP). **Phase 2** deploys all seven nested ESXi hosts. **Phase 3** runs the VCF Installer to bring up the management domain (vCenter, SDDC Manager, NSX Manager, VCF Operations, VCF Automation). **Phase 4** commissions workload hosts and creates the workload domain. **Phase 5** deploys the NSX Edge cluster, configures Tier-0/Tier-1 gateways, establishes BGP peering, and creates the NSX VPC. **Phase 6** enables the Supervisor, creates a vSphere Namespace, and deploys a VKS cluster with a test workload.
+**Phase 1** establishes the vApp, jumpbox (DNS, NTP, CA, inter-VLAN routing, FRR BGP). **Phase 2** deploys all seven nested ESXi hosts. **Phase 3** runs the VCF Installer to bring up the management domain (vCenter, SDDC Manager, NSX Manager, VCF Operations, VCF Automation). **Phase 4** commissions workload hosts and creates the workload domain. **Phase 5** deploys the NSX Edge cluster, configures Tier-0/Tier-1 gateways, establishes BGP peering, and creates the NSX VPC. **Phase 6** enables the Supervisor, creates a vSphere Namespace, and deploys a VKS cluster with a test workload.
 
 ## 2. Prerequisites
 
@@ -107,7 +107,7 @@ ansible-galaxy collection install -r ansible/collections/requirements.yml
 
 ### 3.4 Configure Jumpbox (Automated)
 
-All jumpbox configuration (VLAN sub-interfaces, dnsmasq DNS/DHCP, chrony NTP, step-ca, XFCE/xrdp, IP masquerading, Quagga BGP, Firefox, Keycloak) is automated by the `jumpbox` and `docker_services` Ansible roles:
+All jumpbox configuration (VLAN sub-interfaces, dnsmasq DNS/DHCP, chrony NTP, step-ca, XFCE/xrdp, IP masquerading, FRR BGP, Firefox, Keycloak) is automated by the `jumpbox` and `docker_services` Ansible roles:
 
 ```bash
 source .venv/bin/activate
@@ -125,7 +125,7 @@ ansible-playbook playbooks/phase1_foundation.yml --ask-become-pass
 | Jumpbox CA | `step ca health` | Returns "ok" |
 | VLAN sub-interfaces | `ip addr show ens192.10` on jumpbox | Shows 10.0.10.1 |
 | Inter-VLAN routing | `ping 10.0.20.1` from a host on VLAN 10 | Success |
-| Quagga BGP | `vtysh -c 'show ip bgp summary'` on jumpbox | Quagga running |
+| FRR BGP | `vtysh -c 'show ip bgp summary'` on jumpbox | FRR running |
 
 ## 4. Phase 2 — Nested ESXi
 
@@ -360,16 +360,16 @@ For AMD Ryzen/Threadripper physical hosts, also add: `monitor_control.enable_ful
 | 7.2.3 | Configure BGP: ASN 65001, neighbor 10.0.60.1 (ASN 65000), keepalive 60s, hold 180s | BGP configured | — |
 | 7.2.4 | Enable route redistribution (connected subnets, NAT) | Routes advertised | — |
 
-### 7.3 Configure BGP on Jumpbox (Quagga)
+### 7.3 Configure BGP on Jumpbox (FRR)
 
 | Step | Action | Expected Result | Verification |
 |------|--------|-----------------|--------------|
 | 7.3.1 | SSH to jumpbox | CLI access | — |
-| 7.3.2 | Verify Quagga BGP configuration deployed by Ansible | BGP configured | `vtysh -c 'show ip bgp summary'` |
+| 7.3.2 | Verify FRR BGP configuration deployed by Ansible | BGP configured | `vtysh -c 'show ip bgp summary'` |
 | 7.3.3 | Verify BGP adjacency established | Session state: Established | `vtysh -c 'show ip bgp summary'` shows Established |
 | 7.3.4 | Verify route exchange | Routes received from NSX | `vtysh -c 'show ip bgp'` shows VPC prefixes |
 
-#### Jumpbox Quagga BGP configuration
+#### Jumpbox FRR BGP configuration
 
 ```text
 router bgp 65000

@@ -397,8 +397,8 @@ op item list --vault "VKS Lab"
 | Jumpbox dnsmasq | `/var/log/syslog` (filter: dnsmasq) | `journalctl -u dnsmasq` |
 | Jumpbox chrony | `/var/log/syslog` (filter: chronyd) | `journalctl -u chronyd` |
 | Jumpbox step-ca | `journalctl -u step-ca` | systemd journal |
-| Quagga | `/var/log/quagga/zebra.log`, `/var/log/quagga/bgpd.log` | `journalctl` or file |
-| 1Password | Operator laptop | `op item list --vault "VKS Lab"` |
+| FRR | `/var/log/frr/zebra.log`, `/var/log/frr/bgpd.log` | `journalctl` or file |
+| 1Password | Operator laptop | `op item list --vault Employee` |
 | Keycloak | Container stdout | `docker logs keycloak` |
 
 ### 4.3 Useful Diagnostic Commands
@@ -476,7 +476,7 @@ vCenter → Cluster → Monitor → vSAN → Performance
   - Congestion indicators
 ```
 
-#### Jumpbox Routing (Quagga)
+#### Jumpbox Routing (FRR)
 
 ```bash
 # Check all VLAN sub-interfaces
@@ -485,7 +485,7 @@ ip addr show | grep ens192
 # Check routing table
 ip route
 
-# --- BGP diagnostics (via Quagga vtysh) ---
+# --- BGP diagnostics (via FRR vtysh) ---
 # Session summary (state, prefixes received, uptime)
 sudo vtysh -c 'show ip bgp summary'
 
@@ -506,8 +506,8 @@ sudo vtysh -c 'show ip bgp neighbors 10.0.60.2 received-routes'
 sudo iptables -t nat -L POSTROUTING -v -n
 
 # --- Logs ---
-tail -50 /var/log/quagga/bgpd.log
-tail -50 /var/log/quagga/zebra.log
+tail -50 /var/log/frr/bgpd.log
+tail -50 /var/log/frr/zebra.log
 ```
 
 #### NSX

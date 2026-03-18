@@ -152,7 +152,7 @@ See [Logical Design](logical-design.md) for phase details and [Delivery Guide](d
 
 | # | Item | Status | Impact |
 |---|------|--------|--------|
-| 1 | Quagga BGP compatibility with NSX Tier-0 | Open | Verify BGP session establishes correctly in nested environment |
+| 1 | FRR BGP compatibility with NSX Tier-0 | Open | Verify BGP session establishes correctly in nested environment |
 | 2 | vCD resource allocation approval | Open | Substantial resource request — needs org approval |
 | 3 | Internet access from nested environment | Resolved | Jumpbox IP masquerade provides outbound internet for all lab hosts via ens160 public NIC |
 | 4 | VCF depot access | Resolved | Lab offline depot available at `depot.vcf-gcp.broadcom.net` |

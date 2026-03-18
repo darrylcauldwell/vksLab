@@ -21,8 +21,8 @@
   ansible.builtin.shell: netfilter-persistent save
   changed_when: true
 
-- name: restart quagga
+- name: restart frr
   become: true
   ansible.builtin.service:
-    name: quagga
+    name: frr
     state: restarted

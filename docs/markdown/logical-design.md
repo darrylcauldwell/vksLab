@@ -27,7 +27,7 @@ date: "March 2026"
                     │              │  ┌──────────┐                    │       │       │
                     │              │  │  Ubuntu   │                    │       │       │
                     │              │  │  Jumpbox  │◄─── BGP ───┐      │       │       │
-                    │              │  │  (Quagga) │            │      │       │       │
+                    │              │  │  (FRR) │            │      │       │       │
                     │              │  └──────────┘            │      │       │       │
                     │              │       │                    │      │       │       │
                     │              │       │ Inter-VLAN         │      │       │       │
@@ -77,7 +77,7 @@ See [Delivery Guide](deliver.md) for step-by-step deployment procedures with exa
 
 | Component | Quantity | Role |
 |-----------|----------|------|
-| Ubuntu Jumpbox | 1 | External access, inter-VLAN routing, BGP (Quagga), CA, DNS, DHCP, NTP, identity (Keycloak) |
+| Ubuntu Jumpbox | 1 | External access, inter-VLAN routing, BGP (FRR), CA, DNS, DHCP, NTP, identity (Keycloak) |
 | Nested ESXi (Management) | 4 | VCF management domain hosts |
 | Nested ESXi (Workload) | 3 | VCF workload domain hosts |
 | VCF Installer | 1 | Drives VCF bringup (temporary) |
@@ -126,12 +126,12 @@ The Ubuntu jumpbox is dual-homed:
 
 All other lab VMs have a single NIC on the vCD private network. The jumpbox performs IP forwarding and inter-VLAN routing via VLAN sub-interfaces on ens192.
 
-### Jumpbox Routing (Quagga)
+### Jumpbox Routing (FRR)
 
 The jumpbox has a trunk interface (ens192, MTU 9000) on the vCD private network carrying all VCF VLANs via 802.1Q sub-interfaces. It provides:
 
 - **Inter-VLAN routing** between management, vMotion, and other VCF networks via VLAN sub-interfaces
-- **BGP peering** with the NSX Tier-0 gateway for north-south routing from VPC workloads (via Quagga)
+- **BGP peering** with the NSX Tier-0 gateway for north-south routing from VPC workloads (via FRR)
 - **Default gateway** for nested ESXi management interfaces
 - **NAT** for outbound internet access via iptables masquerade on ens160
 
@@ -163,7 +163,7 @@ The jumpbox runs dnsmasq, authoritative for the `lab.dreamfold.dev` zone. Unknow
 | Req. | Decision ID | Design Decision | Design Justification | Risk / Mitigation |
 |------|-------------|-----------------|----------------------|-------------------|
 | R-002 | NET-01 | Dual-homed jumpbox provides the only external entry point | Single ingress point simplifies security and avoids exposing VCF management interfaces directly | Risk: Jumpbox outage removes all external access. Mitigation: Acceptable for lab; vCD console access remains available |
-| R-006 | NET-02 | Jumpbox provides inter-VLAN routing (VLAN sub-interfaces) and BGP peering (Quagga) | Consolidates routing onto the jumpbox — eliminates a separate router VM, saves 2 vCPU / 4 GB RAM, removes Arista licence dependency | Risk: Quagga is less feature-rich than a dedicated network OS. Mitigation: Only basic L3 routing and BGP needed for lab |
+| R-006 | NET-02 | Jumpbox provides inter-VLAN routing (VLAN sub-interfaces) and BGP peering (FRR) | Consolidates routing onto the jumpbox — eliminates a separate router VM, saves 2 vCPU / 4 GB RAM, removes Arista licence dependency | Risk: FRR is less feature-rich than a dedicated network OS. Mitigation: Only basic L3 routing and BGP needed for lab |
 | R-004 | NET-03 | Six VLANs segment traffic by function | Matches VCF reference architecture VLAN model — management, vMotion, vSAN, host TEP, edge TEP, edge uplink | Risk: Over-segmentation for a lab. Mitigation: Required by VCF — cannot reduce without breaking bringup |
 | R-004 | NET-04 | Jumbo frames (MTU 9000) for overlay and storage VLANs | Required for NSX Geneve encapsulation overhead and optimal vSAN performance | Risk: vCD private network must support MTU 9000. Mitigation: Verify provider portgroup MTU before deployment |
 | R-003 | NET-05 | dnsmasq on jumpbox provides authoritative DNS for lab.dreamfold.dev | Lightweight, simple configuration, dual-homed jumpbox can forward to upstream DNS | Risk: Single DNS server — no redundancy. Mitigation: Acceptable for lab; dnsmasq restarts quickly |
@@ -423,20 +423,20 @@ The Tier-0 gateway operates in **Active-Standby** mode across the two Edge VMs. 
 
 1. Active Edge fails → BFD detects failure (~500ms)
 2. Standby Edge promotes to active (~2-4s)
-3. New active Edge re-establishes the BGP session with the jumpbox (Quagga) on VLAN 60
+3. New active Edge re-establishes the BGP session with the jumpbox (FRR) on VLAN 60
 4. BGP hold timer (180s) on the jumpbox determines when stale routes are withdrawn
 5. New BGP session establishes, routes are re-exchanged
 
 **Expected convergence time**: In a nested lab environment, expect 30-60 seconds for full north-south traffic restoration. This includes BFD detection (~0.5s), Edge promotion (~2-4s), and BGP session re-establishment (variable, up to the hold timer). The BGP hold timer (180s) is the worst case for route withdrawal if the session never re-establishes.
 
-**Graceful restart**: NSX supports BGP graceful restart, which allows the new active Edge to signal the peer (jumpbox Quagga) that it is restarting BGP. Quagga retains stale routes during the restart window rather than immediately withdrawing them, reducing traffic disruption.
+**Graceful restart**: NSX supports BGP graceful restart, which allows the new active Edge to signal the peer (jumpbox FRR) that it is restarting BGP. FRR retains stale routes during the restart window rather than immediately withdrawing them, reducing traffic disruption.
 
 ### Gateway Hierarchy
 
 ```
 NSX Tier-0 Gateway (Active-Standby)
     │
-    ├── BGP peering with jumpbox (Quagga)
+    ├── BGP peering with jumpbox (FRR)
     │   (external connectivity)
     │
     └── NSX Tier-1 Gateway
@@ -448,17 +448,17 @@ NSX Tier-0 Gateway (Active-Standby)
                     └── VKS pod and service networks
 ```
 
-- **Tier-0**: Active-Standby HA mode, BGP uplink to jumpbox (Quagga), source NAT for outbound traffic
+- **Tier-0**: Active-Standby HA mode, BGP uplink to jumpbox (FRR), source NAT for outbound traffic
 - **Tier-1**: Linked to Tier-0, advertises connected subnets, hosts NSX LB for Kubernetes services
 - **VPC**: Centralised connectivity model — all north-south traffic traverses the Edge cluster
 
 ### BGP Design
 
-| Parameter | Jumpbox (Quagga) | NSX Tier-0 |
+| Parameter | Jumpbox (FRR) | NSX Tier-0 |
 |-----------|------|------------|
 | ASN | 65000 | 65001 |
 | Router ID | 10.0.60.1 | 10.0.60.2 |
-| Role | External peer (Quagga) | Internal peer |
+| Role | External peer (FRR) | Internal peer |
 | Keepalive / Hold | 60s / 180s | 60s / 180s |
 | Advertisements | Connected subnets (all VLANs) | VPC/overlay prefixes |
 
@@ -506,7 +506,7 @@ Tier-0 Gateway
   │  Route redistribution: connected, static, NAT
   │  BGP advertisement to jumpbox
   ▼
-Jumpbox / Quagga (ASN 65000)
+Jumpbox / FRR (ASN 65000)
   │  Receives VPC prefixes via BGP
   │  Redistributes connected subnets back to NSX
   ▼
@@ -530,7 +530,7 @@ Infrastructure VLANs (10.0.10–60.0/24)
 | NAT IPs | Enabled | Redistributes SNAT translated IPs |
 | Tier-1 Connected | Enabled | Redistributes Tier-1 advertised routes into BGP |
 
-**Jumpbox route redistribution**: The Quagga BGP configuration uses `redistribute connected` to advertise all VLAN sub-interface subnets (VLANs 10–60) to the NSX Tier-0. This gives the Tier-0 reachability to the infrastructure VLANs without requiring static routes.
+**Jumpbox route redistribution**: The FRR BGP configuration uses `redistribute connected` to advertise all VLAN sub-interface subnets (VLANs 10–60) to the NSX Tier-0. This gives the Tier-0 reachability to the infrastructure VLANs without requiring static routes.
 
 ### End-to-End Traffic Flow
 
@@ -560,7 +560,7 @@ Infrastructure VLANs (10.0.10–60.0/24)
    ▼ Traffic arrives at jumpbox public NIC (if from internet)
 2. Jumpbox routes to VIP via jumpbox (connected route for 10.0.60.0/24)
    │
-   ▼ Jumpbox has BGP route (Quagga) for VIP → next-hop 10.0.60.2
+   ▼ Jumpbox has BGP route (FRR) for VIP → next-hop 10.0.60.2
 3. Jumpbox forwards to Tier-0 uplink (10.0.60.2) on VLAN 60
    │
    ▼ Standard L3 routing
@@ -588,7 +588,7 @@ Infrastructure VLANs (10.0.10–60.0/24)
 | Req. | Decision ID | Design Decision | Design Justification | Risk / Mitigation |
 |------|-------------|-----------------|----------------------|-------------------|
 | R-006 | NSX-01 | Two-node NSX Edge cluster sized Large | Minimum for Active-Standby HA; Large sizing required for VKS workloads | Risk: Large Edges consume significant resources (8 vCPU, 32 GB each). Mitigation: Workload domain hosts sized accordingly |
-| R-006 | NSX-02 | Active-Standby Tier-0 with BGP uplink to jumpbox (Quagga) (keepalive 60s, hold 180s) | Provides dynamic route exchange; jumpbox advertises infrastructure subnets, NSX advertises VPC prefixes; conservative timers tolerate nested virtualisation overhead | Risk: BGP misconfiguration breaks north-south routing. Mitigation: Verify adjacency and route tables in Phase 5 |
+| R-006 | NSX-02 | Active-Standby Tier-0 with BGP uplink to jumpbox (FRR) (keepalive 60s, hold 180s) | Provides dynamic route exchange; jumpbox advertises infrastructure subnets, NSX advertises VPC prefixes; conservative timers tolerate nested virtualisation overhead | Risk: BGP misconfiguration breaks north-south routing. Mitigation: Verify adjacency and route tables in Phase 5 |
 | R-008 | NSX-03 | Centralised VPC connectivity model (via Edge cluster) | All north-south traffic traverses Edge — simpler than distributed model for lab | Risk: Edge cluster becomes throughput bottleneck. Mitigation: Acceptable for lab traffic volumes |
 | R-008 | NSX-04 | Source NAT on Tier-0 for outbound VPC traffic | Simplifies return routing — external networks see traffic from Tier-0 uplink IP | Risk: NAT hides source IPs. Mitigation: Acceptable for lab; can add specific SNAT rules if needed |
 

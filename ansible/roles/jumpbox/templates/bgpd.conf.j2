@@ -1,9 +1,4 @@
-! /etc/quagga/bgpd.conf — managed by Ansible
-hostname {{ inventory_hostname }}
-password zebra
-enable password zebra
-log file /var/log/quagga/bgpd.log
-
+! /etc/frr/bgpd.conf — managed by Ansible
 router bgp {{ bgp_local_asn }}
  bgp router-id {{ bgp_router_id }}
  timers bgp {{ bgp_keepalive }} {{ bgp_holdtime }}
@@ -12,3 +7,4 @@ router bgp {{ bgp_local_asn }}
  address-family ipv4 unicast
   neighbor {{ bgp_nsx_uplink_ip }} activate
   redistribute connected
+ exit-address-family

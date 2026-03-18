@@ -105,7 +105,7 @@ See [Delivery Guide](deliver.md) for netplan configuration. Key parameters:
   - ens192.50: 10.0.50.1/24 (Edge Overlay, MTU 9000)
   - ens192.60: 10.0.60.1/24 (Edge Uplink / BGP, MTU 1500)
 - IP forwarding enabled — jumpbox is the inter-VLAN router
-- Quagga provides BGP peering with NSX Tier-0
+- FRR provides BGP peering with NSX Tier-0
 
 ### Services Configuration
 
@@ -117,7 +117,7 @@ See [Delivery Guide](deliver.md) for netplan configuration. Key parameters:
 | CA | step-ca | Root CA for `lab.dreamfold.dev`, ACME enabled |
 | OIDC | Keycloak (Docker) | Port 8443, centralised identity provider for vCenter and NSX |
 | Secrets | 1Password (operator laptop) | `community.general.onepassword` lookup plugin via 1Password CLI |
-| Routing | Quagga (zebra + bgpd) | Inter-VLAN routing, BGP peering with NSX Tier-0 (ASN 65000) |
+| Routing | FRR (zebra + bgpd) | Inter-VLAN routing, BGP peering with NSX Tier-0 (ASN 65000) |
 | Remote access | xrdp | Listening on port 3389 (NIC1) |
 | Web browser | Firefox | Access vCenter, NSX Manager, SDDC Manager UIs |
 
@@ -280,7 +280,7 @@ Edge VMs are sized as **Large** (8 vCPU, 32 GB RAM) to support VKS workloads.
 | Edge Cluster | workload-edge-cluster |
 | Uplink Interface | 10.0.60.2/24 on VLAN 60 |
 | BGP ASN | 65001 |
-| BGP Neighbor | 10.0.60.1 (Jumpbox Quagga, ASN 65000) |
+| BGP Neighbor | 10.0.60.1 (Jumpbox FRR, ASN 65000) |
 
 ### Tier-1 Gateway Settings
 
