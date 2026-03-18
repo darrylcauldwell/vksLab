@@ -150,8 +150,10 @@ ESXi hosts receive their management IP via DHCP from the jumpbox dnsmasq (config
 
 | Step | Action | Expected Result | Verification |
 |------|--------|-----------------|--------------|
-| 4.1.1 | For each host (esxi-01 through esxi-07): clone from vApp template `[baked]esxi-9.0.2-2514807` (8 vCPU, 72 GB RAM, 40 GB boot disk + 200 GB NVMe vSAN disk), both NICs on `lab-trunk` | VM created | ESXi DCUI accessible |
+| 4.1.1 | For each host (esxi-01 through esxi-07): clone from vApp template `[baked]esxi-9.0.2-2514807` (8 vCPU, 72 GB RAM, 40 GB boot disk + 200 GB NVMe vSAN disk), both NICs on `lab-trunk` | VM created | ESXi DCUI visible via vCD console |
 | 4.1.2 | Note vmnic0 MAC address for each host, update `esxi_mac` in `ansible/inventory/hosts.yml` | MACs recorded | Inventory updated |
+| 4.1.3 | On each host via DCUI: Troubleshooting Options → Enable SSH | SSH enabled | `ssh root@<ip>` connects |
+| 4.1.4 | On each host via DCUI: set root password to match 1Password "ESXi Root" item (`op item get "ESXi Root" --fields password`) | Password set | SSH login with 1Password password works |
 
 ### 4.2 Prepare Hosts (Automated)
 
