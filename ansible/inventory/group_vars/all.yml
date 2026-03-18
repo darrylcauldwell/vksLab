@@ -22,7 +22,7 @@ lab_ntp_servers:
 jumpbox_public_ip: "<SET-AFTER-DEPLOY>"
 
 # 1Password vault and item names for secret lookups
-onepassword_vault: VKS Lab
+onepassword_vault: Employee
 esxi_root_password: "{{ lookup('community.general.onepassword', 'ESXi Root', field='password', vault=onepassword_vault) }}"
 vcenter_sso_password: "{{ lookup('community.general.onepassword', 'vCenter SSO', field='password', vault=onepassword_vault) }}"
 sddc_admin_password: "{{ lookup('community.general.onepassword', 'SDDC Manager', field='password', vault=onepassword_vault) }}"

@@ -43,7 +43,7 @@ The following must be in place before starting Phase 1.
 
 #### 3.1.1 1Password Secret Store
 
-Ansible retrieves all lab credentials from 1Password at runtime. Set up the vault and generate passwords:
+Ansible retrieves all lab credentials from 1Password at runtime (from the "Employee" vault). Install the CLI and generate passwords:
 
 ```bash
 # Install 1Password CLI (macOS)
@@ -54,24 +54,21 @@ brew install --cask 1password-cli
 #   Settings → Developer → enable "Integrate with 1Password CLI"
 # After this, op commands authenticate via Touch ID — no manual signin needed.
 
-# Create the lab vault
-op vault create "VKS Lab"
-
 # Store credentials with auto-generated VCF-compliant passwords
 # (20 chars, letters + digits + symbols meets VCF 12-char minimum with complexity)
-op item create --vault "VKS Lab" --category login --title "ESXi Root" \
+op item create --vault Employee --category login --title "ESXi Root" \
   --generate-password='20,letters,digits,symbols' username=root
-op item create --vault "VKS Lab" --category login --title "vCenter SSO" \
+op item create --vault Employee --category login --title "vCenter SSO" \
   --generate-password='20,letters,digits,symbols' username='administrator@vsphere.local'
-op item create --vault "VKS Lab" --category login --title "SDDC Manager" \
+op item create --vault Employee --category login --title "SDDC Manager" \
   --generate-password='20,letters,digits,symbols' username='admin@local'
-op item create --vault "VKS Lab" --category login --title "NSX Manager" \
+op item create --vault Employee --category login --title "NSX Manager" \
   --generate-password='20,letters,digits,symbols' username=admin
-op item create --vault "VKS Lab" --category login --title "Keycloak Admin" \
+op item create --vault Employee --category login --title "Keycloak Admin" \
   --generate-password='20,letters,digits,symbols' username=admin
 ```
 
-Verify: `op item list --vault "VKS Lab"` shows all 5 items.
+Verify: `op item list --vault Employee` shows all 5 items.
 
 #### 3.1.2 Ansible
 
