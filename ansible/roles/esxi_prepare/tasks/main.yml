@@ -1,5 +1,7 @@
 ---
-# ESXi host preparation — hostname, DNS, NTP, gateway, password, vSAN ESA, CA cert
+# ESXi host preparation — clean template state, configure for VCF bringup
+
+# --- Identity ---
 
 - name: Set hostname and FQDN
   ansible.builtin.shell: >
@@ -9,6 +11,30 @@
     --domain={{ esxi_domain }}
   register: hostname_result
   changed_when: hostname_result.rc == 0
+
+# Regenerate SSL certificate so CN matches the new FQDN.
+# All clones share the template's cert — VCF validates CN == FQDN.
+- name: Regenerate host SSL certificate
+  ansible.builtin.shell: >
+    /sbin/generate-certificates
+  changed_when: true
+
+- name: Restart hostd to pick up new certificate
+  ansible.builtin.shell: >
+    /etc/init.d/hostd restart && /etc/init.d/vpxa restart
+  changed_when: true
+
+# Brief pause for hostd to finish restarting
+- name: Wait for hostd to be ready
+  ansible.builtin.shell: >
+    vim-cmd hostsvc/hostsummary > /dev/null 2>&1
+  register: hostd_ready
+  until: hostd_ready.rc == 0
+  retries: 15
+  delay: 5
+  changed_when: false
+
+# --- DNS ---
 
 # Remove any DNS servers inherited from the template before adding ours
 - name: Get current DNS servers
@@ -60,12 +86,16 @@
     - dns_search_result.rc != 0
     - "'already exists' not in (dns_search_result.stderr | default(''))"
 
+# --- Network ---
+
 # Set default gateway to jumpbox on management network
 - name: Configure default gateway
   ansible.builtin.shell: >
     esxcfg-route {{ esxi_gateway }}
   register: gw_result
   changed_when: gw_result.rc == 0
+
+# --- Time ---
 
 - name: Configure NTP servers
   ansible.builtin.shell: >
@@ -79,11 +109,61 @@
   register: ntp_enable_result
   changed_when: ntp_enable_result.rc == 0
 
+# --- Services and security ---
+
 - name: Set root password to runtime credential
   ansible.builtin.shell: >
     echo 'root:{{ esxi_root_password }}' | chpasswd
   no_log: true
   changed_when: true
+
+# SSH must auto-start — VCF Installer requires it, not just current session
+- name: Enable SSH service auto-start
+  ansible.builtin.shell: >
+    vim-cmd hostsvc/enable_ssh
+  register: ssh_enable
+  changed_when: true
+  failed_when: false
+
+- name: Start SSH service
+  ansible.builtin.shell: >
+    vim-cmd hostsvc/start_ssh
+  register: ssh_start
+  changed_when: true
+  failed_when: false
+
+- name: Enable ESXi Shell service
+  ansible.builtin.shell: >
+    vim-cmd hostsvc/enable_esx_shell
+  register: shell_enable
+  changed_when: true
+  failed_when: false
+
+# Prevent SSH/Shell timeouts during long VCF operations
+- name: Disable shell interactive timeout
+  ansible.builtin.shell: >
+    esxcli system settings advanced set -o /UserVars/ESXiShellInteractiveTimeOut -i 0
+  changed_when: true
+
+- name: Disable shell timeout
+  ansible.builtin.shell: >
+    esxcli system settings advanced set -o /UserVars/ESXiShellTimeOut -i 0
+  changed_when: true
+
+# Ensure lockdown mode is off — blocks SSH and API access
+- name: Disable lockdown mode
+  ansible.builtin.shell: >
+    vim-cmd hostsvc/advopt/update Config.HostAgent.plugins.hostsvc.esxAdminsGroup string ""
+  changed_when: true
+  failed_when: false
+
+# Opt out of CEIP — no phone-home from nested lab
+- name: Disable CEIP
+  ansible.builtin.shell: >
+    esxcli system settings advanced set -o /UserVars/HostClientCEIPOptIn -i 2
+  changed_when: true
+
+# --- vSAN preparation ---
 
 - name: Enable FakeSCSIReservations for nested vSAN
   ansible.builtin.shell: >
@@ -119,6 +199,8 @@
   register: fw_result
   changed_when: fw_result.rc == 0
 
+# --- CA certificate ---
+
 - name: Upload CA root certificate
   ansible.builtin.copy:
     src: "{{ esxi_ca_cert_path }}"
@@ -133,6 +215,8 @@
   changed_when: cert_result.rc == 0
   when: esxi_ca_cert_path is defined and esxi_ca_cert_path | length > 0
 
+# --- Validation ---
+
 - name: Verify connectivity to gateway
   ansible.builtin.shell: >
     vmkping -I vmk0 {{ esxi_gateway }} -c 3
@@ -146,3 +230,10 @@
   register: ping_dns
   changed_when: false
   failed_when: ping_dns.rc != 0
+
+- name: Verify hostname matches SSL certificate CN
+  ansible.builtin.shell: >
+    openssl x509 -in /etc/vmware/ssl/rui.crt -noout -subject | grep -q {{ inventory_hostname }}.{{ esxi_domain }}
+  register: cert_cn_check
+  changed_when: false
+  failed_when: cert_cn_check.rc != 0
