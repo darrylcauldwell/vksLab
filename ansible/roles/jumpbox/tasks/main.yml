@@ -241,6 +241,43 @@
     remote_src: true
     mode: "0644"
 
+# Add root CA to system trust store so curl, wget, and Firefox trust it
+- name: Install root CA into system trust store
+  become: true
+  ansible.builtin.copy:
+    src: /root/.step/certs/root_ca.crt
+    dest: /usr/local/share/ca-certificates/lab-root-ca.crt
+    remote_src: true
+    mode: "0644"
+  register: system_ca_result
+
+- name: Update system CA bundle
+  become: true
+  ansible.builtin.command: update-ca-certificates
+  when: system_ca_result.changed
+
+# Firefox enterprise policy — trust system CA store without manual config
+- name: Create Firefox policy directory
+  become: true
+  ansible.builtin.file:
+    path: /etc/firefox/policies
+    state: directory
+    mode: "0755"
+
+- name: Deploy Firefox enterprise policy to trust lab CA
+  become: true
+  ansible.builtin.copy:
+    content: |
+      {
+        "policies": {
+          "Certificates": {
+            "ImportEnterpriseRoots": true
+          }
+        }
+      }
+    dest: /etc/firefox/policies/policies.json
+    mode: "0644"
+
 # Fetch to controller so Phase 2 can push it to ESXi hosts via copy module
 - name: Fetch root CA certificate to controller
   ansible.builtin.fetch:
