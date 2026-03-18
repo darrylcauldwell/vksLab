@@ -1,5 +1,5 @@
 ---
-# ESXi host preparation — hostname, DNS, NTP, password, vSAN ESA, CA cert
+# ESXi host preparation — hostname, DNS, NTP, gateway, password, vSAN ESA, CA cert
 
 - name: Set hostname and FQDN
   ansible.builtin.shell: >
@@ -10,6 +10,22 @@
   register: hostname_result
   changed_when: hostname_result.rc == 0
 
+# Remove any DNS servers inherited from the template before adding ours
+- name: Get current DNS servers
+  ansible.builtin.shell: >
+    esxcli network ip dns server list | awk '/^[0-9]/ {print $1}'
+  register: current_dns
+  changed_when: false
+
+- name: Remove stale DNS servers
+  ansible.builtin.shell: >
+    esxcli network ip dns server remove --server={{ item }}
+  loop: "{{ current_dns.stdout_lines }}"
+  when: item != esxi_dns_server
+  register: dns_remove
+  changed_when: dns_remove.rc == 0
+  failed_when: false
+
 - name: Configure DNS server
   ansible.builtin.shell: >
     esxcli network ip dns server add --server={{ esxi_dns_server }}
@@ -19,6 +35,22 @@
     - dns_result.rc != 0
     - "'already exists' not in (dns_result.stderr | default(''))"
 
+# Remove stale search domains inherited from template
+- name: Get current DNS search domains
+  ansible.builtin.shell: >
+    esxcli network ip dns search list | awk '/^[a-zA-Z]/ && !/DNSSearch/ {print $1}'
+  register: current_search
+  changed_when: false
+
+- name: Remove stale DNS search domains
+  ansible.builtin.shell: >
+    esxcli network ip dns search remove --domain={{ item }}
+  loop: "{{ current_search.stdout_lines }}"
+  when: item != esxi_domain
+  register: search_remove
+  changed_when: search_remove.rc == 0
+  failed_when: false
+
 - name: Configure DNS search domain
   ansible.builtin.shell: >
     esxcli network ip dns search add --domain={{ esxi_domain }}
@@ -27,6 +59,13 @@
   failed_when:
     - dns_search_result.rc != 0
     - "'already exists' not in (dns_search_result.stderr | default(''))"
+
+# Set default gateway to jumpbox on management network
+- name: Configure default gateway
+  ansible.builtin.shell: >
+    esxcfg-route {{ esxi_gateway }}
+  register: gw_result
+  changed_when: gw_result.rc == 0
 
 - name: Configure NTP servers
   ansible.builtin.shell: >
