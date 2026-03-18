@@ -24,6 +24,8 @@ The lab is built in six sequential phases. Each phase depends on the successful 
 
 ## 2. Prerequisites
 
+> Before starting deployment, verify that all assumptions from [Conceptual Design](conceptual-design.md) Section 7 hold true. See Section 2.2 below for the verification checklist.
+
 The following must be in place before starting Phase 1.
 
 | # | Prerequisite | Status |
@@ -54,7 +56,21 @@ The following credentials must be prepared before deployment. Use consistent, do
 | 7 | step-ca provisioner password | jumpbox | Used for ACME certificate requests |
 | 8 | VCF deployment workbook passwords | VCF Installer | Embedded in the JSON parameter workbook |
 
+### 2.2 Assumptions Verification
+
+Verify each assumption before proceeding to Phase 1. Cross-reference: [Conceptual Design](conceptual-design.md) Section 7.
+
+| ID | Assumption | Verification Method | Verified |
+|----|-----------|-------------------|----------|
+| A-001 | vCD supports nested virtualisation and jumbo frames (MTU 9000) | Deploy test VM; enable nested virt flag; ping with `-s 8972` across vCD private network | ☐ |
+| A-002 | Sufficient vCD resources (60 vCPU, 512 GB RAM, 1.5 TB storage) | Check vCD tenant portal → Organisation → Allocation | ☐ |
+| A-003 | Arista vEOS lab/eval licence available | Confirm licence obtained from Arista portal | ☐ |
+| A-004 | VCF depot access available (online or offline bundles) | Test connectivity to VMware depot URL or confirm offline bundles staged | ☐ |
+| A-005 | lab.dreamfold.dev DNS zone delegated or internal-only | Confirm zone delegation record exists or document internal-only usage | ☐ |
+
 ## 3. Phase 1 — Foundation
+
+> Phase 1 implements R-001, R-002, R-003, R-009 via VCD-01, VCD-02, NET-01, NET-05, SVC-01 through SVC-06.
 
 ### 3.1 Create vCD vApp
 
@@ -154,7 +170,7 @@ pool pool.ntp.org iburst
 allow 10.0.0.0/16
 ```
 
-### 3.2a Certificate Distribution
+### 3.2a Certificate Distribution (R-009, SVC-02)
 
 After step-ca is running, the root CA certificate must be distributed to all components that will validate TLS certificates. This is done progressively as components are deployed.
 
@@ -317,6 +333,8 @@ ip route 0.0.0.0/0 10.0.10.2
 
 ## 4. Phase 2 — Nested ESXi
 
+> Phase 2 implements R-004, R-007 via ESX-01 through ESX-04 and NET-03, NET-04.
+
 ### 4.1 Deploy Management Domain Hosts
 
 ESXi hosts receive their management IP via DHCP from the jumpbox dnsmasq (configured in Phase 1). Note the MAC address assigned by vCD for each VM and update the `dhcp-host` entries in `/etc/dnsmasq.d/lab.conf` before first boot.
@@ -382,6 +400,8 @@ The `prepare` command performs these steps on each host via SSH:
 | Host status | `vkslab-esxi status --domain all` | All hosts show prepared |
 
 ## 5. Phase 3 — VCF Management Domain
+
+> Phase 3 implements R-004 via VCF-01, VCF-03, VCF-04. VCF Installer drives initial bringup of vCenter, SDDC Manager, and NSX Manager.
 
 ### 5.1 Pre-Bringup DNS Records
 
@@ -467,6 +487,8 @@ Refer to the VMware VCF documentation for the complete workbook JSON schema and 
 
 ## 6. Phase 4 — VCF Workload Domain
 
+> Phase 4 implements R-004 via VCF-01, VCF-02. Workload hosts are commissioned into the free pool and a VI workload domain is created.
+
 ### 6.1 Commission Hosts
 
 | Step | Action | Expected Result | Verification |
@@ -496,6 +518,8 @@ Refer to the VMware VCF documentation for the complete workbook JSON schema and 
 | SDDC Manager | Domains overview | Both domains show Active |
 
 ## 7. Phase 5 — NSX Networking
+
+> Phase 5 implements R-006, R-008 via NET-02, NSX-01 through NSX-04. Edge cluster, gateways, BGP, and VPC are configured.
 
 ### 7.1 Deploy NSX Edge Cluster
 
@@ -566,6 +590,8 @@ router bgp 65000
 | VPC status | NSX Manager → VPC overview | vks-vpc shows Realised |
 
 ## 8. Phase 6 — VKS
+
+> Phase 6 implements R-005 via VKS-01 through VKS-04. Supervisor enablement, namespace creation, and VKS cluster deployment.
 
 ### 8.1 Create Content Library
 
