@@ -193,22 +193,15 @@
     state: present
     update_cache: true
 
-# Generate password only if it doesn't exist — reusing ensures step-ca
-# can restart with the same password after init.
-- name: Check if step-ca password exists
-  become: true
-  ansible.builtin.stat:
-    path: /root/.step-ca-password
-  register: step_password_file
-
-- name: Generate step-ca password
+# Derived deterministically from bootstrap_password so reruns always
+# produce the same value — safe to overwrite on every run.
+- name: Write step-ca password
   become: true
   ansible.builtin.copy:
-    content: "{{ lookup('ansible.builtin.password', '/dev/null', length=32) }}"
+    content: "{{ (bootstrap_password + 'step-ca') | hash('sha256') }}"
     dest: /root/.step-ca-password
     owner: root
     mode: "0600"
-  when: not step_password_file.stat.exists
 
 - name: Initialise step-ca
   become: true
