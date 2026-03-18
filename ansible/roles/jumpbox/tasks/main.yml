@@ -207,6 +207,9 @@
     creates: /root/.step/config/ca.json
 
 - name: Export root CA certificate
-  ansible.builtin.shell: step ca root {{ ca_cert_path }}
-  args:
-    creates: "{{ ca_cert_path }}"
+  become: true
+  ansible.builtin.copy:
+    src: /root/.step/certs/root_ca.crt
+    dest: "{{ ca_cert_path }}"
+    remote_src: true
+    mode: "0644"
