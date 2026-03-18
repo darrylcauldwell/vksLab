@@ -1,0 +1,8 @@
+---
+# Phase 2 — Nested ESXi Host Preparation
+# Configures hostname, DNS, NTP, password, vSAN ESA, and CA cert on all ESXi hosts
+- name: Phase 2 — Prepare ESXi hosts
+  hosts: esxi
+  gather_facts: false
+  roles:
+    - esxi_prepare
