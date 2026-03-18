@@ -94,6 +94,15 @@
     state: started
     enabled: true
 
+- name: Set XFCE as xrdp session
+  become: true
+  ansible.builtin.copy:
+    content: "xfce4-session\n"
+    dest: /home/ubuntu/.xsession
+    owner: ubuntu
+    group: ubuntu
+    mode: "0644"
+
 - name: Enable and start xrdp
   become: true
   ansible.builtin.service:
