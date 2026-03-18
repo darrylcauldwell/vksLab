@@ -103,8 +103,9 @@ ansible-galaxy collection install -r ansible/collections/requirements.yml
 | 3.3.1 | Create Ubuntu 24.04 VM from Content Hub ISO (2 vCPU, 10 GB RAM, 60 GB disk) with NIC1 on Public network, NIC2 on private network | VM created | VM visible in vApp |
 | 3.3.2 | Power on and complete Ubuntu installer via vCD console | Ubuntu installed | Login prompt on console |
 | 3.3.3 | Note public IP assigned by DHCP to NIC1 (ens160) | IP obtained | `ip addr show ens160` |
-| 3.3.4 | Copy SSH key to jumpbox: `ssh-copy-id ubuntu@<jumpbox-ip>` | Key deployed | `ssh ubuntu@<jumpbox-ip>` connects without password |
-| 3.3.5 | Update `jumpbox_public_ip` in `ansible/inventory/group_vars/all.yml` | Inventory updated | SSH from operator laptop works |
+| 3.3.4 | If no SSH key exists, generate one: `ssh-keygen -t ed25519` | Key pair created | `~/.ssh/id_ed25519.pub` exists |
+| 3.3.5 | Copy SSH key to jumpbox: `ssh-copy-id ubuntu@<jumpbox-ip>` | Key deployed | `ssh ubuntu@<jumpbox-ip>` connects without password |
+| 3.3.6 | Update `jumpbox_public_ip` in `ansible/inventory/group_vars/all.yml` | Inventory updated | SSH from operator laptop works |
 
 ### 3.4 Configure Jumpbox (Automated)
 
