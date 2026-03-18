@@ -177,6 +177,26 @@
     status_code: [201, 409]
   loop: "{{ keycloak_users }}"
 
+# Refresh token — the initial token may have expired during user creation
+- name: Refresh Keycloak admin access token
+  ansible.builtin.uri:
+    url: "https://127.0.0.1:{{ keycloak_port }}/realms/master/protocol/openid-connect/token"
+    method: POST
+    body_format: form-urlencoded
+    body:
+      grant_type: password
+      username: admin
+      password: "{{ keycloak_admin_password }}"
+      client_id: admin-cli
+    validate_certs: false
+  register: kc_token_response
+  no_log: true
+
+- name: Update Keycloak token fact
+  ansible.builtin.set_fact:
+    kc_token: "{{ kc_token_response.json.access_token }}"
+  no_log: true
+
 # OIDC clients for vCenter and NSX Manager. After Phase 3/4, configure
 # each component to use these clients for SSO (see delivery guide §6.4).
 - name: Create Keycloak OIDC clients
