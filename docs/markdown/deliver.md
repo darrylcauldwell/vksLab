@@ -35,16 +35,6 @@ The following must be in place before starting Phase 1.
 | 3 | VCF Installer OVA (`VCF-SDDC-Manager-Appliance-9.0.2.0.25151285.ova`, 2.03 GB) — download from support.broadcom.com to operator laptop | ☐ |
 | 4 | RDP client installed on operator Mac — [Windows App](https://apps.apple.com/app/windows-app/id1295203466) from App Store | ☐ |
 
-### 2.1 Assumptions Verification
-
-Verify each assumption before proceeding to Phase 1. Cross-reference: [Conceptual Design](conceptual-design.md) Section 7.
-
-| ID | Assumption | Verification Method | Verified |
-|----|-----------|-------------------|----------|
-| A-001 | vCD supports nested virtualisation and jumbo frames (MTU 9000) | Deploy test VM; enable nested virt flag; ping with `-s 8972` across vCD private network | ☐ |
-| A-002 | Sufficient vCD resources (60 vCPU, 512 GB RAM, 1.5 TB storage) | Check vCD tenant portal → Organisation → Allocation | ☐ |
-| A-004 | VCF offline depot reachable | `curl -s https://depot.vcf-gcp.broadcom.net` from jumpbox returns a response | ☐ |
-
 ## 3. Phase 1 — Foundation
 
 > Phase 1 implements R-001, R-002, R-003, R-009 via VCD-01, VCD-02, NET-01, NET-05, SVC-01 through SVC-08.
