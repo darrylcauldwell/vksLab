@@ -36,12 +36,17 @@
     mode: "0755"
 
 - name: Issue Keycloak TLS certificate from step-ca
+  become: true
   ansible.builtin.shell: >
     step ca certificate {{ keycloak_hostname }}
     {{ keycloak_cert_path }} {{ keycloak_key_path }}
     --san {{ keycloak_hostname }}
     --not-after 8760h
     --force
+    --ca-url https://{{ jumpbox_ip }}:443
+    --root {{ ca_cert_path }}
+    --provisioner lab-admin
+    --provisioner-password-file /root/.step-ca-password
   args:
     creates: "{{ keycloak_cert_path }}"
 

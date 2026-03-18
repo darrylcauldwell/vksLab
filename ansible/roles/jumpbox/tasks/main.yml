@@ -213,3 +213,29 @@
     dest: "{{ ca_cert_path }}"
     remote_src: true
     mode: "0644"
+
+- name: Deploy step-ca systemd service
+  become: true
+  ansible.builtin.copy:
+    content: |
+      [Unit]
+      Description=Smallstep CA
+      After=network.target
+
+      [Service]
+      ExecStart=/usr/bin/step-ca /root/.step/config/ca.json --password-file=/root/.step-ca-password
+      Restart=on-failure
+      User=root
+
+      [Install]
+      WantedBy=multi-user.target
+    dest: /etc/systemd/system/step-ca.service
+    mode: "0644"
+
+- name: Enable and start step-ca
+  become: true
+  ansible.builtin.service:
+    name: step-ca
+    state: started
+    enabled: true
+    daemon_reload: true
