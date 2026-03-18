@@ -1,0 +1,75 @@
+# Lab-wide variables
+lab_domain: lab.dreamfold.dev
+lab_gateway: 10.0.10.1
+lab_dns_server: 10.0.10.2
+lab_ntp_servers:
+  - 10.0.10.2
+  - 10.0.10.1
+
+# OpenBao (runs locally on jumpbox)
+openbao_url: "http://127.0.0.1:8200"
+openbao_token: "{{ lookup('ansible.builtin.env', 'BAO_TOKEN') }}"
+
+# OpenBao secret paths (KV v2)
+openbao_esxi_password_path: "secret/data/esxi/root-password"
+openbao_vcenter_sso_path: "secret/data/vcenter/sso-password"
+openbao_sddc_admin_path: "secret/data/sddc-manager/admin-password"
+openbao_nsx_admin_path: "secret/data/nsx/admin-password"
+openbao_keycloak_admin_path: "secret/data/keycloak/admin-password"
+
+# CA certificate
+ca_cert_path: /tmp/lab-root-ca.crt
+
+# vSAN ESA mock VIB
+vsan_esa_vib_path: /tmp/mock-hcl.vib
+
+# Network configuration
+vlans:
+  management:
+    id: 10
+    subnet: 10.0.10.0/24
+    gateway: 10.0.10.1
+    mtu: 1500
+  vmotion:
+    id: 20
+    subnet: 10.0.20.0/24
+    gateway: 10.0.20.1
+    mtu: 9000
+  vsan:
+    id: 30
+    subnet: 10.0.30.0/24
+    gateway: 10.0.30.1
+    mtu: 9000
+  host_overlay:
+    id: 40
+    subnet: 10.0.40.0/24
+    gateway: 10.0.40.1
+    mtu: 9000
+  edge_overlay:
+    id: 50
+    subnet: 10.0.50.0/24
+    gateway: 10.0.50.1
+    mtu: 9000
+  edge_uplink:
+    id: 60
+    subnet: 10.0.60.0/24
+    gateway: 10.0.60.1
+    mtu: 1500
+
+# BGP configuration
+bgp_veos_asn: 65000
+bgp_nsx_asn: 65001
+bgp_veos_router_id: 10.0.60.1
+bgp_nsx_uplink_ip: 10.0.60.2
+bgp_keepalive: 60
+bgp_holdtime: 180
+
+# VKS configuration
+vks_cluster_name: vks-cluster-01
+vks_namespace: vks-workloads
+vks_pod_cidr: "192.168.0.0/16"
+vks_service_cidr: "10.96.0.0/12"
+vks_vm_class: best-effort-medium
+vks_storage_class: vsan-default-storage-policy
+vks_control_plane_replicas: 3
+vks_worker_replicas: 3
