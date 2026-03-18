@@ -54,8 +54,11 @@ brew install --cask 1password-cli
 #   Settings → Developer → enable "Integrate with 1Password CLI"
 # After this, op commands authenticate via Touch ID — no manual signin needed.
 
-# Store credentials with auto-generated VCF-compliant passwords
-# (20 chars, letters + digits + symbols meets VCF 12-char minimum with complexity)
+# Bootstrap password — simple, typed manually into vCD console and ESXi DCUI
+op item create --vault Employee --category login --title "Lab Bootstrap" \
+  password='VMware1!VMware1!'
+
+# Runtime passwords — complex, injected by Ansible (never typed manually)
 op item create --vault Employee --category login --title "ESXi Root" \
   --generate-password='20,letters,digits,symbols' username=root
 op item create --vault Employee --category login --title "vCenter SSO" \
@@ -66,8 +69,6 @@ op item create --vault Employee --category login --title "NSX Manager" \
   --generate-password='20,letters,digits,symbols' username=admin
 op item create --vault Employee --category login --title "Keycloak Admin" \
   --generate-password='20,letters,digits,symbols' username=admin
-op item create --vault Employee --category login --title "Jumpbox Ubuntu" \
-  --generate-password='20,letters,digits,symbols' username=ubuntu
 ```
 
 Verify: `op item list --vault Employee` shows all 6 items.
@@ -101,11 +102,11 @@ ansible-galaxy collection install -r ansible/collections/requirements.yml
 | Step | Action | Expected Result | Verification |
 |------|--------|-----------------|--------------|
 | 3.3.1 | Create Ubuntu 24.04 VM from Content Hub ISO (2 vCPU, 10 GB RAM, 60 GB disk) with NIC1 on Public network, NIC2 on private network | VM created | VM visible in vApp |
-| 3.3.2 | Power on and complete Ubuntu installer via vCD console — set server name `jumpbox`, username `ubuntu`, password from 1Password "Jumpbox Ubuntu" item | Ubuntu installed | Login prompt on console |
+| 3.3.2 | Power on and complete Ubuntu installer via vCD console — set server name `jumpbox`, username `ubuntu`, password from 1Password "Lab Bootstrap" item | Ubuntu installed | Login prompt on console |
 | 3.3.3 | Note public IP assigned by DHCP to NIC1 (ens160) | IP obtained | `ip addr show ens160` |
 | 3.3.4 | If no SSH key exists, generate one: `ssh-keygen -t ed25519` | Key pair created | `~/.ssh/id_ed25519.pub` exists |
 | 3.3.5 | Copy SSH key to jumpbox: `ssh-copy-id ubuntu@<jumpbox-ip>` | Key deployed | `ssh ubuntu@<jumpbox-ip>` connects without password |
-| 3.3.6 | Store jumpbox IP in 1Password: `op item edit "Jumpbox Ubuntu" ip_address=<jumpbox-ip>` | IP stored | `op item get "Jumpbox Ubuntu" --fields ip_address` returns IP |
+| 3.3.6 | Store jumpbox IP in 1Password: `op item edit "Lab Bootstrap" ip_address=<jumpbox-ip>` | IP stored | `op item get "Lab Bootstrap" --fields ip_address` returns IP |
 
 ### 3.4 Clone ESXi VMs (Manual in vCD)
 
@@ -153,7 +154,7 @@ ESXi hosts receive their management IP via DHCP from the jumpbox dnsmasq (config
 | 4.1.1 | For each host (esxi-01 through esxi-07): clone from vApp template `[baked]esxi-9.0.2-2514807` (8 vCPU, 72 GB RAM, 40 GB boot disk + 200 GB NVMe vSAN disk), both NICs on `lab-trunk` | VM created | ESXi DCUI visible via vCD console |
 | 4.1.2 | Note vmnic0 MAC address for each host, update `esxi_mac` in `ansible/inventory/hosts.yml` | MACs recorded | Inventory updated |
 | 4.1.3 | On each host via DCUI: Troubleshooting Options → Enable SSH | SSH enabled | `ssh root@<ip>` connects |
-| 4.1.4 | On each host via DCUI: set root password to match 1Password "ESXi Root" item (`op item get "ESXi Root" --fields password`) | Password set | SSH login with 1Password password works |
+| 4.1.4 | On each host via DCUI: set root password to match 1Password "Lab Bootstrap" item | Password set | SSH login with bootstrap password works |
 
 ### 4.2 Prepare Hosts (Automated)
 
