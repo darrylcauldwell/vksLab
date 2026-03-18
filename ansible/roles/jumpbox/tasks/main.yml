@@ -9,6 +9,25 @@
 #   - BGP (FRR) — peers with NSX Tier-0 for VKS pod/service route exchange
 #   - RDP (xrdp + XFCE) — remote desktop access for managing web UIs
 
+# systemd-resolved binds port 53, preventing dnsmasq from starting.
+# Disable it and point resolv.conf at upstream DNS so apt works.
+- name: Disable systemd-resolved
+  become: true
+  ansible.builtin.service:
+    name: systemd-resolved
+    state: stopped
+    enabled: false
+
+- name: Configure resolv.conf for upstream DNS
+  become: true
+  ansible.builtin.copy:
+    content: |
+      nameserver {{ jumpbox_upstream_dns[0] }}
+    dest: /etc/resolv.conf
+    owner: root
+    group: root
+    mode: "0644"
+
 - name: Install required packages
   become: true
   ansible.builtin.apt:
