@@ -86,7 +86,7 @@ pip install ansible-core
 ansible-galaxy collection install -r ansible/collections/requirements.yml
 ```
 
-> **Note**: Activate the virtual environment (`source .venv/bin/activate`) before running any `ansible-playbook` commands. The `.venv/` directory is already in `.gitignore`.
+> **Note**: Activate the virtual environment (`source .venv/bin/activate`) and run all `ansible-playbook` commands from the `ansible/` directory (where `ansible.cfg` lives). The `.venv/` directory is already in `.gitignore`.
 
 ### 3.2 Create vCD vApp (Manual)
 
@@ -113,7 +113,8 @@ All jumpbox configuration (VLAN sub-interfaces, dnsmasq DNS/DHCP, chrony NTP, st
 
 ```bash
 source .venv/bin/activate
-ansible-playbook -i ansible/inventory/hosts.yml ansible/playbooks/phase1_foundation.yml
+cd ansible
+ansible-playbook playbooks/phase1_foundation.yml
 ```
 
 ### 3.5 Foundation Verification
@@ -156,11 +157,11 @@ ESXi hosts receive their management IP via DHCP from the jumpbox dnsmasq (config
 Use the Ansible `esxi_prepare` role to configure all hosts. This sets hostname, DNS, NTP, root password, and prepares vSAN ESA in a single operation.
 
 ```bash
-# From the jumpbox
-ansible-playbook -i ansible/inventory/hosts.yml ansible/playbooks/phase2_esxi.yml
+cd ansible
+ansible-playbook playbooks/phase2_esxi.yml
 
 # Or prepare a single host
-ansible-playbook -i ansible/inventory/hosts.yml ansible/playbooks/phase2_esxi.yml --limit esxi-01
+ansible-playbook playbooks/phase2_esxi.yml --limit esxi-01
 ```
 
 The `prepare` command performs these steps on each host via SSH:
@@ -188,7 +189,7 @@ The `prepare` command performs these steps on each host via SSH:
 | NTP sync | `esxcli system ntp get` on each host | NTP server configured (10.0.10.1) |
 | Time sync | Compare time across all hosts | Within 1 second |
 | vSAN ESA ready | `esxcli vsan storage list` on each host | NVMe device marked as SSD |
-| Host status | `ansible-playbook ansible/playbooks/phase2_esxi.yml --check` | All tasks show ok |
+| Host status | `cd ansible && ansible-playbook playbooks/phase2_esxi.yml --check` | All tasks show ok |
 
 ## 5. Phase 3 — VCF Management Domain
 
