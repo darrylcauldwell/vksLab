@@ -98,7 +98,25 @@ The lab must be powered on in a specific order to ensure service dependencies ar
 | 6 | Wait for workers (3 nodes) | `kubectl get machines` shows 6 Running |
 | 7 | Obtain new kubeconfig and verify | `kubectl get nodes` shows 6 Ready |
 
-### 1.7 Certificate Renewal SOP (R-009, SVC-02)
+### 1.7 NSX Edge Failover Verification (NSX-01, NSX-02)
+
+Use this procedure to verify Active-Standby failover behaviour or to test resilience after changes.
+
+| Step | Action | Verification |
+|------|--------|-------------|
+| 1 | Identify active Edge | NSX Manager → System → Fabric → Edge Clusters → click cluster → note which Edge shows "Active" for Tier-0 |
+| 2 | Verify BGP adjacency before test | `show ip bgp summary` on vEOS → Established with 10.0.60.2 |
+| 3 | Start continuous ping from jumpbox | `ping -i 1 <VKS-LB-VIP>` (or any pod-reachable IP via SNAT) |
+| 4 | Power off the active Edge VM | vCenter → right-click active Edge VM → Power Off |
+| 5 | Observe failover | NSX Manager → Edge Clusters → standby Edge promotes to Active (expect 2-4s) |
+| 6 | Monitor BGP re-establishment | `show ip bgp summary` on vEOS → watch for Established (expect 30-60s) |
+| 7 | Verify traffic restoration | Continuous ping resumes; count lost packets (expect 30-60 lost at 1/sec) |
+| 8 | Power on the failed Edge VM | vCenter → Power On; Edge rejoins cluster as Standby |
+| 9 | Verify cluster health | NSX Manager → Edge Clusters → both Edges show Up |
+
+> **Caution**: This test causes a brief north-south traffic outage. Perform during a maintenance window. Take a vApp snapshot first (Section 1.3).
+
+### 1.8 Certificate Renewal SOP (R-009, SVC-02)
 
 Certificates issued by the internal step-ca have a default lifetime. Renew before expiry to avoid service disruption.
 
@@ -434,14 +452,36 @@ nslookup vcenter-mgmt.lab.dreamfold.dev 10.0.10.2
 ! Check all interfaces
 show ip interface brief
 
-! Check BGP
-show ip bgp summary
-show ip bgp
-
 ! Check routing table
 show ip route
 
-! Check logs
+! --- BGP diagnostics ---
+! Session summary (state, prefixes received, uptime)
+show ip bgp summary
+
+! Full BGP table (all received prefixes)
+show ip bgp
+
+! Detailed neighbor state (timers, capabilities, counters)
+show ip bgp neighbors 10.0.60.2
+
+! Routes advertised TO NSX Tier-0 (should show all connected subnets)
+show ip bgp neighbors 10.0.60.2 advertised-routes
+
+! Routes received FROM NSX Tier-0 (should show VPC/overlay prefixes)
+show ip bgp neighbors 10.0.60.2 received-routes
+
+! --- NAT diagnostics ---
+! Active NAT translations (shows current sessions)
+show ip nat translations
+
+! NAT statistics (total translations, hits, misses)
+show ip nat statistics
+
+! Check NAT rules
+show ip nat source
+
+! --- Logs ---
 show logging last 50
 ```
 
@@ -456,6 +496,25 @@ curl -k -u admin:<password> https://nsx-mgr-wld.lab.dreamfold.dev/api/v1/logical
 
 # Check Tier-0 routing table
 # NSX Manager → Networking → Tier-0 → tier0-gateway → Routing Table
+# Or via API:
+curl -k -u admin:<password> \
+  'https://nsx-mgr-wld.lab.dreamfold.dev/policy/api/v1/infra/tier-0s/tier0-gateway/routing-table'
+
+# Check Tier-0 BGP session state
+curl -k -u admin:<password> \
+  'https://nsx-mgr-wld.lab.dreamfold.dev/policy/api/v1/infra/tier-0s/tier0-gateway/locale-services/default/bgp/neighbors/status'
+
+# Check Tier-0 BGP advertised/received routes
+curl -k -u admin:<password> \
+  'https://nsx-mgr-wld.lab.dreamfold.dev/policy/api/v1/infra/tier-0s/tier0-gateway/locale-services/default/bgp/neighbors/status?source=realtime'
+
+# Check NAT rules and hit counts
+curl -k -u admin:<password> \
+  'https://nsx-mgr-wld.lab.dreamfold.dev/policy/api/v1/infra/tier-0s/tier0-gateway/nat/rules'
+
+# Check NAT rule statistics (per-rule packet/byte counts)
+curl -k -u admin:<password> \
+  'https://nsx-mgr-wld.lab.dreamfold.dev/policy/api/v1/infra/tier-0s/tier0-gateway/nat/rules/statistics'
 
 # Check Tier-1 route advertisements
 # NSX Manager → Networking → Tier-1 → tier1-gateway → Route Advertisement
@@ -466,6 +525,13 @@ curl -k -u admin:<password> https://nsx-mgr-wld.lab.dreamfold.dev/api/v1/logical
 # Check Edge cluster status (from Edge VM CLI)
 nsxcli
 > get edge-cluster status
+> get bgp neighbor summary
+> get route-table
+
+# Check NAT translation table (from Edge VM CLI)
+nsxcli
+> get nat rules
+> get nat statistics
 
 # Check host transport node connectivity (from ESXi host)
 nsxcli

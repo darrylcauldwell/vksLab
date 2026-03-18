@@ -335,6 +335,24 @@ The workload domain is created via SDDC Manager by commissioning the workload ES
 
 Two NSX Edge VMs deployed on the workload domain cluster provide north-south routing capacity. Edges are sized Large to support VKS workload traffic.
 
+### Edge HA Failover Behaviour
+
+The Tier-0 gateway operates in **Active-Standby** mode across the two Edge VMs. Only the active Edge processes north-south traffic; the standby monitors and takes over on failure.
+
+**Detection mechanism**: The NSX data plane uses BFD (Bidirectional Forwarding Detection) between the Active and Standby Edge VMs to detect failures. BFD operates at sub-second intervals (default: 500ms detect time). When BFD detects the active Edge is unreachable, the standby promotes itself to active.
+
+**BGP session behaviour during failover**:
+
+1. Active Edge fails → BFD detects failure (~500ms)
+2. Standby Edge promotes to active (~2-4s)
+3. New active Edge re-establishes the BGP session with vEOS on VLAN 60
+4. BGP hold timer (180s) on vEOS determines when stale routes are withdrawn
+5. New BGP session establishes, routes are re-exchanged
+
+**Expected convergence time**: In a nested lab environment, expect 30-60 seconds for full north-south traffic restoration. This includes BFD detection (~0.5s), Edge promotion (~2-4s), and BGP session re-establishment (variable, up to the hold timer). The BGP hold timer (180s) is the worst case for route withdrawal if the session never re-establishes.
+
+**Graceful restart**: NSX supports BGP graceful restart, which allows the new active Edge to signal the peer (vEOS) that it is restarting BGP. vEOS retains stale routes during the restart window rather than immediately withdrawing them, reducing traffic disruption.
+
 ### Gateway Hierarchy
 
 ```
@@ -360,10 +378,15 @@ NSX Tier-0 Gateway (Active-Standby)
 
 | Parameter | vEOS | NSX Tier-0 |
 |-----------|------|------------|
+| ASN | 65000 | 65001 |
+| Router ID | 10.0.60.1 | 10.0.60.2 |
 | Role | External peer | Internal peer |
+| Keepalive / Hold | 60s / 180s | 60s / 180s |
 | Advertisements | Connected subnets (all VLANs) | VPC/overlay prefixes |
 
 BGP provides dynamic route exchange: vEOS advertises lab infrastructure subnets to NSX, and NSX advertises VPC/overlay prefixes back. This gives VKS workloads a routed path out through the Edge cluster → Tier-0 → vEOS → jumpbox.
+
+**Timer selection**: Keepalive 60s / hold 180s (3× keepalive) are conservative values suited to a nested lab. Default BGP timers (60/180) provide tolerance for momentary delays caused by nested virtualisation overhead, vSAN latency spikes, or Edge VM resource contention. More aggressive timers (e.g., 10/30) would detect failures faster but risk false positives in a resource-constrained nested environment.
 
 ### Centralised VPC Model
 
@@ -373,14 +396,124 @@ NSX VPC provides project-level network isolation for VKS workloads:
 - **External connectivity**: Via Tier-0 BGP to vEOS
 - **Subnets**: Created dynamically by VKS for pod and service networks
 - **NAT**: Source NAT on Tier-0 for outbound traffic
-- **Load balancing**: NSX LB via Tier-1 for Kubernetes services of type LoadBalancer
+- **Load balancing**: NSX LB via Tier-1 for Kubernetes services
+
+### Source NAT (SNAT) Design
+
+SNAT on the Tier-0 gateway translates outbound VPC traffic so that external networks (infrastructure VLANs, jumpbox, internet) see a single routable source IP — the Tier-0 uplink address.
+
+| Parameter | Value |
+|-----------|-------|
+| SNAT source ranges | 192.168.0.0/16 (VKS pod CIDR), 10.96.0.0/12 (VKS service CIDR) |
+| Translated IP | 10.0.60.2 (Tier-0 uplink interface on VLAN 60) |
+| Applied on | Tier-0 gateway |
+| Direction | Outbound (egress from VPC to external) |
+
+**Why SNAT is required**: VPC pod and service CIDRs (192.168.0.0/16, 10.96.0.0/12) are internal overlay addresses. External networks (vEOS, jumpbox, internet) cannot route return traffic to these addresses directly. SNAT translates the source to 10.0.60.2, which vEOS knows how to reach via the directly connected VLAN 60 subnet. Return traffic is reverse-NATted by the Tier-0 back to the original pod/service IP.
+
+**Inbound traffic** to Kubernetes services uses NSX Load Balancer VIPs on the Tier-1 gateway. The LB VIP is a routable address advertised via Tier-1 → Tier-0 → BGP to vEOS, so inbound traffic does not require DNAT rules on the Tier-0. of type LoadBalancer
+
+### Route Redistribution Chain
+
+VPC subnets must propagate from the overlay network through the gateway hierarchy to the physical network for end-to-end connectivity. The route redistribution chain is:
+
+```
+VPC Subnet (overlay)
+  │
+  ▼
+Tier-1 Gateway
+  │  Route advertisement: connected subnets, NAT IPs, LB VIPs
+  ▼
+Tier-0 Gateway
+  │  Route redistribution: connected, static, NAT
+  │  BGP advertisement to vEOS
+  ▼
+Arista vEOS (ASN 65000)
+  │  Receives VPC prefixes via BGP
+  │  Redistributes connected subnets back to NSX
+  ▼
+Infrastructure VLANs (10.0.10–60.0/24)
+```
+
+**Tier-1 route advertisement settings** (required):
+
+| Setting | Value | Purpose |
+|---------|-------|---------|
+| Connected Subnets & Segment | Enabled | Advertises VPC subnets to Tier-0 |
+| NAT IPs | Enabled | Advertises Tier-1 NAT addresses |
+| LB VIPs | Enabled | Advertises Kubernetes LoadBalancer VIPs |
+
+**Tier-0 route redistribution settings** (required):
+
+| Setting | Value | Purpose |
+|---------|-------|---------|
+| Connected Subnets | Enabled | Redistributes Tier-0 connected interfaces into BGP |
+| Static Routes | Enabled | Redistributes default route and any static routes |
+| NAT IPs | Enabled | Redistributes SNAT translated IPs |
+| Tier-1 Connected | Enabled | Redistributes Tier-1 advertised routes into BGP |
+
+**vEOS route redistribution**: The vEOS BGP configuration uses `redistribute connected` to advertise all SVI subnets (VLANs 10–60) to the NSX Tier-0. This gives the Tier-0 reachability to the infrastructure VLANs without requiring static routes.
+
+### End-to-End Traffic Flow
+
+#### North-South: Pod → Internet (Egress)
+
+```
+1. Pod (192.168.x.x) sends packet to external IP (e.g., 8.8.8.8)
+   │
+   ▼ Geneve encapsulation (overlay)
+2. ESXi host TEP (VLAN 40) tunnels packet to Edge TEP (VLAN 50)
+   │
+   ▼ Geneve decapsulation at Edge VM
+3. Tier-1 gateway routes to Tier-0 (connected subnet → parent gateway)
+   │
+   ▼ SNAT: source 192.168.x.x → 10.0.60.2
+4. Tier-0 gateway forwards via uplink on VLAN 60 to next-hop 10.0.60.1 (vEOS)
+   │
+   ▼ Standard L3 routing
+5. vEOS routes to default gateway 10.0.10.2 (jumpbox) via VLAN 10
+   │
+   ▼ NAT: source 10.0.x.x → jumpbox public IP (ip nat source list LAB-INTERNAL)
+6. Jumpbox forwards via ens160 (public NIC) → internet
+```
+
+#### North-South: Internet → Pod (Ingress via LoadBalancer)
+
+```
+1. External client connects to Kubernetes LoadBalancer VIP (routable address)
+   │
+   ▼ Traffic arrives at jumpbox public NIC (if from internet)
+2. Jumpbox routes to VIP via vEOS (10.0.10.1 is jumpbox gateway for 10.0.0.0/16)
+   │
+   ▼ vEOS has BGP route for VIP → next-hop 10.0.60.2
+3. vEOS forwards to Tier-0 uplink (10.0.60.2) on VLAN 60
+   │
+   ▼ Standard L3 routing
+4. Tier-0 forwards to Tier-1 (VIP is Tier-1 LB address)
+   │
+   ▼ NSX Load Balancer on Tier-1
+5. Tier-1 LB distributes to backend pods
+   │
+   ▼ Geneve encapsulation (overlay)
+6. Edge TEP (VLAN 50) tunnels to host TEP (VLAN 40) → pod receives packet
+```
+
+#### Encapsulation Transitions
+
+| Segment | Encapsulation | Notes |
+|---------|---------------|-------|
+| Pod → ESXi host | Container networking (VPC overlay) | Pod-to-pod within same host is local |
+| ESXi host → Edge VM | Geneve tunnel (VLAN 40 → VLAN 50) | NSX overlay, MTU 9000 required |
+| Edge VM → Tier-0 uplink | Standard Ethernet (VLAN 60) | Geneve decapsulated at Edge; MTU 1500 |
+| Tier-0 uplink → vEOS | Standard Ethernet (VLAN 60) | Routed L3, no encapsulation |
+| vEOS → Jumpbox | Standard Ethernet (VLAN 10) | NAT at jumpbox for internet-bound |
 
 ### Design Decisions
 
 | Req. | Decision ID | Design Decision | Design Justification | Risk / Mitigation |
 |------|-------------|-----------------|----------------------|-------------------|
 | R-006 | NSX-01 | Two-node NSX Edge cluster sized Large | Minimum for Active-Standby HA; Large sizing required for VKS workloads | Risk: Large Edges consume significant resources (8 vCPU, 32 GB each). Mitigation: Workload domain hosts sized accordingly |
-| R-006 | NSX-02 | Active-Standby Tier-0 with BGP uplink to vEOS | Provides dynamic route exchange; vEOS advertises infrastructure subnets, NSX advertises VPC prefixes | Risk: BGP misconfiguration breaks north-south routing. Mitigation: Verify adjacency and route tables in Phase 5 |
+| R-006 | NSX-02 | Active-Standby Tier-0 with BGP uplink to vEOS (keepalive 60s, hold 180s) | Provides dynamic route exchange; vEOS advertises infrastructure subnets, NSX advertises VPC prefixes; conservative timers tolerate nested virtualisation overhead | Risk: BGP misconfiguration breaks north-south routing. Mitigation: Verify adjacency and route tables in Phase 5 |
 | R-008 | NSX-03 | Centralised VPC connectivity model (via Edge cluster) | All north-south traffic traverses Edge — simpler than distributed model for lab | Risk: Edge cluster becomes throughput bottleneck. Mitigation: Acceptable for lab traffic volumes |
 | R-008 | NSX-04 | Source NAT on Tier-0 for outbound VPC traffic | Simplifies return routing — external networks see traffic from Tier-0 uplink IP | Risk: NAT hides source IPs. Mitigation: Acceptable for lab; can add specific SNAT rules if needed |
 

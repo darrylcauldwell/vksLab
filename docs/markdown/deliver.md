@@ -682,7 +682,7 @@ Refer to the VMware VCF documentation for the complete workbook JSON schema and 
 |------|--------|-----------------|--------------|
 | 7.2.1 | Create Tier-0 gateway (Active-Standby, linked to Edge cluster) | Tier-0 created | Gateway shows Realised |
 | 7.2.2 | Add uplink interface on VLAN 60, IP 10.0.60.2/24 | Uplink configured | Interface status: Up |
-| 7.2.3 | Configure BGP: ASN 65001, neighbor 10.0.60.1 (ASN 65000) | BGP configured | — |
+| 7.2.3 | Configure BGP: ASN 65001, neighbor 10.0.60.1 (ASN 65000), keepalive 60s, hold 180s | BGP configured | — |
 | 7.2.4 | Enable route redistribution (connected subnets, NAT) | Routes advertised | — |
 
 ### 7.3 Configure BGP on vEOS
@@ -699,6 +699,7 @@ Refer to the VMware VCF documentation for the complete workbook JSON schema and 
 ```text
 router bgp 65000
    router-id 10.0.60.1
+   timers bgp 60 180
    neighbor 10.0.60.2 remote-as 65001
    neighbor 10.0.60.2 description NSX-Tier0
    !
@@ -706,6 +707,8 @@ router bgp 65000
       neighbor 10.0.60.2 activate
       redistribute connected
 ```
+
+> **BGP timers**: `timers bgp 60 180` sets keepalive to 60 seconds and hold time to 180 seconds (3× keepalive). These are conservative values suited to a nested lab where Edge VM reboots or vSAN latency spikes may briefly delay BGP keepalives. The NSX Tier-0 must be configured with matching timers (keepalive 60, hold 180) to avoid asymmetric dead-peer detection.
 
 ### 7.4 Configure Tier-1 Gateway
 
@@ -721,7 +724,30 @@ router bgp 65000
 | 7.5.1 | Create VPC project in NSX Manager | Project created | — |
 | 7.5.2 | Create VPC (vks-vpc) with centralised connectivity | VPC created | VPC shows Realised |
 | 7.5.3 | Configure external connectivity via Tier-0 | Routing configured | — |
-| 7.5.4 | Configure Source NAT on Tier-0 for outbound traffic | NAT rule active | — |
+| 7.5.4 | Configure Source NAT on Tier-0 for outbound VPC traffic | NAT rules active | See SNAT steps below |
+
+#### Configure SNAT Rules on Tier-0
+
+Two SNAT rules are required — one for the VKS pod CIDR and one for the service CIDR. Both translate outbound traffic to the Tier-0 uplink IP (10.0.60.2) so that external networks can route return traffic.
+
+| Step | Action | Expected Result | Verification |
+|------|--------|-----------------|--------------|
+| 7.5.4a | In NSX Manager, navigate to Networking → NAT → tier0-gateway | NAT rules page | — |
+| 7.5.4b | Add SNAT rule: source 192.168.0.0/16 → translated IP 10.0.60.2 | Rule created | Rule shows Active |
+| 7.5.4c | Add SNAT rule: source 10.96.0.0/12 → translated IP 10.0.60.2 | Rule created | Rule shows Active |
+| 7.5.4d | Verify NAT rules are realised | Both rules Active | NSX Manager → NAT → tier0-gateway shows 2 SNAT rules |
+
+SNAT rule parameters:
+
+| Field | Pod CIDR Rule | Service CIDR Rule |
+|-------|--------------|-------------------|
+| Action | SNAT | SNAT |
+| Source | 192.168.0.0/16 | 10.96.0.0/12 |
+| Translated IP | 10.0.60.2 | 10.0.60.2 |
+| Applied To | Tier-0 uplink interface | Tier-0 uplink interface |
+| Logging | Disabled | Disabled |
+
+> **Note**: These CIDRs match the VKS cluster manifest (`pods.cidrBlocks` and `services.cidrBlocks`). If you change the cluster CIDRs, update the SNAT rules to match.
 
 ### 7.6 NSX Networking Verification
 

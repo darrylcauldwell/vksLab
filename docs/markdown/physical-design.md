@@ -286,6 +286,51 @@ Edge VMs are sized as **Large** (8 vCPU, 32 GB RAM) to support VKS workloads.
 | NAT | Source NAT on Tier-0 for outbound traffic |
 | Load Balancing | NSX LB via Tier-1 for Kubernetes services |
 
+### Expected Route Tables (Post-Phase 5)
+
+After NSX networking is configured and BGP is established, the following routes should be present.
+
+#### vEOS Route Table (`show ip route`)
+
+```text
+Gateway of last resort:
+ S     0.0.0.0/0 [1/0] via 10.0.10.2               ← default route to jumpbox
+
+ C     10.0.10.0/24 is directly connected, Vlan10   ← Management
+ C     10.0.20.0/24 is directly connected, Vlan20   ← vMotion
+ C     10.0.30.0/24 is directly connected, Vlan30   ← vSAN
+ C     10.0.40.0/24 is directly connected, Vlan40   ← Host Overlay
+ C     10.0.50.0/24 is directly connected, Vlan50   ← Edge Overlay
+ C     10.0.60.0/24 is directly connected, Vlan60   ← Edge Uplink / BGP
+
+ B E   192.168.0.0/16 [200/0] via 10.0.60.2         ← VKS pod CIDR (from NSX Tier-0)
+ B E   10.96.0.0/12 [200/0] via 10.0.60.2           ← VKS service CIDR (from NSX Tier-0)
+```
+
+> **Note**: The exact VPC/overlay prefixes received via BGP depend on which subnets the Supervisor and VKS cluster create. The pod CIDR (192.168.0.0/16) and service CIDR (10.96.0.0/12) are defined in the VKS cluster manifest. Additional /24 subnets may appear as VPC segments are created.
+
+#### NSX Tier-0 Route Table
+
+View via NSX Manager → Networking → Tier-0 Gateways → tier0-gateway → Routing Table, or via API:
+
+```
+GET https://nsx-mgr-wld.lab.dreamfold.dev/policy/api/v1/infra/tier-0s/tier0-gateway/routing-table
+```
+
+| Prefix | Next Hop | Type | Source |
+|--------|----------|------|--------|
+| 10.0.10.0/24 | 10.0.60.1 | BGP | vEOS (management) |
+| 10.0.20.0/24 | 10.0.60.1 | BGP | vEOS (vMotion) |
+| 10.0.30.0/24 | 10.0.60.1 | BGP | vEOS (vSAN) |
+| 10.0.40.0/24 | 10.0.60.1 | BGP | vEOS (host overlay) |
+| 10.0.50.0/24 | 10.0.60.1 | BGP | vEOS (edge overlay) |
+| 10.0.60.0/24 | — | Connected | Tier-0 uplink |
+| 192.168.x.0/24 | — | Connected | Tier-1 (VKS pod subnets) |
+| 10.96.x.0/24 | — | Connected | Tier-1 (VKS service subnets) |
+| 0.0.0.0/0 | 10.0.60.1 | Static | Default route to vEOS |
+
+> **Expected route count**: ~6 BGP routes from vEOS (one per VLAN SVI) plus connected/redistributed routes from Tier-1. The exact count depends on how many VPC subnets are created by the Supervisor and VKS.
+
 ## 9. VKS Cluster Specification
 
 > Implements VKS-01 (Supervisor with NSX), VKS-02 (3+3 node topology), VKS-03 (subscribed content library), VKS-04 (best-effort-medium VM class). See [Logical Design](logical-design.md) Section 8.
