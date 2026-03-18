@@ -115,9 +115,9 @@
     status_code: [200, 201]
   no_log: true
 
-- name: Configure BGP neighbor (vEOS)
+- name: Configure BGP neighbor (jumpbox)
   ansible.builtin.uri:
-    url: "{{ nsx_api_base }}/infra/tier-0s/{{ nsx_tier0_name }}/locale-services/default/bgp/neighbors/veos-peer"
+    url: "{{ nsx_api_base }}/infra/tier-0s/{{ nsx_tier0_name }}/locale-services/default/bgp/neighbors/jumpbox-peer"
     method: PUT
     user: "{{ nsx_username }}"
     password: "{{ nsx_password }}"
@@ -125,7 +125,7 @@
     validate_certs: false
     body_format: json
     body:
-      display_name: vEOS Peer
+      display_name: Jumpbox BGP Peer
       neighbor_address: "{{ nsx_bgp_neighbor_ip }}"
       remote_as_num: "{{ nsx_bgp_neighbor_asn }}"
       keep_alive_time: "{{ bgp_keepalive }}"
@@ -228,10 +228,8 @@
 
 # --- Verification ---
 
-- name: Verify BGP adjacency on vEOS
-  arista.eos.eos_command:
-    commands:
-      - show ip bgp summary
-  delegate_to: veos-router
+- name: Verify BGP adjacency on jumpbox
+  ansible.builtin.shell: vtysh -c 'show ip bgp summary'
+  delegate_to: jumpbox
   register: bgp_summary
   changed_when: false

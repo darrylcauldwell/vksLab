@@ -26,8 +26,8 @@ nsx_tier1_name: tier1-gateway
 
 # BGP (uses global vars from group_vars/all.yml)
 nsx_bgp_local_asn: "{{ bgp_nsx_asn }}"
-nsx_bgp_neighbor_ip: "{{ bgp_veos_router_id }}"
-nsx_bgp_neighbor_asn: "{{ bgp_veos_asn }}"
+nsx_bgp_neighbor_ip: "{{ bgp_router_id }}"
+nsx_bgp_neighbor_asn: "{{ bgp_local_asn }}"
 
 # VPC
 nsx_vpc_project_name: vks-project
