@@ -62,7 +62,7 @@ The lab is designed to be **disposable and reproducible**. The delivery guide en
 | C-002 | Nested virtualisation — ESXi hosts run as VMs with accepted performance degradation |
 | C-003 | Single-site topology — one management domain and one workload domain |
 | C-004 | Lab-grade only — not intended for production workloads or performance benchmarking |
-| C-005 | Internet access required for VKS content library sync and VCF depot access |
+| C-005 | Internet access required for VKS content library sync and VCF offline depot (`depot.vcf-gcp.broadcom.net`) |
 
 ## 7. Assumptions
 
@@ -70,7 +70,7 @@ The lab is designed to be **disposable and reproducible**. The delivery guide en
 |-------|------------|
 | A-001 | The vCloud Director provider supports nested virtualisation and jumbo frames (MTU 9000) |
 | A-002 | Sufficient vCD resources are available (60 vCPU, 512 GB RAM, 1.5 TB storage) |
-| A-003 | VCF depot access is available (online or via offline bundles) |
+| A-003 | VCF offline depot is reachable at `depot.vcf-gcp.broadcom.net` |
 | A-004 | The lab.dreamfold.dev DNS zone is delegated or used internally only |
 
 ## 8. Functional Overview
@@ -155,7 +155,7 @@ See [Logical Design](logical-design.md) for phase details and [Delivery Guide](d
 | 1 | Quagga BGP compatibility with NSX Tier-0 | Open | Verify BGP session establishes correctly in nested environment |
 | 2 | vCD resource allocation approval | Open | Substantial resource request — needs org approval |
 | 3 | Internet access from nested environment | Open | VKS content library and VCF depot sync require outbound internet — routing path through jumpbox may need NAT/masquerade |
-| 4 | VCF depot access | Open | VCF Installer and SDDC Manager need access to VMware depot — may need offline bundles if internet is restricted |
+| 4 | VCF depot access | Resolved | Lab offline depot available at `depot.vcf-gcp.broadcom.net` |
 | 5 | Nested ESXi performance | Risk | Nested virtualisation adds overhead — vSAN and overlay performance degraded. Acceptable for lab only |
 | 6 | Certificate distribution | Open | Need automation to distribute root CA cert to ESXi hosts and appliances during deployment |
 
@@ -192,5 +192,5 @@ See [Logical Design](logical-design.md) for phase details and [Delivery Guide](d
 |------------|-------------|-------------------|----------------|
 | A-001 | vCD supports nested virtualisation and jumbo frames | Deploy test VM, enable nested virt flag, ping with MTU 9000 | Deliver Guide §3.1 (vApp network creation) |
 | A-002 | Sufficient vCD resources (60 vCPU, 512 GB RAM, 1.5 TB) | Check vCD tenant quota before deployment | Deliver Guide §2 prerequisites checklist |
-| A-003 | VCF depot access available | Confirm online depot reachable or stage offline bundles | Deliver Guide §2 prerequisites #8 |
+| A-003 | VCF offline depot reachable | `curl -s https://depot.vcf-gcp.broadcom.net` from jumpbox | Deliver Guide §2 prerequisites #8 |
 | A-004 | lab.dreamfold.dev DNS zone delegated or internal-only | Verify zone delegation or confirm internal-only use | Deliver Guide §2 prerequisites #4 |

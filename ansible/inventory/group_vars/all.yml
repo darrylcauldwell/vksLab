@@ -55,6 +55,9 @@ vlans:
     gateway: 10.0.60.1
     mtu: 1500
 
+# VCF depot
+vcf_depot_url: depot.vcf-gcp.broadcom.net
+
 # BGP configuration
 bgp_local_asn: 65000
 bgp_nsx_asn: 65001

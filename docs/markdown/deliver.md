@@ -37,7 +37,7 @@ The following must be in place before starting Phase 1.
 | 5 | VLAN trunk configuration confirmed on vCD private network (MTU 9000 support) | ☐ |
 | 6 | Licences obtained: VCF, vSAN, NSX | ☐ |
 | 7 | VCF deployment parameter workbook prepared (JSON) | ☐ |
-| 8 | VCF depot access confirmed (online or offline bundles staged) | ☐ |
+| 8 | VCF offline depot reachable (`depot.vcf-gcp.broadcom.net`) | ☐ |
 | 9 | vCD org administrator credentials available | ☐ |
 | 10 | RDP client installed on operator workstation | ☐ |
 
@@ -64,7 +64,7 @@ Verify each assumption before proceeding to Phase 1. Cross-reference: [Conceptua
 |----|-----------|-------------------|----------|
 | A-001 | vCD supports nested virtualisation and jumbo frames (MTU 9000) | Deploy test VM; enable nested virt flag; ping with `-s 8972` across vCD private network | ☐ |
 | A-002 | Sufficient vCD resources (60 vCPU, 512 GB RAM, 1.5 TB storage) | Check vCD tenant portal → Organisation → Allocation | ☐ |
-| A-004 | VCF depot access available (online or offline bundles) | Test connectivity to VMware depot URL or confirm offline bundles staged | ☐ |
+| A-004 | VCF offline depot reachable | `curl -s https://depot.vcf-gcp.broadcom.net` from jumpbox returns a response | ☐ |
 | A-005 | lab.dreamfold.dev DNS zone delegated or internal-only | Confirm zone delegation record exists or document internal-only usage | ☐ |
 
 ## 3. Phase 1 — Foundation
@@ -223,7 +223,7 @@ ssh root@esxi-XX 'esxcli security cert import --cert-file /tmp/lab-root-ca.crt'
 
 ### 3.2b Internet Access from Nested Environment
 
-VCF depot sync, content library updates, and VKS image pulls require outbound internet access from the nested environment. Components on the management VLAN (10.0.10.x) must be able to reach external URLs.
+VCF depot sync (via `depot.vcf-gcp.broadcom.net`), content library updates, and VKS image pulls require outbound internet access from the nested environment. Components on the management VLAN (10.0.10.x) must be able to reach external URLs.
 
 The jumpbox is dual-homed (public NIC + management VLAN) and is the only component with direct internet access. Enable IP masquerading on the jumpbox so management VLAN traffic can reach the internet:
 
