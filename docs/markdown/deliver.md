@@ -32,7 +32,7 @@ The following must be in place before starting Phase 1.
 |---|-------------|--------|
 | 1 | vCD resources approved (60 vCPU, 512 GB RAM, 1.5 TB storage) | ☐ |
 | 2 | ISO images downloaded: Ubuntu 24.04 LTS, ESXi 9.0 | ☐ |
-| 3 | VCF Installer (Cloud Builder) OVA — download onto jumpbox after deployment (see §5.2) | ☐ |
+| 3 | VCF Installer OVA (`VCF-SDDC-Manager-Appliance-9.0.2.0.25151285.ova`, 2.03 GB) — download from support.broadcom.com to operator laptop, SCP to jumpbox per §5.2 | ☐ |
 | 4 | DNS zone `lab.dreamfold.dev` prepared (internal use only or delegated) | ☐ |
 | 5 | VLAN trunk configuration confirmed on vCD private network (MTU 9000 support) | ☐ |
 | 6 | Licences obtained: VCF, vSAN, NSX | ☐ |
@@ -467,14 +467,13 @@ The `prepare` command performs these steps on each host via SSH:
 3. Configure NTP server — 10.0.10.1
 4. Set root password
 5. **vSAN ESA preparation**:
-   - Set acceptance level to CommunitySupported (for mock VIB)
-   - Install mock HCL VIB for nested vSAN ESA compatibility
-   - Restart vSAN management service
-   - Enable FakeSCSIReservations advanced setting
-   - Mark NVMe storage devices as SSD
+   - Enable FakeSCSIReservations advanced setting (required for nested SCSI reservations)
+   - Mark NVMe storage devices as SSD (nested NVMe appears as non-SSD)
    - Enable vSAN firewall rules (vsan-transport, vsanEncryption)
 6. Import CA root certificate
 7. Verify network connectivity (`vmkping` to gateway)
+
+> **Note**: VCF 9.0.1+ includes a built-in vSAN ESA HCL bypass for nested environments. The mock HCL VIB (used in earlier VCF versions) is no longer required.
 
 ### 4.4 ESXi Host Verification
 
@@ -486,7 +485,6 @@ The `prepare` command performs these steps on each host via SSH:
 | NTP sync | `esxcli system ntp get` on each host | NTP server configured (10.0.10.1) |
 | Time sync | Compare time across all hosts | Within 1 second |
 | vSAN ESA ready | `esxcli vsan storage list` on each host | NVMe device marked as SSD |
-| Mock VIB installed | `esxcli software vib list \| grep mock` | Mock HCL VIB present |
 | Host status | `ansible-playbook ansible/playbooks/phase2_esxi.yml --check` | All tasks show ok |
 
 ## 5. Phase 3 — VCF Management Domain
@@ -506,14 +504,15 @@ Verify all DNS records are configured in dnsmasq (done in Phase 1). Forward and 
 
 ### 5.2 Download and Deploy VCF Installer
 
-The jumpbox has outbound internet access and is used to download the Cloud Builder OVA, then upload it to the ESXi datastore.
+In VCF 9.0, the SDDC Manager appliance doubles as the VCF Installer (Cloud Builder functionality is consolidated into it). The OVA is downloaded once to the operator's laptop and SCP'd to the jumpbox for each deployment — this avoids re-downloading 2+ GB on every lab rebuild.
 
 | Step | Action | Expected Result | Verification |
 |------|--------|-----------------|--------------|
-| 5.2.1 | SSH to jumpbox and download VCF Installer (Cloud Builder) OVA from Broadcom support portal | OVA saved to jumpbox | `ls -lh ~/vcf-installer.ova` |
-| 5.2.2 | Upload OVA to esxi-01 datastore via `scp` or ESXi Host Client | OVA available on datastore | Datastore browser shows file |
-| 5.2.3 | Deploy VCF Installer OVA with IP 10.0.10.3, GW 10.0.10.1, DNS 10.0.10.1 | Appliance deployed | VM powered on |
-| 5.2.4 | Wait for installer services to start (5-10 minutes) | Services ready | `https://vcf-installer.lab.dreamfold.dev` accessible |
+| 5.2.1 | Download `VCF-SDDC-Manager-Appliance-9.0.2.0.25151285.ova` (2.03 GB) from support.broadcom.com to operator laptop | OVA saved locally | File exists on laptop |
+| 5.2.2 | SCP OVA from laptop to jumpbox: `scp VCF-SDDC-Manager-Appliance-9.0.2.0.25151285.ova <jumpbox-public-ip>:~/vcf-installer.ova` | OVA on jumpbox | `ls -lh ~/vcf-installer.ova` |
+| 5.2.3 | Upload OVA from jumpbox to esxi-01 datastore via `scp` or ESXi Host Client | OVA available on datastore | Datastore browser shows file |
+| 5.2.4 | Deploy VCF Installer OVA with IP 10.0.10.3, GW 10.0.10.1, DNS 10.0.10.1 | Appliance deployed | VM powered on |
+| 5.2.5 | Wait for installer services to start (5-10 minutes) | Services ready | `https://vcf-installer.lab.dreamfold.dev` accessible |
 
 #### VCF Deployment Parameter Workbook
 
@@ -556,6 +555,18 @@ The VCF bringup requires a JSON parameter workbook. Key fields to configure:
 | Licences | NSX licence key | As obtained |
 
 Refer to the VMware VCF documentation for the complete workbook JSON schema and a template file.
+
+#### Troubleshooting: vSAN HCL Timestamp Validation
+
+The VCF Installer validates that its embedded vSAN HCL file (`all.json`) is less than 90 days old. If the installer OVA was built more than 90 days ago, bringup fails with an HCL validation error. To work around this, SSH to the VCF Installer and patch the timestamp:
+
+```bash
+ssh vcf@vcf-installer.lab.dreamfold.dev
+sudo sed -i 's/"timestamp":"[^"]*"/"timestamp":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'"/' \
+  /nfs/vmware/vcf/nfs-mount/vsan-hcl/all.json
+sudo sed -i 's/"jsonUpdatedTime":"[^"]*"/"jsonUpdatedTime":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'"/' \
+  /nfs/vmware/vcf/nfs-mount/vsan-hcl/all.json
+```
 
 ### 5.3 Run VCF Bringup
 
@@ -626,6 +637,18 @@ Refer to the VMware VCF documentation for the complete workbook JSON schema and 
 > Phase 5 implements R-006, R-008 via NET-02, NSX-01 through NSX-04. Edge cluster, gateways, BGP, and VPC are configured.
 
 ### 7.1 Deploy NSX Edge Cluster
+
+#### Prerequisites for Nested Edge Deployment
+
+**PDPE1GB CPU flag**: NSX Edge VMs require 1GB hugepages. In nested environments, this CPU instruction may not be exposed to the nested ESXi host. If Edge deployment fails, add this VM Advanced Setting on each nested ESXi host VM (in vCD):
+
+```
+featMask.vm.cpuid.PDPE1GB = Val:1
+```
+
+For AMD Ryzen/Threadripper physical hosts, also add: `monitor_control.enable_fullcpuid = "TRUE"`.
+
+**NSX Edge OVF certificate expiry**: NSX Edge OVF certificates can expire, causing deployment failure with `VALIDATION_ERROR: CERTIFICATE_EXPIRED`. If you encounter this error, follow VMware KB 424034 to replace the expired OVF certificate before retrying Edge deployment.
 
 | Step | Action | Expected Result | Verification |
 |------|--------|-----------------|--------------|

@@ -352,6 +352,7 @@ op item list --vault "VKS Lab"
 | Cannot resolve lab hostnames | dnsmasq not running | `sudo systemctl restart dnsmasq` on jumpbox |
 | Upstream DNS fails | Jumpbox external NIC issue | Check ens160 connectivity; verify upstream DNS servers |
 | Stale records | dnsmasq config not reloaded | Edit config, then `sudo systemctl restart dnsmasq` |
+| VCF bringup DNS timeouts | IPv6 AAAA query delays | Lab is IPv4-only; AAAA queries to upstream servers can cause resolution delays. If bringup fails with DNS timeouts, check `/var/log/syslog` for slow AAAA responses and consider adding `filter-AAAA` to dnsmasq config (requires dnsmasq compiled with `--enable-filter-aaaa`) |
 
 #### DHCP Issues
 
