@@ -4,13 +4,21 @@ lab_domain: lab.dreamfold.dev
 # Base network prefix — change this to relocate the entire lab
 lab_network_prefix: "10.0"
 
+# VLAN IDs (defined separately to avoid circular references with prefix vars)
+vlan_id_mgmt: 10
+vlan_id_vmotion: 20
+vlan_id_vsan: 30
+vlan_id_host_overlay: 40
+vlan_id_edge_overlay: 50
+vlan_id_edge_uplink: 60
+
 # Per-VLAN subnet prefixes (derived from prefix + VLAN ID)
-lab_mgmt_prefix: "{{ lab_network_prefix }}.{{ vlans.management.id }}"
-lab_vmotion_prefix: "{{ lab_network_prefix }}.{{ vlans.vmotion.id }}"
-lab_vsan_prefix: "{{ lab_network_prefix }}.{{ vlans.vsan.id }}"
-lab_overlay_prefix: "{{ lab_network_prefix }}.{{ vlans.host_overlay.id }}"
-lab_edge_tep_prefix: "{{ lab_network_prefix }}.{{ vlans.edge_overlay.id }}"
-lab_uplink_prefix: "{{ lab_network_prefix }}.{{ vlans.edge_uplink.id }}"
+lab_mgmt_prefix: "{{ lab_network_prefix }}.{{ vlan_id_mgmt }}"
+lab_vmotion_prefix: "{{ lab_network_prefix }}.{{ vlan_id_vmotion }}"
+lab_vsan_prefix: "{{ lab_network_prefix }}.{{ vlan_id_vsan }}"
+lab_overlay_prefix: "{{ lab_network_prefix }}.{{ vlan_id_host_overlay }}"
+lab_edge_tep_prefix: "{{ lab_network_prefix }}.{{ vlan_id_edge_overlay }}"
+lab_uplink_prefix: "{{ lab_network_prefix }}.{{ vlan_id_edge_uplink }}"
 
 # Global services — all on management VLAN
 lab_gateway: "{{ lab_mgmt_prefix }}.1"
@@ -36,32 +44,32 @@ ca_cert_path: /tmp/lab-root-ca.crt
 # Network configuration
 vlans:
   management:
-    id: 10
+    id: "{{ vlan_id_mgmt }}"
     subnet: "{{ lab_mgmt_prefix }}.0/24"
     gateway: "{{ lab_mgmt_prefix }}.1"
     mtu: 1500
   vmotion:
-    id: 20
+    id: "{{ vlan_id_vmotion }}"
     subnet: "{{ lab_vmotion_prefix }}.0/24"
     gateway: "{{ lab_vmotion_prefix }}.1"
     mtu: 9000
   vsan:
-    id: 30
+    id: "{{ vlan_id_vsan }}"
     subnet: "{{ lab_vsan_prefix }}.0/24"
     gateway: "{{ lab_vsan_prefix }}.1"
     mtu: 9000
   host_overlay:
-    id: 40
+    id: "{{ vlan_id_host_overlay }}"
     subnet: "{{ lab_overlay_prefix }}.0/24"
     gateway: "{{ lab_overlay_prefix }}.1"
     mtu: 9000
   edge_overlay:
-    id: 50
+    id: "{{ vlan_id_edge_overlay }}"
     subnet: "{{ lab_edge_tep_prefix }}.0/24"
     gateway: "{{ lab_edge_tep_prefix }}.1"
     mtu: 9000
   edge_uplink:
-    id: 60
+    id: "{{ vlan_id_edge_uplink }}"
     subnet: "{{ lab_uplink_prefix }}.0/24"
     gateway: "{{ lab_uplink_prefix }}.1"
     mtu: 1500
