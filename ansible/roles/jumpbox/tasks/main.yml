@@ -1,6 +1,13 @@
 ---
-# Phase 1 — Jumpbox configuration (routing, DNS, NTP, CA, BGP, networking)
-# Target: jumpbox host via SSH (reached directly on public IP)
+# Phase 1 — Jumpbox configuration
+# The jumpbox is the single gateway for the entire nested lab. It provides:
+#   - Inter-VLAN routing via VLAN sub-interfaces on ens192
+#   - DNS (dnsmasq) for lab.dreamfold.dev with DHCP reservations for ESXi hosts
+#   - NTP (chrony) — all VCF components sync time from the jumpbox
+#   - CA (step-ca) — internal TLS certificates for all lab components
+#   - NAT/masquerade — outbound internet for nested hosts via the public NIC
+#   - BGP (Quagga) — peers with NSX Tier-0 for VKS pod/service route exchange
+#   - RDP (xrdp + XFCE) — remote desktop access for managing web UIs
 
 - name: Install required packages
   become: true
@@ -9,6 +16,9 @@
     state: present
     update_cache: true
 
+# Netplan configures the public NIC (ens160, DHCP) and six VLAN sub-interfaces
+# on ens192 for management, vMotion, vSAN, host overlay, edge overlay, and
+# edge uplink networks. MTU 9000 on storage/overlay VLANs.
 - name: Deploy netplan configuration
   become: true
   ansible.builtin.template:
@@ -19,6 +29,9 @@
     mode: "0600"
   notify: apply netplan
 
+# dnsmasq provides forward/reverse DNS for all lab hosts and DHCP on VLAN 10
+# with static MAC→IP reservations. ESXi hosts PXE/DHCP boot and receive their
+# management IP based on the MAC address assigned by vCD.
 - name: Deploy dnsmasq configuration
   become: true
   ansible.builtin.template:
@@ -29,6 +42,8 @@
     mode: "0644"
   notify: restart dnsmasq
 
+# chrony serves NTP to all lab components. VCF bringup validates time sync
+# across all ESXi hosts — clock skew >1s causes validation failure.
 - name: Deploy chrony configuration
   become: true
   ansible.builtin.template:
@@ -60,6 +75,9 @@
     state: started
     enabled: true
 
+# IP masquerading allows nested hosts (10.0.0.0/16) to reach the internet
+# via the jumpbox's public NIC. Required for VCF depot sync, content library
+# updates, and VKS image pulls.
 - name: Enable IP forwarding
   become: true
   ansible.posix.sysctl:
@@ -80,6 +98,9 @@
     state: present
   notify: save iptables
 
+# Quagga BGP peers with the NSX Tier-0 gateway on the edge uplink VLAN (60).
+# The jumpbox advertises infrastructure routes; NSX advertises VKS pod/service
+# CIDRs back. This enables pod-to-external and external-to-pod connectivity.
 - name: Deploy Quagga daemons configuration
   become: true
   ansible.builtin.template:
@@ -117,6 +138,9 @@
     state: started
     enabled: true
 
+# step-ca provides an internal CA with ACME support. TLS certificates for
+# Keycloak and other lab services are issued from this CA. The root cert
+# is distributed to ESXi hosts in Phase 2 (esxi_prepare role).
 - name: Initialise step-ca
   become: true
   ansible.builtin.shell: >

@@ -1,5 +1,7 @@
 ---
-# Phase 1 — Docker services: Keycloak on jumpbox
+# Phase 1 — Docker services on jumpbox
+# Keycloak provides centralised OIDC identity for vCenter and NSX Manager,
+# replacing per-component local authentication with SSO.
 
 - name: Install Docker Engine
   become: true
@@ -23,6 +25,8 @@
     append: true
 
 # --- Keycloak TLS certificate ---
+# Issued from step-ca (configured by jumpbox role). Keycloak serves HTTPS
+# on port 8443 — vCenter and NSX Manager connect to its OIDC endpoints.
 
 - name: Create certificate directory
   become: true
@@ -41,7 +45,9 @@
   args:
     creates: "{{ keycloak_cert_path }}"
 
-# --- Keycloak ---
+# --- Keycloak container ---
+# Runs with HTTPS on port 8443, data persisted in a Docker volume.
+# Admin password is injected from 1Password at runtime.
 
 - name: Run Keycloak container
   community.docker.docker_container:
@@ -73,6 +79,11 @@
   until: kc_health.status == 200
   retries: 60
   delay: 5
+
+# --- Keycloak realm and users ---
+# Creates the "lab" realm with admin and operator users, plus OIDC clients
+# for vCenter and NSX Manager. vCenter/NSX OIDC configuration is manual
+# (post Phase 3/4) as those components don't exist yet.
 
 - name: Obtain Keycloak admin access token
   ansible.builtin.uri:
@@ -138,6 +149,8 @@
     status_code: [201, 409]
   loop: "{{ keycloak_users }}"
 
+# OIDC clients for vCenter and NSX Manager. After Phase 3/4, configure
+# each component to use these clients for SSO (see delivery guide §3.4).
 - name: Create Keycloak OIDC clients
   ansible.builtin.uri:
     url: "https://{{ keycloak_hostname }}:{{ keycloak_port }}/admin/realms/{{ keycloak_realm }}/clients"
