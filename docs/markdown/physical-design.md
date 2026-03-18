@@ -98,7 +98,7 @@ See [Delivery Guide](deliver.md) for netplan configuration. Key parameters:
 
 - NIC1 (ens160): vCD public network, DHCP
 - NIC2 (ens192): vCD private network, 802.1Q trunk (MTU 9000)
-  - ens192.10: 10.0.10.1/24 (Management, MTU 1500)
+  - ens192: 10.0.10.1/24 (Management, native/untagged — ESXi DHCP works without VLAN config)
   - ens192.20: 10.0.20.1/24 (vMotion, MTU 9000)
   - ens192.30: 10.0.30.1/24 (vSAN, MTU 9000)
   - ens192.40: 10.0.40.1/24 (Host Overlay, MTU 9000)

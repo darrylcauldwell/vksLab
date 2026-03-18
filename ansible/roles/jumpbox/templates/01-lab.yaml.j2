@@ -5,7 +5,12 @@ network:
     {{ jumpbox_public_nic }}:
       dhcp4: true
     {{ jumpbox_vlan_trunk_nic }}:
+      addresses:
+        - {{ jumpbox_ip }}/24
       mtu: 9000
+      nameservers:
+        addresses:
+          - 127.0.0.1
   vlans:
 {% for iface in jumpbox_vlan_interfaces %}
     {{ jumpbox_vlan_trunk_nic }}.{{ iface.vlan }}:
@@ -14,9 +19,4 @@ network:
       addresses:
         - {{ iface.ip }}
       mtu: {{ iface.mtu }}
-{% if iface.vlan == 10 %}
-      nameservers:
-        addresses:
-          - 127.0.0.1
-{% endif %}
 {% endfor %}
