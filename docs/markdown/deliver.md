@@ -107,16 +107,28 @@ ansible-galaxy collection install -r ansible/collections/requirements.yml
 | 3.3.5 | Copy SSH key to jumpbox: `ssh-copy-id ubuntu@<jumpbox-ip>` | Key deployed | `ssh ubuntu@<jumpbox-ip>` connects without password |
 | 3.3.6 | Store jumpbox IP in 1Password: `op item edit "Jumpbox Ubuntu" ip_address=<jumpbox-ip>` | IP stored | `op item get "Jumpbox Ubuntu" --fields ip_address` returns IP |
 
-### 3.4 Configure Jumpbox (Automated)
+### 3.4 Clone ESXi VMs (Manual in vCD)
+
+Start cloning all 7 ESXi VMs now — they run concurrently with the jumpbox playbook below and take a while to complete. See §4.1 and §4.2 for full details.
+
+| Step | Action | Expected Result |
+|------|--------|-----------------|
+| 3.4.1 | Clone esxi-01 through esxi-04 from vApp template `[baked]esxi-9.0.2-2514807` (8 vCPU, 72 GB RAM, 40 GB boot + 200 GB NVMe), both NICs on `lab-trunk` | 4 management VMs cloning |
+| 3.4.2 | Clone esxi-05 through esxi-07 (same spec), both NICs on `lab-trunk` | 3 workload VMs cloning |
+
+> **Note**: Do not power on the ESXi VMs yet — MAC addresses and DHCP reservations are configured in Phase 2.
+
+### 3.5 Configure Jumpbox (Automated)
 
 All jumpbox configuration (VLAN sub-interfaces, dnsmasq DNS/DHCP, chrony NTP, step-ca, XFCE/xrdp, IP masquerading, FRR BGP, Firefox, Keycloak) is automated by the `jumpbox` and `docker_services` Ansible roles:
 
 ```bash
 source .venv/bin/activate
 cd ansible
-ansible-playbook playbooks/phase1_foundation.yml```
+ansible-playbook playbooks/phase1_foundation.yml
+```
 
-### 3.5 Foundation Verification
+### 3.6 Foundation Verification
 
 | Check | Command / Method | Expected Result |
 |-------|------------------|-----------------|
