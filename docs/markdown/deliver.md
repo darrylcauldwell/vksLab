@@ -94,7 +94,7 @@ ansible-galaxy collection install -r ansible/collections/requirements.yml
 |------|--------|-----------------|
 | 3.2.1 | Create new vApp in vCloud Director | Empty vApp created |
 | 3.2.2 | Add routed network (public) to vApp | External connectivity available |
-| 3.2.3 | Add isolated network (private, MTU 9000) to vApp | Trunk-capable internal network available |
+| 3.2.3 | Add isolated network: name `lab-trunk`, gateway CIDR `192.168.254.1/24`, tick **Allow Guest VLAN** | Trunk-capable internal network available |
 
 ### 3.3 Deploy Jumpbox VM (Manual in vCD)
 
