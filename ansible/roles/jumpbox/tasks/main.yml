@@ -215,6 +215,24 @@
       --password-file=/root/.step-ca-password
     creates: /root/.step/config/ca.json
 
+# Default max cert duration is 24h — raise to 1 year for lab services
+- name: Set max certificate duration to 1 year
+  become: true
+  ansible.builtin.shell: |
+    if jq -e '.authority.provisioners[] | select(.name == "lab-admin") | .claims.maxTLSCertDuration == "8760h"' /root/.step/config/ca.json > /dev/null 2>&1; then
+      echo "already_set"
+    else
+      jq '(.authority.provisioners[] | select(.name == "lab-admin") | .claims) = {
+        "maxTLSCertDuration": "8760h",
+        "defaultTLSCertDuration": "720h"
+      }' /root/.step/config/ca.json > /tmp/ca.json.tmp &&
+      mv /tmp/ca.json.tmp /root/.step/config/ca.json
+      echo "updated"
+    fi
+  register: cert_duration_result
+  changed_when: "'updated' in cert_duration_result.stdout"
+  notify: restart step-ca
+
 - name: Export root CA certificate
   become: true
   ansible.builtin.copy:

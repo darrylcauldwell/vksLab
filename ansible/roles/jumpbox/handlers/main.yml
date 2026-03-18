@@ -26,3 +26,9 @@
   ansible.builtin.service:
     name: frr
     state: restarted
+
+- name: restart step-ca
+  become: true
+  ansible.builtin.service:
+    name: step-ca
+    state: restarted
