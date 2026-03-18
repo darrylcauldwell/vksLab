@@ -9,16 +9,16 @@ date: "March 2026"
 
 ## 1. Deployment Overview
 
-The lab is built in six sequential phases. Each phase depends on the successful completion of the previous one. The entire deployment can be completed in one to two days, depending on VCF bringup duration and resource availability.
+The lab is built in six sequential phases, each depending on the previous one.
 
-| Phase | Name | Depends On | Duration Estimate |
-|-------|------|------------|-------------------|
-| 1 | Foundation | — | 2-3 hours |
-| 2 | Nested ESXi | Phase 1 | 1-2 hours |
-| 3 | VCF Management Domain | Phase 2 | 3-4 hours |
-| 4 | VCF Workload Domain | Phase 3 | 2-3 hours |
-| 5 | NSX Networking | Phase 4 | 1-2 hours |
-| 6 | VKS | Phase 5 | 1-2 hours |
+| Phase | Name |
+|-------|------|
+| 1 | Foundation |
+| 2 | Nested ESXi |
+| 3 | VCF Management Domain |
+| 4 | VCF Workload Domain |
+| 5 | NSX Networking |
+| 6 | VKS |
 
 **Phase 1** establishes the vApp, jumpbox (DNS, NTP, CA, inter-VLAN routing, Quagga BGP). **Phase 2** deploys all seven nested ESXi hosts. **Phase 3** runs the VCF Installer to bring up the management domain (vCenter, SDDC Manager, NSX Manager, VCF Operations, VCF Automation). **Phase 4** commissions workload hosts and creates the workload domain. **Phase 5** deploys the NSX Edge cluster, configures Tier-0/Tier-1 gateways, establishes BGP peering, and creates the NSX VPC. **Phase 6** enables the Supervisor, creates a vSphere Namespace, and deploys a VKS cluster with a test workload.
 
