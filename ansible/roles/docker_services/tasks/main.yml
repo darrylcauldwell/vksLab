@@ -43,7 +43,7 @@
     --san {{ keycloak_hostname }}
     --not-after 8760h
     --force
-    --ca-url https://{{ jumpbox_ip }}:443
+    --ca-url https://127.0.0.1:443
     --root {{ ca_cert_path }}
     --provisioner lab-admin
     --provisioner-password-file /root/.step-ca-password
