@@ -9,7 +9,7 @@ date: "March 2026"
 
 ## 1. Standard Operating Procedures
 
-### 1.1 Lab Power On Sequence
+### 1.1 Lab Power On Sequence (R-010, VCD-03)
 
 The lab must be powered on in a specific order to ensure service dependencies are met.
 
@@ -43,7 +43,7 @@ The lab must be powered on in a specific order to ensure service dependencies ar
 
 **vCenter must be the last management appliance shut down and the first to start up.**
 
-### 1.3 Snapshot and Restore the Lab
+### 1.3 Snapshot and Restore the Lab (R-010, VCD-03)
 
 #### Taking a Snapshot
 
@@ -86,7 +86,7 @@ The lab must be powered on in a specific order to ensure service dependencies ar
 | 4 | Remove DNS record from dnsmasq | Record removed |
 | 5 | Power off and delete ESXi VM | Resources reclaimed |
 
-### 1.6 Rebuild VKS Cluster
+### 1.6 Rebuild VKS Cluster (R-005, VKS-01 through VKS-04)
 
 | Step | Action | Verification |
 |------|--------|-------------|
@@ -98,7 +98,56 @@ The lab must be powered on in a specific order to ensure service dependencies ar
 | 6 | Wait for workers (3 nodes) | `kubectl get machines` shows 6 Running |
 | 7 | Obtain new kubeconfig and verify | `kubectl get nodes` shows 6 Ready |
 
+### 1.7 Certificate Renewal SOP (R-009, SVC-02)
+
+Certificates issued by the internal step-ca have a default lifetime. Renew before expiry to avoid service disruption.
+
+#### Check Certificate Expiry
+
+```bash
+# List all active certificates and their expiry dates
+step ca certificate list --expired=false
+
+# Check a specific component's certificate
+echo | openssl s_client -connect vcenter-mgmt.lab.dreamfold.dev:443 2>/dev/null | openssl x509 -noout -dates
+```
+
+#### Renew via ACME
+
+For components that obtained certificates via ACME (step-ca automatic renewal):
+
+| Step | Action | Verification |
+|------|--------|-------------|
+| 1 | Check if `step ca renew` cron/timer is active on the jumpbox | `systemctl status step-ca-renew.timer` |
+| 2 | If expired, manually renew | `step ca renew /path/to/cert.pem /path/to/key.pem --force` |
+| 3 | Restart the affected service | Service responds with valid TLS |
+
+#### Manual Certificate Renewal (VCF Components)
+
+For VCF components (vCenter, NSX Manager, SDDC Manager) that use certificates issued by step-ca but do not auto-renew:
+
+| Step | Action | Verification |
+|------|--------|-------------|
+| 1 | Generate a new certificate from step-ca | `step ca certificate <fqdn> cert.pem key.pem` |
+| 2 | Upload to the component via its management UI or API | Certificate updated |
+| 3 | Restart the component's web service if required | UI accessible with new certificate |
+
+#### Root CA Certificate Rotation
+
+If the step-ca root CA certificate approaches expiry or needs rotation:
+
+| Step | Action | Notes |
+|------|--------|-------|
+| 1 | Generate new root CA on jumpbox | `step ca init` or use `step certificate create` for a new root |
+| 2 | Export new root certificate | `step ca root /tmp/new-root-ca.crt` |
+| 3 | Distribute to all ESXi hosts | `esxcli security cert import` on each host |
+| 4 | Update VCF component trust stores | Via vCenter and NSX Manager certificate management |
+| 5 | Re-issue all leaf certificates | Signed by the new root CA |
+| 6 | Verify TLS connectivity across all components | Browse all management UIs; check for certificate warnings |
+
 ## 2. Lifecycle Management
+
+> **Before any lifecycle operation**, take a vApp snapshot (R-010, VCD-03) as a rollback point. See Section 1.3.
 
 ### 2.1 ESXi Patching (vLCM)
 
@@ -228,7 +277,7 @@ done
 | 3 | DNS resolution | `dig @10.0.10.2 vcenter-mgmt.lab.dreamfold.dev` | Correct response |
 | 4 | NTP synchronisation | `chronyc tracking` on jumpbox | System clock synchronised |
 | 5 | ESXi NTP sync | `esxcli system ntp get` on each host | Server reachable |
-| 6 | Certificate expiry | `step ca certificate list` or check expiry dates | No certs expiring within 30 days |
+| 6 | Certificate expiry (R-009) | `step ca certificate list` or check expiry dates | No certs expiring within 30 days |
 | 7 | NSX Edge status | NSX Manager → Edge Clusters | Both Edges Up |
 
 ### 3.3 Monthly Checks
