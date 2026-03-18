@@ -75,14 +75,12 @@ Verify: `op item list --vault Employee` shows all 5 items.
 Ansible runs from the operator's laptop (not the jumpbox) and connects to lab hosts via SSH ProxyJump through the jumpbox.
 
 ```bash
-# Create and activate virtual environment
+# Create and activate virtual environment (from repo root)
 python3 -m venv .venv
 source .venv/bin/activate
 
-# Install Ansible
+# Install Ansible and required collections
 pip install ansible-core
-
-# Install required collections (1Password lookups, VMware modules)
 ansible-galaxy collection install -r ansible/collections/requirements.yml
 ```
 
