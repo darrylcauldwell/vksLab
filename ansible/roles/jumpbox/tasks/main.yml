@@ -230,6 +230,13 @@
     remote_src: true
     mode: "0644"
 
+# Fetch to controller so Phase 2 can push it to ESXi hosts via copy module
+- name: Fetch root CA certificate to controller
+  ansible.builtin.fetch:
+    src: "{{ ca_cert_path }}"
+    dest: "{{ ca_cert_path }}"
+    flat: true
+
 - name: Deploy step-ca systemd service
   become: true
   ansible.builtin.copy:
