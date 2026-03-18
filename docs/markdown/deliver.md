@@ -54,7 +54,8 @@ The following credentials must be prepared before deployment. Use consistent, do
 | 5 | vEOS admin password | veos-router | Set during initial configuration |
 | 6 | Jumpbox user password | jumpbox | Ubuntu user account |
 | 7 | step-ca provisioner password | jumpbox | Used for ACME certificate requests |
-| 8 | VCF deployment workbook passwords | VCF Installer | Embedded in the JSON parameter workbook |
+| 8 | Keycloak admin password | jumpbox | Keycloak admin console access |
+| 9 | VCF deployment workbook passwords | VCF Installer | Embedded in the JSON parameter workbook |
 
 ### 2.2 Assumptions Verification
 
@@ -70,7 +71,7 @@ Verify each assumption before proceeding to Phase 1. Cross-reference: [Conceptua
 
 ## 3. Phase 1 — Foundation
 
-> Phase 1 implements R-001, R-002, R-003, R-009 via VCD-01, VCD-02, NET-01, NET-05, SVC-01 through SVC-06.
+> Phase 1 implements R-001, R-002, R-003, R-009 via VCD-01, VCD-02, NET-01, NET-05, SVC-01 through SVC-08.
 
 ### 3.1 Create vCD vApp
 
@@ -261,7 +262,139 @@ bao kv put secret/esxi/root-password value='<CHANGE-ME>'
 bao kv put secret/vcenter/sso-password value='<CHANGE-ME>'
 bao kv put secret/sddc-manager/admin-password value='<CHANGE-ME>'
 bao kv put secret/nsx/admin-password value='<CHANGE-ME>'
+bao kv put secret/keycloak/admin-password value='<CHANGE-ME>'
 ```
+
+### 3.2d Keycloak Identity Provider (R-002, SVC-07, SVC-08)
+
+Deploy Keycloak as a Docker container on the jumpbox for centralised OIDC identity. Keycloak provides SSO for vCenter and NSX Manager, replacing per-component local authentication.
+
+**Prerequisites**: Docker Engine running on jumpbox (installed in step 3.2c.1). OpenBao initialised with `secret/keycloak/admin-password`.
+
+| Step | Action | Expected Result | Verification |
+|------|--------|-----------------|--------------|
+| 3.2d.1 | Retrieve Keycloak admin password from OpenBao | Password available | `bao kv get secret/keycloak/admin-password` |
+| 3.2d.2 | Run Keycloak container (port 8443, HTTPS) | Container running | `docker ps` shows keycloak |
+| 3.2d.3 | Wait for Keycloak to start (1-2 minutes) | Admin console accessible | `https://jumpbox.lab.dreamfold.dev:8443` loads |
+| 3.2d.4 | Create "lab" realm | Realm created | Realm visible in admin console |
+| 3.2d.5 | Create "admin" user with admin role | User created | User appears in realm user list |
+| 3.2d.6 | Create "operator" user with view-only role | User created | User appears in realm user list |
+| 3.2d.7 | Create OIDC client for vCenter | Client created | Client ID `vcenter` visible in realm |
+| 3.2d.8 | Create OIDC client for NSX Manager | Client created | Client ID `nsx-manager` visible in realm |
+
+```bash
+# Retrieve admin password from OpenBao
+export KC_ADMIN_PASS=$(bao kv get -field=value secret/keycloak/admin-password)
+
+# Run Keycloak container with HTTPS on port 8443
+docker run -d --name keycloak \
+  -p 8443:8443 \
+  -e KC_BOOTSTRAP_ADMIN_USERNAME=admin \
+  -e KC_BOOTSTRAP_ADMIN_PASSWORD="${KC_ADMIN_PASS}" \
+  -e KC_HOSTNAME=jumpbox.lab.dreamfold.dev \
+  -e KC_HTTPS_CERTIFICATE_FILE=/opt/keycloak/conf/server.crt \
+  -e KC_HTTPS_CERTIFICATE_KEY_FILE=/opt/keycloak/conf/server.key \
+  -v /etc/step-ca/certs/keycloak.crt:/opt/keycloak/conf/server.crt:ro \
+  -v /etc/step-ca/certs/keycloak.key:/opt/keycloak/conf/server.key:ro \
+  -v keycloak-data:/opt/keycloak/data \
+  --restart unless-stopped \
+  quay.io/keycloak/keycloak:latest start
+
+# Wait for Keycloak to become ready
+sleep 60
+
+# Obtain admin access token
+KC_TOKEN=$(curl -s -X POST \
+  "https://jumpbox.lab.dreamfold.dev:8443/realms/master/protocol/openid-connect/token" \
+  -d "grant_type=client_credentials&client_id=admin-cli" \
+  -d "grant_type=password&username=admin&password=${KC_ADMIN_PASS}&client_id=admin-cli" \
+  --cacert /tmp/lab-root-ca.crt | jq -r '.access_token')
+
+# Create "lab" realm
+curl -s -X POST "https://jumpbox.lab.dreamfold.dev:8443/admin/realms" \
+  -H "Authorization: Bearer ${KC_TOKEN}" \
+  -H "Content-Type: application/json" \
+  --cacert /tmp/lab-root-ca.crt \
+  -d '{"realm": "lab", "enabled": true, "displayName": "VKS Lab"}'
+
+# Create admin user
+curl -s -X POST "https://jumpbox.lab.dreamfold.dev:8443/admin/realms/lab/users" \
+  -H "Authorization: Bearer ${KC_TOKEN}" \
+  -H "Content-Type: application/json" \
+  --cacert /tmp/lab-root-ca.crt \
+  -d '{"username": "lab-admin", "enabled": true, "credentials": [{"type": "password", "value": "CHANGE-ME", "temporary": false}]}'
+
+# Create operator user
+curl -s -X POST "https://jumpbox.lab.dreamfold.dev:8443/admin/realms/lab/users" \
+  -H "Authorization: Bearer ${KC_TOKEN}" \
+  -H "Content-Type: application/json" \
+  --cacert /tmp/lab-root-ca.crt \
+  -d '{"username": "lab-operator", "enabled": true, "credentials": [{"type": "password", "value": "CHANGE-ME", "temporary": false}]}'
+```
+
+**TLS certificate**: Before starting Keycloak, issue a TLS certificate from step-ca for the Keycloak HTTPS endpoint:
+
+```bash
+step ca certificate jumpbox.lab.dreamfold.dev \
+  /etc/step-ca/certs/keycloak.crt /etc/step-ca/certs/keycloak.key \
+  --san jumpbox.lab.dreamfold.dev \
+  --not-after 8760h
+```
+
+#### Configure vCenter OIDC Identity Source
+
+After VCF bringup (Phase 3), configure each vCenter to use Keycloak as an external identity provider.
+
+| Step | Action | Expected Result | Verification |
+|------|--------|-----------------|--------------|
+| 3.2d.9 | In vCenter, navigate to Administration → Single Sign-On → Configuration → Identity Provider | Identity provider settings page | — |
+| 3.2d.10 | Add OIDC identity provider with Keycloak discovery URL | Provider configured | Discovery URL validated |
+| 3.2d.11 | Set Client ID to `vcenter`, provide client secret | Client credentials accepted | — |
+| 3.2d.12 | Map Keycloak groups to vCenter roles (Administrators, ReadOnly) | Role mappings created | Keycloak users can login |
+| 3.2d.13 | Test SSO login with `lab-admin` user | Login succeeds | vCenter dashboard loads |
+
+vCenter OIDC configuration parameters:
+
+| Parameter | Value |
+|-----------|-------|
+| Provider Name | Keycloak Lab |
+| Discovery Endpoint | `https://jumpbox.lab.dreamfold.dev:8443/realms/lab/.well-known/openid-configuration` |
+| Client ID | `vcenter` |
+| Client Secret | (generated in Keycloak admin console) |
+
+#### Configure NSX Manager OIDC Identity Source
+
+Configure each NSX Manager to use Keycloak as an external identity provider.
+
+| Step | Action | Expected Result | Verification |
+|------|--------|-----------------|--------------|
+| 3.2d.14 | In NSX Manager, navigate to System → Settings → User Management → OIDC | OIDC configuration page | — |
+| 3.2d.15 | Add OIDC provider with Keycloak discovery URL | Provider configured | Metadata fetched |
+| 3.2d.16 | Set Client ID to `nsx-manager`, provide client secret | Client credentials accepted | — |
+| 3.2d.17 | Map Keycloak roles to NSX RBAC roles | Role mappings created | Keycloak users can login |
+| 3.2d.18 | Test SSO login with `lab-admin` user | Login succeeds | NSX dashboard loads |
+
+NSX Manager OIDC configuration parameters:
+
+| Parameter | Value |
+|-----------|-------|
+| Provider Name | Keycloak Lab |
+| Discovery Endpoint | `https://jumpbox.lab.dreamfold.dev:8443/realms/lab/.well-known/openid-configuration` |
+| Client ID | `nsx-manager` |
+| Client Secret | (generated in Keycloak admin console) |
+
+**Note**: Steps 3.2d.9 through 3.2d.18 cannot be completed until after VCF bringup (Phase 3) and workload domain creation (Phase 4), because vCenter and NSX Manager must be deployed first. Return to these steps after Phase 4 is complete.
+
+#### Keycloak Verification
+
+| Check | Method | Expected Result |
+|-------|--------|-----------------|
+| Keycloak admin console | Browse `https://jumpbox.lab.dreamfold.dev:8443` | Login page loads |
+| Lab realm exists | Admin console → Realms | "lab" realm listed |
+| Users created | Admin console → lab realm → Users | lab-admin and lab-operator listed |
+| OIDC discovery | `curl https://jumpbox.lab.dreamfold.dev:8443/realms/lab/.well-known/openid-configuration` | JSON with issuer, token, and auth endpoints |
+| vCenter SSO login | Login to vCenter with Keycloak user | Dashboard loads |
+| NSX SSO login | Login to NSX Manager with Keycloak user | Dashboard loads |
 
 ### 3.3 Deploy and Configure Arista vEOS
 

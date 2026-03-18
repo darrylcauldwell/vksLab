@@ -357,6 +357,18 @@ done
 | Authentication failed | Token expired | Re-authenticate: `bao login <root-token>` |
 | Connection refused on 8200 | Container port not mapped | Verify `docker ps` shows port 8200 mapping |
 
+#### Keycloak Issues
+
+| Symptom | Possible Cause | Resolution |
+|---------|---------------|------------|
+| Cannot login via SSO | Keycloak container not running | `docker start keycloak`; check `docker logs keycloak` |
+| OIDC token validation failed | Clock skew between jumpbox and VCF components | Verify NTP sync on jumpbox (`chronyc tracking`) and VCF appliances; ensure time delta is under 5 seconds |
+| OIDC token validation failed | TLS certificate expired on Keycloak | Renew certificate: `step ca renew /etc/step-ca/certs/keycloak.crt /etc/step-ca/certs/keycloak.key --force`; restart Keycloak container |
+| Users cannot authenticate | Realm misconfiguration or user disabled | Check Keycloak admin console → lab realm → Users; verify user is enabled and credentials are set |
+| vCenter rejects OIDC provider | Discovery endpoint unreachable from vCenter | Verify vCenter can resolve `jumpbox.lab.dreamfold.dev` and reach port 8443; check firewall/routing |
+| NSX Manager rejects OIDC provider | Client ID or secret mismatch | Verify client ID and secret in NSX OIDC config match the Keycloak client configuration |
+| SSO works but user has no permissions | Role mapping missing | Check vCenter/NSX role mappings for the Keycloak user or group; add appropriate RBAC assignments |
+
 ### 4.2 Log Locations
 
 | Component | Log Location | Access Method |
@@ -373,6 +385,7 @@ done
 | Jumpbox step-ca | `journalctl -u step-ca` | systemd journal |
 | vEOS | `show logging` | vEOS CLI |
 | OpenBao | Container stdout | `docker logs openbao` |
+| Keycloak | Container stdout | `docker logs keycloak` |
 
 ### 4.3 Useful Diagnostic Commands
 

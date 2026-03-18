@@ -77,7 +77,7 @@ See [Delivery Guide](deliver.md) for step-by-step deployment procedures with exa
 
 | Component | Quantity | Role |
 |-----------|----------|------|
-| Ubuntu Jumpbox | 1 | External access, CA, DNS, DHCP, NTP, secrets (OpenBao) |
+| Ubuntu Jumpbox | 1 | External access, CA, DNS, DHCP, NTP, secrets (OpenBao), identity (Keycloak) |
 | Arista vEOS | 1 | Inter-VLAN routing, BGP peer |
 | Nested ESXi (Management) | 4 | VCF management domain hosts |
 | Nested ESXi (Workload) | 3 | VCF workload domain hosts |
@@ -171,7 +171,7 @@ The jumpbox runs dnsmasq, authoritative for the `lab.dreamfold.dev` zone. Unknow
 
 ## 4. Infrastructure Services Design
 
-All three infrastructure services (DNS, NTP, CA) run on the Ubuntu jumpbox.
+All infrastructure services (DNS, NTP, CA, secrets, identity) run on the Ubuntu jumpbox.
 
 **Rationale**: The jumpbox sits on the management VLAN (10.0.10.2), reachable by all internal VMs. It uses the vEOS router (10.0.10.1) as its default gateway for upstream DNS forwarding and NTP synchronisation. Running all services on one VM minimises resource consumption and component count.
 
@@ -182,6 +182,7 @@ All three infrastructure services (DNS, NTP, CA) run on the Ubuntu jumpbox.
 | NTP | chrony | Stratum 2 server, syncs to public pools externally, serves lab internally |
 | CA | step-ca | ACME-capable CA for TLS certs across VCF components |
 | Secrets | OpenBao (Docker) | KV secret store for passwords and credentials (REST API, port 8200) |
+| OIDC | Keycloak (Docker) | Centralised identity provider for vCenter and NSX Manager (HTTPS, port 8443) |
 
 The Arista vEOS router (10.0.10.1) also serves as a secondary NTP source. VCF validation requires two NTP servers — the jumpbox chrony (primary) and vEOS NTP (secondary) satisfy this requirement.
 
@@ -211,6 +212,20 @@ Secret paths:
 | R-003 | SVC-04 | dnsmasq DHCP with static MAC→IP reservations for ESXi hosts | Eliminates manual IP configuration during ESXi deployment; hosts receive correct IP on first boot | Risk: MAC address mismatch prevents DHCP lease. Mitigation: Verify MAC assignments in vCD before first boot |
 | R-003 | SVC-05 | vEOS as secondary NTP server (10.0.10.1) alongside jumpbox chrony (10.0.10.2) | VCF validation requires two NTP sources; vEOS provides a second time source with minimal additional configuration | Risk: vEOS NTP accuracy depends on upstream sync via Ethernet2. Mitigation: vEOS syncs to public NTP pools directly |
 | R-002 | SVC-06 | OpenBao as centralised secret store for lab credentials | Provides secure, API-accessible password management; Python `hvac` library enables automation; open-source MPL 2.0 licence | Risk: Additional resource consumption (~200-500 MB RAM). Mitigation: Lightweight; jumpbox sized to accommodate |
+
+### Identity and Access Management
+
+Keycloak runs as a Docker container on the jumpbox (port 8443, HTTPS) and provides centralised identity for VCF management components. It replaces per-component local authentication with a single sign-on (SSO) experience via OIDC.
+
+- **Realm**: A single `lab` realm contains all user accounts. There is no external LDAP or Active Directory — the lab has no domain controller.
+- **Users**: Local Keycloak users are created for `admin` (full administrator) and `operator` (read-only / day-2 operations).
+- **Integration**: vCenter and NSX Manager are configured with Keycloak as an OIDC identity source. Users authenticate via the Keycloak login page and receive an OIDC token that vCenter and NSX validate against the Keycloak discovery endpoint (`https://jumpbox.lab.dreamfold.dev:8443/realms/lab/.well-known/openid-configuration`).
+- **Fallback**: Local administrator accounts (administrator@vsphere.local, NSX admin) remain available as a fallback if Keycloak is unavailable.
+
+| Req. | Decision ID | Design Decision | Design Justification | Risk / Mitigation |
+|------|-------------|-----------------|----------------------|-------------------|
+| R-002 | SVC-07 | Keycloak as centralised OIDC identity provider for vCenter and NSX Manager | Single sign-on reduces credential sprawl across VCF components; OIDC is natively supported by vCenter and NSX Manager | Risk: Keycloak container outage blocks SSO login. Mitigation: Local administrator accounts remain functional as fallback; Keycloak container configured with restart policy |
+| C-004 | SVC-08 | Local Keycloak realm with local users (no AD/LDAP) | Lab has no domain controller; local users in a single realm provide the simplest identity model | Risk: No directory sync — user management is manual. Mitigation: Acceptable for lab with a small number of operators |
 
 ## 5. Compute Design
 
