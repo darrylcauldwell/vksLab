@@ -562,23 +562,35 @@ The VCF bringup requires a JSON parameter workbook. Key fields to configure:
 | Section | Parameter | Value |
 |---------|-----------|-------|
 | DNS / NTP | DNS server | 10.0.10.2 |
-| DNS / NTP | NTP server | 10.0.10.2 |
+| DNS / NTP | NTP server (primary) | 10.0.10.2 (jumpbox chrony) |
+| DNS / NTP | NTP server (secondary) | 10.0.10.1 (vEOS) |
 | DNS / NTP | Domain | lab.dreamfold.dev |
 | Management Network | Subnet | 10.0.10.0/24 |
 | Management Network | Gateway | 10.0.10.1 |
 | Management Network | VLAN ID | 10 |
+| Management Network | MTU | 1500 |
 | vMotion Network | Subnet | 10.0.20.0/24 |
+| vMotion Network | Gateway | 10.0.20.1 |
 | vMotion Network | VLAN ID | 20 |
+| vMotion Network | MTU | 9000 |
+| vMotion Network | IP Pool | 10.0.20.11–10.0.20.14 |
 | vSAN Network | Subnet | 10.0.30.0/24 |
+| vSAN Network | Gateway | 10.0.30.1 |
 | vSAN Network | VLAN ID | 30 |
+| vSAN Network | MTU | 9000 |
+| vSAN Network | IP Pool | 10.0.30.11–10.0.30.14 |
 | Host Overlay | Subnet | 10.0.40.0/24 |
+| Host Overlay | Gateway | 10.0.40.1 |
 | Host Overlay | VLAN ID | 40 |
+| Host Overlay | MTU | 9000 |
+| Host Overlay | IP Pool | 10.0.40.11–10.0.40.14 |
 | vCenter | Hostname | vcenter-mgmt.lab.dreamfold.dev |
 | vCenter | IP | 10.0.10.4 |
 | SDDC Manager | Hostname | sddc-manager.lab.dreamfold.dev |
 | SDDC Manager | IP | 10.0.10.5 |
 | NSX Manager | Hostname | nsx-mgr-mgmt.lab.dreamfold.dev |
 | NSX Manager | IP | 10.0.10.6 |
+| NSX Manager | Deployment Size | small |
 | ESXi Hosts | esxi-01 through esxi-04 | 10.0.10.11 through 10.0.10.14 |
 | Licences | VCF licence key | As obtained |
 | Licences | vSAN licence key | As obtained |
