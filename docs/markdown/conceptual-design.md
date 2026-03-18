@@ -40,7 +40,19 @@ Demonstrate VMware Kubernetes Service (VKS) on VCF 9 with NSX VPC in a fully nes
 | R-009 | All TLS certificates SHOULD be issued by the internal step-ca CA |
 | R-010 | Lab MAY be powered off, snapshot, and redeployed as a single vApp |
 
-## 5. Constraints
+## 5. Service Level Objectives
+
+| Metric | Target | Rationale |
+|--------|--------|-----------|
+| **Availability** | Best-effort (no SLA) | Lab environment — acceptable to be offline during maintenance or experimentation |
+| **RTO (full rebuild)** | ≤ 4 hours | Redeploy from scratch using delivery guide procedures |
+| **RTO (snapshot restore)** | ≤ 30 minutes | Revert vApp snapshot and power-on sequence (R-010) |
+| **RPO** | N/A | No persistent production data — lab state is disposable and reproducible |
+| **Backup method** | vApp snapshot (R-010) | Single-operation backup of entire lab state including all VM disks and memory |
+
+The lab is designed to be **disposable and reproducible**. The delivery guide enables a full rebuild from scratch; vApp snapshots provide a faster restore path for iterative experimentation. No traditional backup/replication infrastructure is required.
+
+## 6. Constraints
 
 | ID    | Constraint |
 |-------|------------|
@@ -50,7 +62,7 @@ Demonstrate VMware Kubernetes Service (VKS) on VCF 9 with NSX VPC in a fully nes
 | C-004 | Lab-grade only — not intended for production workloads or performance benchmarking |
 | C-005 | Internet access required for VKS content library sync and VCF depot access |
 
-## 6. Assumptions
+## 7. Assumptions
 
 | ID    | Assumption |
 |-------|------------|
@@ -60,7 +72,7 @@ Demonstrate VMware Kubernetes Service (VKS) on VCF 9 with NSX VPC in a fully nes
 | A-004 | VCF depot access is available (online or via offline bundles) |
 | A-005 | The lab.dreamfold.dev DNS zone is delegated or used internally only |
 
-## 7. Functional Overview
+## 8. Functional Overview
 
 ### Remote Access
 
@@ -89,7 +101,7 @@ Two VCF domains provide separation of concerns:
 
 A VKS cluster deployed via the Supervisor demonstrates Kubernetes lifecycle management on VCF. The cluster uses NSX VPC for pod networking with centralised Edge connectivity.
 
-## 8. Conceptual Architecture
+## 9. Conceptual Architecture
 
 ```
                          ┌──────────────────────────────────┐
@@ -122,7 +134,7 @@ A VKS cluster deployed via the Supervisor demonstrates Kubernetes lifecycle mana
 
 Functional blocks and relationships — no network details. See [Logical Design](logical-design.md) for topology.
 
-## 9. Deployment Approach
+## 10. Deployment Approach
 
 Deployment proceeds in six phases, each building on the previous:
 
@@ -135,7 +147,7 @@ Deployment proceeds in six phases, each building on the previous:
 
 See [Logical Design](logical-design.md) for phase details and [Delivery Guide](deliver.md) for step-by-step procedures.
 
-## 10. Open Questions & Risks
+## 11. Open Questions & Risks
 
 | # | Item | Status | Impact |
 |---|------|--------|--------|

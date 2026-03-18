@@ -115,6 +115,7 @@ The vCD public network provides external reachability. The vCD private network i
 |------|-------------|-----------------|----------------------|-------------------|
 | R-001 | VCD-01 | All lab components run inside a single vCloud Director vApp | Simplifies lifecycle management — entire lab can be snapshot, powered off, or redeployed as a unit | Risk: Single vApp failure affects entire lab. Mitigation: Acceptable for lab use; snapshot before changes |
 | R-001 | VCD-02 | Two-network model: one public, one private (trunk) | Minimises vCD network objects while supporting full VLAN segmentation via trunk | Risk: Trunk misconfiguration breaks all internal traffic. Mitigation: Verify trunk MTU and VLAN pass-through during foundation phase |
+| R-010 | VCD-03 | vApp snapshot as primary backup and recovery mechanism | Single-operation capture of entire lab state (all VM disks and memory); restore path is revert + power-on sequence; RTO ≤ 30 minutes | Risk: Snapshot size grows with lab data; vCD snapshot storage limits may apply. Mitigation: Lab is disposable — full rebuild via delivery guide provides fallback (RTO ≤ 4h) |
 
 ## 3. Network Topology
 
