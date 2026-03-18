@@ -1,0 +1,206 @@
+---
+# Phase 1 — Docker services: OpenBao + Keycloak on jumpbox
+
+- name: Install Docker Engine
+  become: true
+  ansible.builtin.apt:
+    name: docker.io
+    state: present
+    update_cache: true
+
+- name: Ensure Docker service is running
+  become: true
+  ansible.builtin.service:
+    name: docker
+    state: started
+    enabled: true
+
+- name: Add ubuntu user to docker group
+  become: true
+  ansible.builtin.user:
+    name: ubuntu
+    groups: docker
+    append: true
+
+# --- OpenBao ---
+
+- name: Run OpenBao container
+  community.docker.docker_container:
+    name: "{{ openbao_container_name }}"
+    image: "{{ openbao_image }}"
+    state: started
+    restart_policy: unless-stopped
+    ports:
+      - "{{ openbao_port }}:8200"
+    env:
+      BAO_ADDR: "http://127.0.0.1:8200"
+    volumes:
+      - openbao-data:/openbao/data
+    capabilities:
+      - IPC_LOCK
+    command: server -dev
+
+- name: Wait for OpenBao to be ready
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ openbao_port }}/v1/sys/health"
+    status_code: [200]
+  register: bao_health
+  until: bao_health.status == 200
+  retries: 30
+  delay: 2
+
+- name: Check if KV v2 engine is enabled
+  ansible.builtin.shell: >
+    bao secrets list -format=json | grep -q '"secret/"'
+  register: kv_check
+  changed_when: false
+  failed_when: false
+
+- name: Enable KV v2 secrets engine
+  ansible.builtin.shell: bao secrets enable -path=secret kv-v2
+  when: kv_check.rc != 0
+  changed_when: true
+
+# --- Keycloak TLS certificate ---
+
+- name: Create certificate directory
+  become: true
+  ansible.builtin.file:
+    path: /etc/step-ca/certs
+    state: directory
+    mode: "0755"
+
+- name: Issue Keycloak TLS certificate from step-ca
+  ansible.builtin.shell: >
+    step ca certificate {{ keycloak_hostname }}
+    {{ keycloak_cert_path }} {{ keycloak_key_path }}
+    --san {{ keycloak_hostname }}
+    --not-after 8760h
+    --force
+  args:
+    creates: "{{ keycloak_cert_path }}"
+
+# --- Keycloak ---
+
+- name: Retrieve Keycloak admin password from OpenBao
+  ansible.builtin.set_fact:
+    keycloak_admin_password: >-
+      {{ lookup('community.hashi_vault.vault_kv2_get',
+         'keycloak/admin-password',
+         engine_mount_point='secret',
+         url=openbao_url,
+         token=openbao_token).secret.value }}
+  no_log: true
+
+- name: Run Keycloak container
+  community.docker.docker_container:
+    name: "{{ keycloak_container_name }}"
+    image: "{{ keycloak_image }}"
+    state: started
+    restart_policy: unless-stopped
+    ports:
+      - "{{ keycloak_port }}:8443"
+    env:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: "{{ keycloak_admin_password }}"
+      KC_HOSTNAME: "{{ keycloak_hostname }}"
+      KC_HTTPS_CERTIFICATE_FILE: /opt/keycloak/conf/server.crt
+      KC_HTTPS_CERTIFICATE_KEY_FILE: /opt/keycloak/conf/server.key
+    volumes:
+      - "{{ keycloak_cert_path }}:/opt/keycloak/conf/server.crt:ro"
+      - "{{ keycloak_key_path }}:/opt/keycloak/conf/server.key:ro"
+      - keycloak-data:/opt/keycloak/data
+    command: start
+
+- name: Wait for Keycloak to be ready
+  ansible.builtin.uri:
+    url: "https://{{ keycloak_hostname }}:{{ keycloak_port }}/realms/master"
+    validate_certs: false
+    status_code: [200]
+  register: kc_health
+  until: kc_health.status == 200
+  retries: 60
+  delay: 5
+
+- name: Obtain Keycloak admin access token
+  ansible.builtin.uri:
+    url: "https://{{ keycloak_hostname }}:{{ keycloak_port }}/realms/master/protocol/openid-connect/token"
+    method: POST
+    body_format: form-urlencoded
+    body:
+      grant_type: password
+      username: admin
+      password: "{{ keycloak_admin_password }}"
+      client_id: admin-cli
+    validate_certs: false
+  register: kc_token_response
+  no_log: true
+
+- name: Set Keycloak token fact
+  ansible.builtin.set_fact:
+    kc_token: "{{ kc_token_response.json.access_token }}"
+  no_log: true
+
+- name: Check if lab realm exists
+  ansible.builtin.uri:
+    url: "https://{{ keycloak_hostname }}:{{ keycloak_port }}/admin/realms/{{ keycloak_realm }}"
+    method: GET
+    headers:
+      Authorization: "Bearer {{ kc_token }}"
+    validate_certs: false
+    status_code: [200, 404]
+  register: realm_check
+
+- name: Create lab realm
+  ansible.builtin.uri:
+    url: "https://{{ keycloak_hostname }}:{{ keycloak_port }}/admin/realms"
+    method: POST
+    headers:
+      Authorization: "Bearer {{ kc_token }}"
+      Content-Type: application/json
+    body_format: json
+    body:
+      realm: "{{ keycloak_realm }}"
+      enabled: true
+      displayName: VKS Lab
+    validate_certs: false
+    status_code: [201]
+  when: realm_check.status == 404
+
+- name: Create Keycloak users
+  ansible.builtin.uri:
+    url: "https://{{ keycloak_hostname }}:{{ keycloak_port }}/admin/realms/{{ keycloak_realm }}/users"
+    method: POST
+    headers:
+      Authorization: "Bearer {{ kc_token }}"
+      Content-Type: application/json
+    body_format: json
+    body:
+      username: "{{ item.username }}"
+      enabled: true
+      credentials:
+        - type: password
+          value: CHANGE-ME
+          temporary: false
+    validate_certs: false
+    status_code: [201, 409]
+  loop: "{{ keycloak_users }}"
+
+- name: Create Keycloak OIDC clients
+  ansible.builtin.uri:
+    url: "https://{{ keycloak_hostname }}:{{ keycloak_port }}/admin/realms/{{ keycloak_realm }}/clients"
+    method: POST
+    headers:
+      Authorization: "Bearer {{ kc_token }}"
+      Content-Type: application/json
+    body_format: json
+    body:
+      clientId: "{{ item.client_id }}"
+      name: "{{ item.name }}"
+      enabled: true
+      protocol: openid-connect
+      publicClient: false
+      standardFlowEnabled: true
+    validate_certs: false
+    status_code: [201, 409]
+  loop: "{{ keycloak_oidc_clients }}"

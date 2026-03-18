@@ -1,0 +1,16 @@
+# /etc/netplan/01-lab.yaml — managed by Ansible
+network:
+  version: 2
+  ethernets:
+    {{ jumpbox_public_nic }}:
+      dhcp4: true
+    {{ jumpbox_private_nic }}:
+      addresses:
+        - {{ jumpbox_ip }}/24
+      routes:
+        - to: {{ jumpbox_lab_network }}
+          via: {{ lab_gateway }}
+      mtu: 1500
+      nameservers:
+        addresses:
+          - 127.0.0.1

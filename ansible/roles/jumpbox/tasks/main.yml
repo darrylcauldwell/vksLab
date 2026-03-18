@@ -1,0 +1,98 @@
+---
+# Phase 1 — Jumpbox configuration (DNS, NTP, CA, networking)
+# Target: jumpbox host (ansible_connection: local)
+
+- name: Install required packages
+  become: true
+  ansible.builtin.apt:
+    name: "{{ jumpbox_packages }}"
+    state: present
+    update_cache: true
+
+- name: Deploy netplan configuration
+  become: true
+  ansible.builtin.template:
+    src: 01-lab.yaml.j2
+    dest: /etc/netplan/01-lab.yaml
+    owner: root
+    group: root
+    mode: "0600"
+  notify: apply netplan
+
+- name: Deploy dnsmasq configuration
+  become: true
+  ansible.builtin.template:
+    src: lab.conf.j2
+    dest: /etc/dnsmasq.d/lab.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: restart dnsmasq
+
+- name: Deploy chrony configuration
+  become: true
+  ansible.builtin.template:
+    src: chrony.conf.j2
+    dest: /etc/chrony/chrony.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: restart chrony
+
+- name: Enable and start dnsmasq
+  become: true
+  ansible.builtin.service:
+    name: dnsmasq
+    state: started
+    enabled: true
+
+- name: Enable and start chrony
+  become: true
+  ansible.builtin.service:
+    name: chrony
+    state: started
+    enabled: true
+
+- name: Enable and start xrdp
+  become: true
+  ansible.builtin.service:
+    name: xrdp
+    state: started
+    enabled: true
+
+- name: Enable IP forwarding
+  become: true
+  ansible.posix.sysctl:
+    name: net.ipv4.ip_forward
+    value: "1"
+    sysctl_file: /etc/sysctl.d/99-lab-forwarding.conf
+    reload: true
+    state: present
+
+- name: Add iptables masquerade rule
+  become: true
+  ansible.builtin.iptables:
+    table: nat
+    chain: POSTROUTING
+    source: "{{ jumpbox_lab_network }}"
+    out_interface: "{{ jumpbox_public_nic }}"
+    jump: MASQUERADE
+    state: present
+  notify: save iptables
+
+- name: Initialise step-ca
+  become: true
+  ansible.builtin.shell: >
+    step ca init
+    --name="VKS Lab CA"
+    --dns="{{ jumpbox_ip }}"
+    --address=":443"
+    --provisioner="lab-admin"
+    --password-file=/dev/stdin <<< "{{ lookup('ansible.builtin.password', '/dev/null', length=32) }}"
+  args:
+    creates: /root/.step/config/ca.json
+
+- name: Export root CA certificate
+  ansible.builtin.shell: step ca root {{ ca_cert_path }}
+  args:
+    creates: "{{ ca_cert_path }}"

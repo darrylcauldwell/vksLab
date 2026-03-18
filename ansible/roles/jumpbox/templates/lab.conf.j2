@@ -1,0 +1,19 @@
+# /etc/dnsmasq.d/lab.conf — managed by Ansible
+domain={{ lab_domain }}
+local=/{{ lab_domain }}/
+
+# --- DNS Records ---
+{% for record in jumpbox_dns_records %}
+address=/{{ record.hostname }}.{{ lab_domain }}/{{ record.ip }}
+{% endfor %}
+
+# --- DHCP on VLAN 10 (management) ---
+dhcp-range=10.0.10.100,10.0.10.199,255.255.255.0,12h
+dhcp-option=option:router,{{ lab_gateway }}
+dhcp-option=option:dns-server,{{ lab_dns_server }}
+dhcp-option=option:ntp-server,{{ lab_ntp_servers | join(',') }}
+
+# Static MAC→IP reservations
+{% for res in jumpbox_dhcp_reservations %}
+dhcp-host={{ res.mac }},{{ res.hostname }},{{ res.ip }}
+{% endfor %}

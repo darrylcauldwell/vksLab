@@ -1,0 +1,23 @@
+openbao_image: quay.io/openbao/openbao:latest
+openbao_container_name: openbao
+openbao_port: 8200
+
+keycloak_image: quay.io/keycloak/keycloak:latest
+keycloak_container_name: keycloak
+keycloak_port: 8443
+keycloak_hostname: "jumpbox.{{ lab_domain }}"
+keycloak_realm: lab
+keycloak_cert_path: /etc/step-ca/certs/keycloak.crt
+keycloak_key_path: /etc/step-ca/certs/keycloak.key
+
+keycloak_users:
+  - username: lab-admin
+    role: admin
+  - username: lab-operator
+    role: viewer
+
+keycloak_oidc_clients:
+  - client_id: vcenter
+    name: vCenter OIDC
+  - client_id: nsx-manager
+    name: NSX Manager OIDC

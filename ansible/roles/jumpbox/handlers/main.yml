@@ -1,0 +1,22 @@
+---
+- name: apply netplan
+  become: true
+  ansible.builtin.shell: netplan apply
+  changed_when: true
+
+- name: restart dnsmasq
+  become: true
+  ansible.builtin.service:
+    name: dnsmasq
+    state: restarted
+
+- name: restart chrony
+  become: true
+  ansible.builtin.service:
+    name: chrony
+    state: restarted
+
+- name: save iptables
+  become: true
+  ansible.builtin.shell: netfilter-persistent save
+  changed_when: true

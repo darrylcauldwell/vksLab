@@ -1,0 +1,45 @@
+jumpbox_ip: 10.0.10.2
+jumpbox_private_nic: ens192
+jumpbox_public_nic: ens160
+jumpbox_lab_network: 10.0.0.0/16
+
+jumpbox_packages:
+  - xfce4
+  - xrdp
+  - dnsmasq
+  - chrony
+  - firefox
+  - step-cli
+  - step-ca
+  - iptables-persistent
+
+# DNS records for dnsmasq
+jumpbox_dns_records:
+  - {hostname: jumpbox, ip: 10.0.10.2}
+  - {hostname: vcf-installer, ip: 10.0.10.3}
+  - {hostname: vcenter-mgmt, ip: 10.0.10.4}
+  - {hostname: sddc-manager, ip: 10.0.10.5}
+  - {hostname: nsx-mgr-mgmt, ip: 10.0.10.6}
+  - {hostname: vcf-ops, ip: 10.0.10.7}
+  - {hostname: vcf-auto, ip: 10.0.10.8}
+  - {hostname: vcenter-wld, ip: 10.0.10.9}
+  - {hostname: nsx-mgr-wld, ip: 10.0.10.10}
+  - {hostname: esxi-01, ip: 10.0.10.11}
+  - {hostname: esxi-02, ip: 10.0.10.12}
+  - {hostname: esxi-03, ip: 10.0.10.13}
+  - {hostname: esxi-04, ip: 10.0.10.14}
+  - {hostname: esxi-05, ip: 10.0.10.15}
+  - {hostname: esxi-06, ip: 10.0.10.16}
+  - {hostname: esxi-07, ip: 10.0.10.17}
+  - {hostname: edge-01, ip: 10.0.10.20}
+  - {hostname: edge-02, ip: 10.0.10.21}
+
+# DHCP reservations (MAC → IP)
+jumpbox_dhcp_reservations:
+  - {mac: "00:50:56:xx:xx:01", hostname: esxi-01, ip: 10.0.10.11}
+  - {mac: "00:50:56:xx:xx:02", hostname: esxi-02, ip: 10.0.10.12}
+  - {mac: "00:50:56:xx:xx:03", hostname: esxi-03, ip: 10.0.10.13}
+  - {mac: "00:50:56:xx:xx:04", hostname: esxi-04, ip: 10.0.10.14}
+  - {mac: "00:50:56:xx:xx:05", hostname: esxi-05, ip: 10.0.10.15}
+  - {mac: "00:50:56:xx:xx:06", hostname: esxi-06, ip: 10.0.10.16}
+  - {mac: "00:50:56:xx:xx:07", hostname: esxi-07, ip: 10.0.10.17}

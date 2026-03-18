@@ -1,0 +1,9 @@
+---
+# Phase 1 — Foundation: jumpbox services, Docker containers, vEOS
+- name: Phase 1 — Configure jumpbox
+  hosts: jumpbox
+  gather_facts: true
+  become: false
+  roles:
+    - jumpbox
+    - docker_services
