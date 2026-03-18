@@ -144,24 +144,16 @@ ansible-playbook playbooks/phase1_foundation.yml
 
 > Phase 2 implements R-004, R-007 via ESX-01 through ESX-04 and NET-03, NET-04.
 
-### 4.1 Deploy Management Domain Hosts
+### 4.1 Deploy ESXi Hosts
 
-ESXi hosts receive their management IP via DHCP from the jumpbox dnsmasq (configured in Phase 1). Note the MAC address assigned by vCD for each VM and update the `dhcp-host` entries in `/etc/dnsmasq.d/lab.conf` before first boot.
-
-| Step | Action | Expected Result | Verification |
-|------|--------|-----------------|--------------|
-| 4.1.1 | Clone esxi-01 from vApp template `[baked]esxi-9.0.2-2514807` in vCD (8 vCPU, 72 GB RAM, 40 GB boot disk + 200 GB NVMe vSAN disk), both NICs on `lab-trunk` network | VM powered on | ESXi DCUI accessible |
-| 4.1.2 | Note vmnic0 MAC address assigned by vCD, update `esxi_mac` in `ansible/inventory/hosts.yml` | MAC recorded | Inventory updated |
-| 4.1.4 | Repeat steps 4.1.1-4.1.3 for esxi-02 through esxi-04 | All 4 hosts deployed | All pingable from jumpbox |
-
-### 4.2 Deploy Workload Domain Hosts
+ESXi hosts receive their management IP via DHCP from the jumpbox dnsmasq (configured in Phase 1). Note the MAC address assigned by vCD for each VM and update `esxi_mac` in `ansible/inventory/hosts.yml`.
 
 | Step | Action | Expected Result | Verification |
 |------|--------|-----------------|--------------|
-| 4.2.1 | Clone esxi-05 through esxi-07 from vApp template `[baked]esxi-9.0.2-2514807` (same spec as management hosts), both NICs on `lab-trunk` | VMs powered on | ESXi DCUI accessible |
-| 4.2.2 | Note MAC addresses assigned by vCD, update `esxi_mac` in `ansible/inventory/hosts.yml` | MACs recorded | Inventory updated |
+| 4.1.1 | For each host (esxi-01 through esxi-07): clone from vApp template `[baked]esxi-9.0.2-2514807` (8 vCPU, 72 GB RAM, 40 GB boot disk + 200 GB NVMe vSAN disk), both NICs on `lab-trunk` | VM created | ESXi DCUI accessible |
+| 4.1.2 | Note vmnic0 MAC address for each host, update `esxi_mac` in `ansible/inventory/hosts.yml` | MACs recorded | Inventory updated |
 
-### 4.3 Prepare Hosts (Automated)
+### 4.2 Prepare Hosts (Automated)
 
 Use the Ansible `esxi_prepare` role to configure all hosts. This sets hostname, DNS, NTP, root password, and prepares vSAN ESA in a single operation.
 
@@ -187,7 +179,7 @@ The `prepare` command performs these steps on each host via SSH:
 
 > **Note**: VCF 9.0.1+ includes a built-in vSAN ESA HCL bypass for nested environments. The mock HCL VIB (used in earlier VCF versions) is no longer required.
 
-### 4.4 ESXi Host Verification
+### 4.3 ESXi Host Verification
 
 | Check | Command / Method | Expected Result |
 |-------|------------------|-----------------|
