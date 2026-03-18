@@ -138,7 +138,7 @@ ESXi hosts receive their management IP via DHCP from the jumpbox dnsmasq (config
 
 | Step | Action | Expected Result | Verification |
 |------|--------|-----------------|--------------|
-| 4.1.1 | Clone esxi-01 from vApp template `[baked]esxi-9.0.2-2514807` in vCD (8 vCPU, 72 GB RAM, 200 GB NVMe disk), both NICs on `lab-trunk` network | VM powered on | ESXi DCUI accessible |
+| 4.1.1 | Clone esxi-01 from vApp template `[baked]esxi-9.0.2-2514807` in vCD (8 vCPU, 72 GB RAM, 40 GB boot disk + 200 GB NVMe vSAN disk), both NICs on `lab-trunk` network | VM powered on | ESXi DCUI accessible |
 | 4.1.2 | Note vmnic0 MAC address assigned by vCD, update `esxi_mac` in `ansible/inventory/hosts.yml` | MAC recorded | Inventory updated |
 | 4.1.4 | Repeat steps 4.1.1-4.1.3 for esxi-02 through esxi-04 | All 4 hosts deployed | All pingable from jumpbox |
 
