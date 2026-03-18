@@ -33,13 +33,9 @@ The following must be in place before starting Phase 1.
 | 1 | vCD resources approved (60 vCPU, 512 GB RAM, 1.5 TB storage) | ☐ |
 | 2 | Ubuntu ISO available in vCD Content Hub (`ubuntu-24.04.2-live-server-amd64.iso`), ESXi vApp template available (`[baked]esxi-9.0.2-2514807`) | ☐ |
 | 3 | VCF Installer OVA (`VCF-SDDC-Manager-Appliance-9.0.2.0.25151285.ova`, 2.03 GB) — download from support.broadcom.com to operator laptop, SCP to jumpbox per §5.2 | ☐ |
-| 4 | DNS zone `lab.dreamfold.dev` prepared (internal use only or delegated) | ☐ |
-| 5 | VLAN trunk configuration confirmed on vCD private network (MTU 9000 support) | ☐ |
-| 6 | Licences: not required — VCF 9.0 License Later provides 90-day grace (lab lease is 14 days) | ☐ |
-| 7 | 1Password credentials created in "VKS Lab" vault (see §2.1 and §3.2c) | ☐ |
-| 8 | VCF offline depot reachable (`depot.vcf-gcp.broadcom.net`) | ☐ |
-| 9 | vCD org administrator credentials available | ☐ |
-| 10 | RDP client installed on operator workstation | ☐ |
+| 4 | 1Password credentials created in "VKS Lab" vault (see §2.1 and §3.2c) | ☐ |
+| 5 | vCD org administrator credentials available (SSO/OIDC — manual UI access) | ☐ |
+| 6 | RDP client installed on operator workstation | ☐ |
 
 ### 2.1 Credentials Checklist
 
@@ -62,7 +58,6 @@ Verify each assumption before proceeding to Phase 1. Cross-reference: [Conceptua
 | A-001 | vCD supports nested virtualisation and jumbo frames (MTU 9000) | Deploy test VM; enable nested virt flag; ping with `-s 8972` across vCD private network | ☐ |
 | A-002 | Sufficient vCD resources (60 vCPU, 512 GB RAM, 1.5 TB storage) | Check vCD tenant portal → Organisation → Allocation | ☐ |
 | A-004 | VCF offline depot reachable | `curl -s https://depot.vcf-gcp.broadcom.net` from jumpbox returns a response | ☐ |
-| A-005 | lab.dreamfold.dev DNS zone delegated or internal-only | Confirm zone delegation record exists or document internal-only usage | ☐ |
 
 ## 3. Phase 1 — Foundation
 
