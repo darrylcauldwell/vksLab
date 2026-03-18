@@ -300,7 +300,7 @@ sudo sed -i 's/"jsonUpdatedTime":"[^"]*"/"jsonUpdatedTime":"'"$(date -u +%Y-%m-%
 
 ### 6.4 Configure Keycloak OIDC for vCenter and NSX Manager
 
-Keycloak was deployed in Phase 1 by the `docker_services` role with the lab realm, users, and OIDC clients already configured. Now that vCenter and NSX Manager exist, connect them to Keycloak for SSO.
+Keycloak was deployed in Phase 1 by the `docker_services` role with the lab realm, users, and OIDC clients already configured. Now that vCenter and NSX Manager exist, register Keycloak as the external identity provider with the VCF Identity Broker, which unifies logons across vCenter and NSX Manager.
 
 #### vCenter OIDC
 

@@ -1,7 +1,7 @@
 ---
 # Phase 1 — Docker services on jumpbox
-# Keycloak provides centralised OIDC identity for vCenter and NSX Manager,
-# replacing per-component local authentication with SSO.
+# Keycloak is the external OIDC identity provider. It integrates with the
+# VCF Identity Broker, which in turn unifies logons for vCenter and NSX Manager.
 
 - name: Install Docker Engine
   become: true
