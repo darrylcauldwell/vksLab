@@ -50,11 +50,14 @@
       --provisioner-password-file /root/.step-ca-password
     creates: "{{ keycloak_cert_path }}"
 
-- name: Make certificate key readable by Docker
+- name: Make certificate files readable by Keycloak container (UID 1000)
   become: true
   ansible.builtin.file:
-    path: "{{ keycloak_key_path }}"
+    path: "{{ item }}"
     mode: "0644"
+  loop:
+    - "{{ keycloak_cert_path }}"
+    - "{{ keycloak_key_path }}"
 
 # --- Keycloak container ---
 # Runs with HTTPS on port 8443, data persisted in a Docker volume.
