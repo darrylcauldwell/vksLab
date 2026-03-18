@@ -49,8 +49,10 @@ Ansible retrieves all lab credentials from 1Password at runtime. Set up the vaul
 # Install 1Password CLI (macOS)
 brew install --cask 1password-cli
 
-# Sign in (interactive — opens 1Password desktop app or prompts for credentials)
-eval $(op signin)
+# Enable CLI integration in 1Password desktop app:
+#   Settings → Security → enable "Unlock using system authentication"
+#   Settings → Developer → enable "Integrate with 1Password CLI"
+# After this, op commands authenticate via Touch ID — no manual signin needed.
 
 # Create the lab vault
 op vault create "VKS Lab"
