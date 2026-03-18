@@ -141,6 +141,27 @@
 # step-ca provides an internal CA with ACME support. TLS certificates for
 # Keycloak and other lab services are issued from this CA. The root cert
 # is distributed to ESXi hosts in Phase 2 (esxi_prepare role).
+- name: Add Smallstep apt repository key
+  become: true
+  ansible.builtin.get_url:
+    url: https://packages.smallstep.com/keys/smallstep-release-signing-key.asc
+    dest: /etc/apt/keyrings/smallstep.asc
+    mode: "0644"
+
+- name: Add Smallstep apt repository
+  become: true
+  ansible.builtin.apt_repository:
+    repo: "deb [signed-by=/etc/apt/keyrings/smallstep.asc] https://packages.smallstep.com/deb/{{ ansible_distribution | lower }} {{ ansible_distribution_release }}"
+    filename: smallstep
+    state: present
+
+- name: Install Smallstep packages
+  become: true
+  ansible.builtin.apt:
+    name: "{{ jumpbox_step_packages }}"
+    state: present
+    update_cache: true
+
 - name: Initialise step-ca
   become: true
   ansible.builtin.shell: >

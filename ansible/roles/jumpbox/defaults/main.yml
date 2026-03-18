@@ -10,10 +10,13 @@ jumpbox_packages:
   - dnsmasq
   - chrony
   - firefox
-  - step-cli
-  - step-ca
   - iptables-persistent
   - quagga
+
+# Smallstep packages (installed from Smallstep apt repo)
+jumpbox_step_packages:
+  - step-cli
+  - step-ca
 
 # VLAN sub-interface configuration
 jumpbox_vlan_interfaces:
