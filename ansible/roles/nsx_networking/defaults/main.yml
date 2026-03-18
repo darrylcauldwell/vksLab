@@ -1,0 +1,48 @@
+nsx_manager_hostname: "nsx-mgr-wld.{{ lab_domain }}"
+nsx_username: admin
+nsx_password: >-
+  {{ lookup('community.hashi_vault.vault_kv2_get',
+     'nsx/admin-password',
+     engine_mount_point='secret',
+     url=openbao_url,
+     token=openbao_token).secret.value }}
+
+# Edge cluster configuration
+nsx_edge_cluster_name: edge-cluster-01
+nsx_edge_vms:
+  - name: edge-01
+    management_ip: 10.0.10.20
+    tep_ip: 10.0.50.20
+  - name: edge-02
+    management_ip: 10.0.10.21
+    tep_ip: 10.0.50.21
+nsx_edge_size: LARGE
+nsx_edge_tep_vlan: 50
+
+# Tier-0 gateway
+nsx_tier0_name: tier0-gateway
+nsx_tier0_ha_mode: ACTIVE_STANDBY
+nsx_tier0_uplink_ip: "{{ bgp_nsx_uplink_ip }}"
+nsx_tier0_uplink_prefix: 24
+nsx_tier0_uplink_vlan: 60
+
+# Tier-1 gateway
+nsx_tier1_name: tier1-gateway
+
+# BGP (uses global vars from group_vars/all.yml)
+nsx_bgp_local_asn: "{{ bgp_nsx_asn }}"
+nsx_bgp_neighbor_ip: "{{ bgp_veos_router_id }}"
+nsx_bgp_neighbor_asn: "{{ bgp_veos_asn }}"
+
+# VPC
+nsx_vpc_project_name: vks-project
+nsx_vpc_name: vks-vpc
+
+# SNAT rules
+nsx_snat_rules:
+  - name: pod-cidr-snat
+    source_network: "{{ vks_pod_cidr }}"
+    translated_ip: "{{ bgp_nsx_uplink_ip }}"
+  - name: service-cidr-snat
+    source_network: "{{ vks_service_cidr }}"
+    translated_ip: "{{ bgp_nsx_uplink_ip }}"

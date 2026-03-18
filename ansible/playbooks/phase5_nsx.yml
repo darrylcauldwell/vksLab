@@ -1,0 +1,8 @@
+---
+# Phase 5 — NSX Networking
+# Edge cluster, Tier-0/1, BGP, VPC, SNAT
+- name: Phase 5 — NSX networking
+  hosts: jumpbox
+  gather_facts: false
+  roles:
+    - nsx_networking
