@@ -1,0 +1,55 @@
+---
+# Commission workload hosts and create VI workload domain
+- name: Commission workload hosts into free pool
+  vcf_sddc_host:
+    sddc_hostname: "{{ vcf_wld_hostname }}"
+    username: "{{ vcf_wld_username }}"
+    password: "{{ vcf_wld_password }}"
+    state: commissioned
+    hosts: "{{ vcf_wld_hosts }}"
+    timeout: 3600
+  register: commission_result
+
+- name: Display commission result
+  ansible.builtin.debug:
+    var: commission_result
+
+- name: Validate workload domain spec
+  vcf_sddc_domain:
+    sddc_hostname: "{{ vcf_wld_hostname }}"
+    username: "{{ vcf_wld_username }}"
+    password: "{{ vcf_wld_password }}"
+    state: validated
+    domain_spec: "{{ vcf_wld_domain_spec }}"
+  register: domain_validation
+
+- name: Display domain validation result
+  ansible.builtin.debug:
+    var: domain_validation
+
+- name: Create workload domain
+  vcf_sddc_domain:
+    sddc_hostname: "{{ vcf_wld_hostname }}"
+    username: "{{ vcf_wld_username }}"
+    password: "{{ vcf_wld_password }}"
+    state: present
+    domain_spec: "{{ vcf_wld_domain_spec }}"
+    timeout: 5400
+  register: domain_result
+
+- name: Display domain creation result
+  ansible.builtin.debug:
+    var: domain_result
+
+- name: Verify workload components are accessible
+  ansible.builtin.uri:
+    url: "https://{{ item }}.{{ lab_domain }}"
+    validate_certs: false
+    status_code: [200, 301, 302]
+  loop:
+    - vcenter-wld
+    - nsx-mgr-wld
+  retries: 10
+  delay: 30
+  register: wld_check
+  until: wld_check.status in [200, 301, 302]

@@ -1,0 +1,48 @@
+vcf_wld_hostname: "sddc-manager.{{ lab_domain }}"
+vcf_wld_username: admin@local
+vcf_wld_password: "{{ sddc_admin_password }}"
+
+vcf_wld_hosts:
+  - fqdn: "esxi-05.{{ lab_domain }}"
+    username: root
+    password: "{{ esxi_root_password }}"
+    networkPoolName: mgmt-network-pool
+    storageType: VSAN
+  - fqdn: "esxi-06.{{ lab_domain }}"
+    username: root
+    password: "{{ esxi_root_password }}"
+    networkPoolName: mgmt-network-pool
+    storageType: VSAN
+  - fqdn: "esxi-07.{{ lab_domain }}"
+    username: root
+    password: "{{ esxi_root_password }}"
+    networkPoolName: mgmt-network-pool
+    storageType: VSAN
+
+vcf_wld_domain_spec:
+  domainName: workload-domain
+  vcenterSpec:
+    name: vcenter-wld
+    networkDetailsSpec:
+      ipAddress: "{{ lab_mgmt_prefix }}.9"
+      dnsName: "vcenter-wld.{{ lab_domain }}"
+      gateway: "{{ lab_gateway }}"
+      subnetMask: 255.255.255.0
+    rootPassword: "{{ vcf_wld_password }}"
+  nsxTSpec:
+    nsxManagerSpecs:
+      - name: nsx-mgr-wld
+        networkDetailsSpec:
+          ipAddress: "{{ lab_mgmt_prefix }}.10"
+          dnsName: "nsx-mgr-wld.{{ lab_domain }}"
+          gateway: "{{ lab_gateway }}"
+          subnetMask: 255.255.255.0
+    nsxManagerAdminPassword: "{{ nsx_admin_password }}"
+  computeSpec:
+    clusterSpecs:
+      - name: workload-cluster
+        hostSpecs: "{{ vcf_wld_hosts }}"
+        datastoreSpec:
+          vsanDatastoreSpec:
+            datastoreName: workload-vsan-ds
+            esaEnabled: true

@@ -1,0 +1,75 @@
+vcf_bringup_hostname: "vcf-installer.{{ lab_domain }}"
+vcf_bringup_username: admin
+vcf_bringup_password: "{{ vcenter_sso_password }}"
+
+vcf_bringup_spec:
+  dnsSpec:
+    domain: "{{ lab_domain }}"
+    nameserver: "{{ lab_dns_server }}"
+  ntpServers:
+    - ipAddress: "{{ lab_ntp_servers[0] }}"
+  managementPoolSpec:
+    subnet: "{{ vlans.management.subnet }}"
+    gateway: "{{ vlans.management.gateway }}"
+  networkSpecs:
+    - networkType: MANAGEMENT
+      subnet: "{{ vlans.management.subnet }}"
+      gateway: "{{ vlans.management.gateway }}"
+      vlanId: "{{ vlans.management.id }}"
+      mtu: "{{ vlans.management.mtu }}"
+    - networkType: VMOTION
+      subnet: "{{ vlans.vmotion.subnet }}"
+      gateway: "{{ vlans.vmotion.gateway }}"
+      vlanId: "{{ vlans.vmotion.id }}"
+      mtu: "{{ vlans.vmotion.mtu }}"
+      ipPools:
+        - start: "{{ lab_vmotion_prefix }}.11"
+          end: "{{ lab_vmotion_prefix }}.14"
+    - networkType: VSAN
+      subnet: "{{ vlans.vsan.subnet }}"
+      gateway: "{{ vlans.vsan.gateway }}"
+      vlanId: "{{ vlans.vsan.id }}"
+      mtu: "{{ vlans.vsan.mtu }}"
+      ipPools:
+        - start: "{{ lab_vsan_prefix }}.11"
+          end: "{{ lab_vsan_prefix }}.14"
+    - networkType: HOST_OVERLAY
+      subnet: "{{ vlans.host_overlay.subnet }}"
+      gateway: "{{ vlans.host_overlay.gateway }}"
+      vlanId: "{{ vlans.host_overlay.id }}"
+      mtu: "{{ vlans.host_overlay.mtu }}"
+      ipPools:
+        - start: "{{ lab_overlay_prefix }}.11"
+          end: "{{ lab_overlay_prefix }}.14"
+  vcenterSpec:
+    name: vcenter-mgmt
+    hostname: "vcenter-mgmt.{{ lab_domain }}"
+    ip: "{{ lab_mgmt_prefix }}.4"
+    rootPassword: "{{ vcenter_sso_password }}"
+  sddcManagerSpec:
+    hostname: "sddc-manager.{{ lab_domain }}"
+    ip: "{{ lab_mgmt_prefix }}.5"
+    rootPassword: "{{ sddc_admin_password }}"
+    adminPassword: "{{ sddc_admin_password }}"
+  nsxManagerSpec:
+    hostname: "nsx-mgr-mgmt.{{ lab_domain }}"
+    ip: "{{ lab_mgmt_prefix }}.6"
+    adminPassword: "{{ nsx_admin_password }}"
+    deploymentSize: small
+  hostSpecs:
+    - hostname: "esxi-01.{{ lab_domain }}"
+      ip: "{{ lab_mgmt_prefix }}.11"
+      username: root
+      password: "{{ esxi_root_password }}"
+    - hostname: "esxi-02.{{ lab_domain }}"
+      ip: "{{ lab_mgmt_prefix }}.12"
+      username: root
+      password: "{{ esxi_root_password }}"
+    - hostname: "esxi-03.{{ lab_domain }}"
+      ip: "{{ lab_mgmt_prefix }}.13"
+      username: root
+      password: "{{ esxi_root_password }}"
+    - hostname: "esxi-04.{{ lab_domain }}"
+      ip: "{{ lab_mgmt_prefix }}.14"
+      username: root
+      password: "{{ esxi_root_password }}"

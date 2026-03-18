@@ -1,0 +1,43 @@
+---
+# VCF management domain bringup via Cloud Builder API
+- name: Validate bringup spec
+  vcf_cloud_builder:
+    hostname: "{{ vcf_bringup_hostname }}"
+    username: "{{ vcf_bringup_username }}"
+    password: "{{ vcf_bringup_password }}"
+    state: validated
+    spec: "{{ vcf_bringup_spec }}"
+  register: validation_result
+
+- name: Display validation result
+  ansible.builtin.debug:
+    var: validation_result
+
+- name: Start VCF bringup
+  vcf_cloud_builder:
+    hostname: "{{ vcf_bringup_hostname }}"
+    username: "{{ vcf_bringup_username }}"
+    password: "{{ vcf_bringup_password }}"
+    state: deployed
+    spec: "{{ vcf_bringup_spec }}"
+    timeout: 7200
+    poll_interval: 60
+  register: bringup_result
+
+- name: Display bringup result
+  ansible.builtin.debug:
+    var: bringup_result
+
+- name: Verify management components are accessible
+  ansible.builtin.uri:
+    url: "https://{{ item }}.{{ lab_domain }}"
+    validate_certs: false
+    status_code: [200, 301, 302]
+  loop:
+    - vcenter-mgmt
+    - sddc-manager
+    - nsx-mgr-mgmt
+  retries: 10
+  delay: 30
+  register: component_check
+  until: component_check.status in [200, 301, 302]

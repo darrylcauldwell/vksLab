@@ -12,12 +12,6 @@ VMware Kubernetes Service (VKS) lab environment — infrastructure-as-documentat
 | [Delivery Guide](docs/markdown/deliver.md) | Step-by-step deployment instructions | [PDF](docs/pdf/deliver.pdf) |
 | [Operations Guide](docs/markdown/operate.md) | Standard operating procedures and troubleshooting | [PDF](docs/pdf/operate.pdf) |
 
-## Config Files
-
-| File | Description |
-|------|-------------|
-| [`configs/vcf-bringup.json`](configs/vcf-bringup.json) | VCF deployment parameter workbook template (passwords as `<CHANGE-ME>`) |
-
 ## Ansible Automation
 
 Ansible roles and playbooks automate all 6 deployment phases. Runs from the operator's laptop via SSH ProxyJump through the jumpbox, with secrets from 1Password.
