@@ -105,7 +105,7 @@ ansible-galaxy collection install -r ansible/collections/requirements.yml
 | 3.3.3 | Note public IP assigned by DHCP to NIC1 (ens160) | IP obtained | `ip addr show ens160` |
 | 3.3.4 | If no SSH key exists, generate one: `ssh-keygen -t ed25519` | Key pair created | `~/.ssh/id_ed25519.pub` exists |
 | 3.3.5 | Copy SSH key to jumpbox: `ssh-copy-id ubuntu@<jumpbox-ip>` | Key deployed | `ssh ubuntu@<jumpbox-ip>` connects without password |
-| 3.3.6 | Update `jumpbox_public_ip` in `ansible/inventory/group_vars/all.yml` | Inventory updated | SSH from operator laptop works |
+| 3.3.6 | Store jumpbox IP in 1Password: `op item edit "Jumpbox Ubuntu" ip_address=<jumpbox-ip>` | IP stored | `op item get "Jumpbox Ubuntu" --fields ip_address` returns IP |
 
 ### 3.4 Configure Jumpbox (Automated)
 

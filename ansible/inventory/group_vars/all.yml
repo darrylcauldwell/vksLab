@@ -18,8 +18,8 @@ lab_dns_server: "{{ lab_mgmt_prefix }}.1"
 lab_ntp_servers:
   - "{{ lab_mgmt_prefix }}.1"
 
-# Jumpbox public IP (DHCP from vCD — update after deployment)
-jumpbox_public_ip: "<SET-AFTER-DEPLOY>"
+# Jumpbox public IP (stored in 1Password after vCD deployment)
+jumpbox_public_ip: "{{ lookup('community.general.onepassword', 'Jumpbox Ubuntu', field='ip_address', vault=onepassword_vault) }}"
 
 # 1Password vault and item names for secret lookups
 onepassword_vault: Employee
