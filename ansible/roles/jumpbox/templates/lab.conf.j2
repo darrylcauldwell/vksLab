@@ -19,7 +19,9 @@ dhcp-option=option:router,{{ lab_gateway }}
 dhcp-option=option:dns-server,{{ lab_dns_server }}
 dhcp-option=option:ntp-server,{{ lab_ntp_servers | join(',') }}
 
-# Static MAC→IP reservations
+# Static MAC→IP reservations (skips placeholder MACs until real ones are set)
 {% for res in jumpbox_dhcp_reservations %}
+{% if 'xx' not in res.mac %}
 dhcp-host={{ res.mac }},{{ res.hostname }},{{ res.ip }}
+{% endif %}
 {% endfor %}
