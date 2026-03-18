@@ -35,19 +35,7 @@ The following must be in place before starting Phase 1.
 | 3 | VCF Installer OVA (`VCF-SDDC-Manager-Appliance-9.0.2.0.25151285.ova`, 2.03 GB) — download from support.broadcom.com to operator laptop | ☐ |
 | 4 | RDP client installed on operator Mac — [Windows App](https://apps.apple.com/app/windows-app/id1295203466) from App Store | ☐ |
 
-### 2.1 Credentials Checklist
-
-The following credentials must be prepared before deployment. All are stored in the 1Password **VKS Lab** vault and retrieved by Ansible at runtime. VCF enforces password complexity: minimum 12 characters, with uppercase, lowercase, digit, and special character.
-
-| # | 1Password Item | Username | Used By | Notes |
-|---|---------------|----------|---------|-------|
-| 1 | ESXi Root | `root` | All 7 ESXi hosts | Must be identical across all hosts for VCF bringup |
-| 2 | vCenter SSO | `administrator@vsphere.local` | vcenter-mgmt, vcenter-wld | vSphere SSO administrator |
-| 3 | SDDC Manager | `admin@local` | sddc-manager | SDDC Manager local admin |
-| 4 | NSX Manager | `admin` | nsx-mgr-mgmt, nsx-mgr-wld | NSX Manager admin |
-| 5 | Keycloak Admin | `admin` | jumpbox (Keycloak container) | Keycloak admin console |
-
-### 2.2 Assumptions Verification
+### 2.1 Assumptions Verification
 
 Verify each assumption before proceeding to Phase 1. Cross-reference: [Conceptual Design](conceptual-design.md) Section 7.
 
