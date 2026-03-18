@@ -19,25 +19,25 @@ VMware Kubernetes Service (VKS) lab environment — infrastructure-as-documentat
 | [`configs/veos-startup.cfg`](configs/veos-startup.cfg) | Complete Arista vEOS startup-config (VLANs, SVIs, NTP, NAT, BGP) |
 | [`configs/vcf-bringup.json`](configs/vcf-bringup.json) | VCF deployment parameter workbook template (passwords as `<CHANGE-ME>`) |
 
-## ESXi Prep Tool
+## Ansible Automation
 
-Python CLI tool for automated ESXi host preparation (Phase 2). Configures hostname, DNS, NTP, vSAN ESA, and CA certificates via SSH.
+Ansible roles and playbooks automate all 6 deployment phases. Runs from the jumpbox with secrets from OpenBao.
 
 ```bash
-cd esxi-prep
-pip install -e ".[dev]"
+# Install collections
+ansible-galaxy collection install -r ansible/collections/requirements.yml
 
-# Show all hosts
-vkslab-esxi status
+# Run full deployment (all 6 phases)
+ansible-playbook -i ansible/inventory/hosts.yml ansible/playbooks/site.yml
 
-# Prepare all hosts for VCF bringup
-vkslab-esxi prepare --domain all
+# Run a single phase
+ansible-playbook -i ansible/inventory/hosts.yml ansible/playbooks/phase2_esxi.yml
 
-# Verify network connectivity
-vkslab-esxi verify --domain all
+# Dry run
+ansible-playbook -i ansible/inventory/hosts.yml ansible/playbooks/phase2_esxi.yml --check
 ```
 
-See [`esxi-prep/`](esxi-prep/) for full documentation and [`esxi-prep/configs/lab.example.yaml`](esxi-prep/configs/lab.example.yaml) for configuration.
+See [`ansible/`](ansible/) for roles, custom VCF modules, and inventory configuration.
 
 ## Getting Started
 

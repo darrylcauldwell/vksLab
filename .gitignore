@@ -9,8 +9,8 @@ build/
 .venv/
 venv/
 
-# ESXi prep tool — local config with real passwords
-esxi-prep/configs/lab.yaml
+# Ansible — vault password file
+ansible/.vault_pass
 
 # IDE
 .idea/

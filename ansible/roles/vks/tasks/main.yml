@@ -1,0 +1,205 @@
+---
+# Phase 6 — VKS: Content library, Supervisor, Namespace, VKS cluster
+
+# --- Content Library ---
+
+- name: Create subscribed content library
+  ansible.builtin.uri:
+    url: "https://{{ vcenter_wld_hostname }}/api/content/subscribed-library"
+    method: POST
+    user: "{{ vcenter_wld_username }}"
+    password: "{{ vcenter_wld_password }}"
+    force_basic_auth: true
+    validate_certs: false
+    body_format: json
+    body:
+      name: "{{ vks_content_library_name }}"
+      subscription_info:
+        subscription_url: "{{ vks_content_library_url }}"
+        automatic_sync_enabled: true
+        on_demand: true
+      storage_backings:
+        - type: DATASTORE
+          datastore_id: "{{ vks_datastore_id | default('datastore-1') }}"
+    status_code: [200, 201, 400]
+  register: content_library_result
+
+# --- Supervisor ---
+
+- name: Check Supervisor status
+  ansible.builtin.uri:
+    url: "https://{{ vcenter_wld_hostname }}/api/vcenter/namespace-management/clusters"
+    method: GET
+    user: "{{ vcenter_wld_username }}"
+    password: "{{ vcenter_wld_password }}"
+    force_basic_auth: true
+    validate_certs: false
+  register: supervisor_check
+  changed_when: false
+
+- name: Enable Supervisor on workload cluster
+  ansible.builtin.uri:
+    url: "https://{{ vcenter_wld_hostname }}/api/vcenter/namespace-management/clusters/{{ vks_supervisor_cluster }}?action=enable"
+    method: POST
+    user: "{{ vcenter_wld_username }}"
+    password: "{{ vcenter_wld_password }}"
+    force_basic_auth: true
+    validate_certs: false
+    body_format: json
+    body:
+      size_hint: SMALL
+      network_provider: NSX_VPC
+      default_kubernetes_service_content_library: "{{ vks_content_library_name }}"
+    status_code: [200, 204]
+  when: supervisor_check.json | length == 0
+
+- name: Wait for Supervisor to be running
+  ansible.builtin.uri:
+    url: "https://{{ vcenter_wld_hostname }}/api/vcenter/namespace-management/clusters/{{ vks_supervisor_cluster }}"
+    method: GET
+    user: "{{ vcenter_wld_username }}"
+    password: "{{ vcenter_wld_password }}"
+    force_basic_auth: true
+    validate_certs: false
+  register: supervisor_status
+  until: supervisor_status.json.config_status == "RUNNING"
+  retries: 90
+  delay: 30
+
+# --- vSphere Namespace ---
+
+- name: Create vSphere namespace
+  ansible.builtin.uri:
+    url: "https://{{ vcenter_wld_hostname }}/api/vcenter/namespaces/instances"
+    method: POST
+    user: "{{ vcenter_wld_username }}"
+    password: "{{ vcenter_wld_password }}"
+    force_basic_auth: true
+    validate_certs: false
+    body_format: json
+    body:
+      namespace: "{{ vks_namespace }}"
+      cluster: "{{ vks_supervisor_cluster }}"
+      vm_service_spec:
+        vm_classes:
+          - best-effort-small
+          - best-effort-medium
+        content_libraries:
+          - "{{ vks_content_library_name }}"
+      storage_specs:
+        - policy: "{{ vks_storage_class }}"
+    status_code: [200, 201, 409]
+  register: namespace_result
+
+# --- VKS Cluster ---
+
+- name: Discover latest available Kubernetes version
+  ansible.builtin.uri:
+    url: "https://{{ vcenter_wld_hostname }}/api/vcenter/namespace-management/clusters/{{ vks_supervisor_cluster }}/versions"
+    method: GET
+    user: "{{ vcenter_wld_username }}"
+    password: "{{ vcenter_wld_password }}"
+    force_basic_auth: true
+    validate_certs: false
+  register: k8s_versions
+
+- name: Set latest Kubernetes version
+  ansible.builtin.set_fact:
+    vks_kubernetes_version: "{{ k8s_versions.json | sort(attribute='version', reverse=true) | first | attr('version') }}"
+
+- name: Template VKS cluster manifest
+  ansible.builtin.template:
+    src: vks-cluster.yml.j2
+    dest: /tmp/vks-cluster.yml
+    mode: "0644"
+
+- name: Apply VKS cluster manifest
+  kubernetes.core.k8s:
+    state: present
+    src: /tmp/vks-cluster.yml
+    wait: true
+    wait_timeout: 1800
+  register: vks_cluster_result
+
+- name: Wait for VKS cluster to be provisioned
+  kubernetes.core.k8s_info:
+    api_version: cluster.x-k8s.io/v1beta1
+    kind: Cluster
+    name: "{{ vks_cluster_name }}"
+    namespace: "{{ vks_namespace }}"
+  register: cluster_status
+  until: cluster_status.resources[0].status.phase | default('') == "Provisioned"
+  retries: 60
+  delay: 30
+
+# --- Storage Verification ---
+
+- name: Create test PVC
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: test-pvc
+        namespace: "{{ vks_namespace }}"
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: "{{ vks_storage_class }}"
+        resources:
+          requests:
+            storage: 1Gi
+    wait: true
+    wait_timeout: 300
+
+- name: Verify PVC is bound
+  kubernetes.core.k8s_info:
+    kind: PersistentVolumeClaim
+    name: test-pvc
+    namespace: "{{ vks_namespace }}"
+  register: pvc_status
+  until: pvc_status.resources[0].status.phase == "Bound"
+  retries: 20
+  delay: 15
+
+- name: Delete test PVC
+  kubernetes.core.k8s:
+    state: absent
+    kind: PersistentVolumeClaim
+    name: test-pvc
+    namespace: "{{ vks_namespace }}"
+
+# --- Test Workload ---
+
+- name: Template test workload manifest
+  ansible.builtin.template:
+    src: test-workload.yml.j2
+    dest: /tmp/test-workload.yml
+    mode: "0644"
+
+- name: Deploy test nginx workload
+  kubernetes.core.k8s:
+    state: present
+    src: /tmp/test-workload.yml
+    wait: true
+    wait_timeout: 300
+
+- name: Wait for nginx LoadBalancer IP
+  kubernetes.core.k8s_info:
+    kind: Service
+    name: nginx-test
+    namespace: "{{ vks_namespace }}"
+  register: nginx_svc
+  until: >
+    nginx_svc.resources[0].status.loadBalancer.ingress | default([]) | length > 0
+  retries: 20
+  delay: 15
+
+- name: Verify nginx is accessible
+  ansible.builtin.uri:
+    url: "http://{{ nginx_svc.resources[0].status.loadBalancer.ingress[0].ip }}"
+    status_code: [200]
+  register: nginx_test
+  retries: 5
+  delay: 10
+  until: nginx_test.status == 200

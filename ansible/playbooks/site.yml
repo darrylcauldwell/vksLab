@@ -1,0 +1,19 @@
+---
+# Full lab deployment — all 6 phases in order
+- name: Phase 1a — Configure jumpbox
+  ansible.builtin.import_playbook: phase1_foundation.yml
+
+- name: Phase 2 — Prepare ESXi hosts
+  ansible.builtin.import_playbook: phase2_esxi.yml
+
+- name: Phase 3 — VCF management domain
+  ansible.builtin.import_playbook: phase3_vcf_mgmt.yml
+
+- name: Phase 4 — VCF workload domain
+  ansible.builtin.import_playbook: phase4_vcf_workload.yml
+
+- name: Phase 5 — NSX networking
+  ansible.builtin.import_playbook: phase5_nsx.yml
+
+- name: Phase 6 — VKS deployment
+  ansible.builtin.import_playbook: phase6_vks.yml

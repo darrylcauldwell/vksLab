@@ -1,0 +1,28 @@
+apiVersion: cluster.x-k8s.io/v1beta1
+kind: Cluster
+metadata:
+  name: {{ vks_cluster_name }}
+  namespace: {{ vks_namespace }}
+spec:
+  clusterNetwork:
+    pods:
+      cidrBlocks: ["{{ vks_pod_cidr }}"]
+    services:
+      cidrBlocks: ["{{ vks_service_cidr }}"]
+  topology:
+    class: {{ vks_topology_class }}
+    version: {{ vks_kubernetes_version }}
+    controlPlane:
+      replicas: {{ vks_control_plane_replicas }}
+      metadata: {}
+    workers:
+      machineDeployments:
+        - class: node-pool
+          name: worker-pool
+          replicas: {{ vks_worker_replicas }}
+          metadata: {}
+    variables:
+      - name: vmClass
+        value: {{ vks_vm_class }}
+      - name: storageClass
+        value: {{ vks_storage_class }}

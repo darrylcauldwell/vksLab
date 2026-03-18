@@ -365,7 +365,7 @@ Inside each ESXi host, a VDS (created during VCF bringup) maps VLANs to VMkernel
 |------|-------------|-----------------|----------------------|-------------------|
 | C-001 | ESX-01 | All ESXi hosts run as nested VMs on vCloud Director | Enables full VCF stack without dedicated hardware | Risk: Significant performance overhead from nested virtualisation. Mitigation: Acceptable for lab; not for benchmarking |
 | R-004 | ESX-02 | 4 hosts for management domain, 3 hosts for workload domain | Minimum for vSAN FTT=1; 4 management hosts provide headroom for management appliances | Risk: No N+1 redundancy. Mitigation: Lab-grade — host failure tolerated via vSAN RAID-1 |
-| R-007 | ESX-03 | vSAN ESA (Express Storage Architecture) with FTT=1 | Single storage pool eliminates cache/capacity tier management; NVMe-based; ESA is the VMware-recommended architecture for vSAN 8+ | Risk: Nested NVMe requires mock HCL VIB and SSD marking. Mitigation: Automated via esxi-prep tool; FakeSCSIReservations setting handles nested SCSI |
+| R-007 | ESX-03 | vSAN ESA (Express Storage Architecture) with FTT=1 | Single storage pool eliminates cache/capacity tier management; NVMe-based; ESA is the VMware-recommended architecture for vSAN 8+ | Risk: Nested NVMe requires mock HCL VIB and SSD marking. Mitigation: Automated via Ansible esxi_prepare role; FakeSCSIReservations setting handles nested SCSI |
 | C-001 | ESX-04 | Two vNICs per host — access (management) and trunk (all other VLANs) | Separates management from data traffic while minimising vNIC count | Risk: Single trunk NIC is a bandwidth bottleneck. Mitigation: Acceptable for lab traffic volumes |
 
 ## 6. VCF Domain Architecture

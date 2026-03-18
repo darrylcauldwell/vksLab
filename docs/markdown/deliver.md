@@ -489,18 +489,14 @@ ESXi hosts receive their management IP via DHCP from the jumpbox dnsmasq (config
 
 ### 4.3 Prepare Hosts (Automated)
 
-Use the `vkslab-esxi` tool to configure all hosts. This sets hostname, DNS, NTP, root password, and prepares vSAN ESA in a single operation.
+Use the Ansible `esxi_prepare` role to configure all hosts. This sets hostname, DNS, NTP, root password, and prepares vSAN ESA in a single operation.
 
 ```bash
 # From the jumpbox
-cd esxi-prep
-pip install -e .
-
-# Prepare all hosts (hostname, DNS, NTP, password, vSAN ESA, CA cert)
-vkslab-esxi prepare --domain all
+ansible-playbook -i ansible/inventory/hosts.yml ansible/playbooks/phase2_esxi.yml
 
 # Or prepare a single host
-vkslab-esxi prepare --host esxi-01
+ansible-playbook -i ansible/inventory/hosts.yml ansible/playbooks/phase2_esxi.yml --limit esxi-01
 ```
 
 The `prepare` command performs these steps on each host via SSH:
@@ -530,7 +526,7 @@ The `prepare` command performs these steps on each host via SSH:
 | Time sync | Compare time across all hosts | Within 1 second |
 | vSAN ESA ready | `esxcli vsan storage list` on each host | NVMe device marked as SSD |
 | Mock VIB installed | `esxcli software vib list \| grep mock` | Mock HCL VIB present |
-| Host status | `vkslab-esxi status --domain all` | All hosts show prepared |
+| Host status | `ansible-playbook ansible/playbooks/phase2_esxi.yml --check` | All tasks show ok |
 
 ## 5. Phase 3 — VCF Management Domain
 

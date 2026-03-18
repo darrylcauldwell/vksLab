@@ -1,6 +1,5 @@
 ---
-# ESXi host preparation — replaces esxi-prep Python CLI
-# Each task mirrors an operation from esxi-prep/src/vkslab_esxi/host.py
+# ESXi host preparation — hostname, DNS, NTP, password, vSAN ESA, CA cert
 
 - name: Set hostname and FQDN
   ansible.builtin.shell: >

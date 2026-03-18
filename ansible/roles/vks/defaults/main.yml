@@ -1,0 +1,18 @@
+vcenter_wld_hostname: "vcenter-wld.{{ lab_domain }}"
+vcenter_wld_username: "administrator@vsphere.local"
+vcenter_wld_password: >-
+  {{ lookup('community.hashi_vault.vault_kv2_get',
+     'vcenter/sso-password',
+     engine_mount_point='secret',
+     url=openbao_url,
+     token=openbao_token).secret.value }}
+
+# Content library
+vks_content_library_name: vkr-content-library
+vks_content_library_url: "https://wp-content.vmware.com/v2/latest/lib.json"
+
+# Supervisor
+vks_supervisor_cluster: workload-cluster
+
+# VKS cluster topology class
+vks_topology_class: tanzukubernetescluster

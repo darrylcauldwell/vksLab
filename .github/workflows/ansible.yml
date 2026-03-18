@@ -1,12 +1,11 @@
-name: Python Lint & Test
+name: Ansible Lint & Test
 
 on:
   push:
     branches: [main]
     paths:
-      - 'ansible/library/**'
-      - 'ansible/tests/**'
-      - '.github/workflows/python.yml'
+      - 'ansible/**'
+      - '.github/workflows/ansible.yml'
 
 jobs:
   lint-test:
@@ -23,11 +22,15 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install pytest ruff
+          pip install ansible-core ansible-lint pytest
 
-      - name: Lint custom modules
+      - name: Install Ansible collections
         run: |
-          ruff check ansible/library/ ansible/tests/
+          ansible-galaxy collection install -r ansible/collections/requirements.yml
+
+      - name: Ansible Lint
+        run: |
+          ansible-lint ansible/
 
       - name: Run custom module tests
         run: |

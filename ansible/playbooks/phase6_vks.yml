@@ -1,0 +1,7 @@
+---
+# Phase 6 — VKS: Supervisor, Namespace, VKS cluster, test workload
+- name: Phase 6 — VKS deployment
+  hosts: jumpbox
+  gather_facts: false
+  roles:
+    - vks
