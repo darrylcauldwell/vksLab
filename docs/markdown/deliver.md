@@ -31,30 +31,27 @@ The following must be in place before starting Phase 1.
 | # | Prerequisite | Status |
 |---|-------------|--------|
 | 1 | vCD resources approved (60 vCPU, 512 GB RAM, 1.5 TB storage) | ☐ |
-| 2 | ISO images downloaded: Ubuntu 24.04 LTS, ESXi 9.0 | ☐ |
+| 2 | Ubuntu ISO available in vCD Content Hub (`ubuntu-24.04.2-live-server-amd64.iso`), ESXi vApp template available (`[baked]esxi-9.0.2-2514807`) | ☐ |
 | 3 | VCF Installer OVA (`VCF-SDDC-Manager-Appliance-9.0.2.0.25151285.ova`, 2.03 GB) — download from support.broadcom.com to operator laptop, SCP to jumpbox per §5.2 | ☐ |
 | 4 | DNS zone `lab.dreamfold.dev` prepared (internal use only or delegated) | ☐ |
 | 5 | VLAN trunk configuration confirmed on vCD private network (MTU 9000 support) | ☐ |
-| 6 | Licences obtained: VCF, vSAN, NSX | ☐ |
-| 7 | VCF deployment parameter workbook prepared (JSON) | ☐ |
+| 6 | Licences: not required — VCF 9.0 License Later provides 90-day grace (lab lease is 14 days) | ☐ |
+| 7 | 1Password credentials created in "VKS Lab" vault (see §2.1 and §3.2c) | ☐ |
 | 8 | VCF offline depot reachable (`depot.vcf-gcp.broadcom.net`) | ☐ |
 | 9 | vCD org administrator credentials available | ☐ |
 | 10 | RDP client installed on operator workstation | ☐ |
 
 ### 2.1 Credentials Checklist
 
-The following credentials must be prepared before deployment. Use consistent, documented values — VCF bringup requires matching ESXi root passwords.
+The following credentials must be prepared before deployment. All are stored in the 1Password **VKS Lab** vault and retrieved by Ansible at runtime. VCF enforces password complexity: minimum 12 characters, with uppercase, lowercase, digit, and special character.
 
-| # | Credential | Used By | Notes |
-|---|-----------|---------|-------|
-| 1 | ESXi root password | All 7 ESXi hosts | Must be identical across all hosts for VCF bringup |
-| 2 | vCenter SSO administrator password | vcenter-mgmt, vcenter-wld | administrator@vsphere.local |
-| 3 | SDDC Manager admin password | sddc-manager | Set during VCF bringup |
-| 4 | NSX Manager admin password | nsx-mgr-mgmt, nsx-mgr-wld | Set during VCF bringup |
-| 5 | Jumpbox user password | jumpbox | Ubuntu user account |
-| 6 | step-ca provisioner password | jumpbox | Used for ACME certificate requests |
-| 7 | Keycloak admin password | jumpbox | Keycloak admin console access |
-| 8 | VCF deployment workbook passwords | VCF Installer | Embedded in the JSON parameter workbook |
+| # | 1Password Item | Username | Used By | Notes |
+|---|---------------|----------|---------|-------|
+| 1 | ESXi Root | `root` | All 7 ESXi hosts | Must be identical across all hosts for VCF bringup |
+| 2 | vCenter SSO | `administrator@vsphere.local` | vcenter-mgmt, vcenter-wld | vSphere SSO administrator |
+| 3 | SDDC Manager | `admin@local` | sddc-manager | SDDC Manager local admin |
+| 4 | NSX Manager | `admin` | nsx-mgr-mgmt, nsx-mgr-wld | NSX Manager admin |
+| 5 | Keycloak Admin | `admin` | jumpbox (Keycloak container) | Keycloak admin console |
 
 ### 2.2 Assumptions Verification
 
@@ -268,12 +265,18 @@ eval $(op signin)
 # Create the lab vault
 op vault create "VKS Lab"
 
-# Store credentials
-op item create --vault "VKS Lab" --category login --title "ESXi Root" password='<CHANGE-ME>'
-op item create --vault "VKS Lab" --category login --title "vCenter SSO" password='<CHANGE-ME>'
-op item create --vault "VKS Lab" --category login --title "SDDC Manager" password='<CHANGE-ME>'
-op item create --vault "VKS Lab" --category login --title "NSX Manager" password='<CHANGE-ME>'
-op item create --vault "VKS Lab" --category login --title "Keycloak Admin" password='<CHANGE-ME>'
+# Store credentials with auto-generated VCF-compliant passwords
+# (20 chars, letters + digits + symbols meets VCF 12-char minimum with complexity)
+op item create --vault "VKS Lab" --category login --title "ESXi Root" \
+  --generate-password='20,letters,digits,symbols' username=root
+op item create --vault "VKS Lab" --category login --title "vCenter SSO" \
+  --generate-password='20,letters,digits,symbols' username='administrator@vsphere.local'
+op item create --vault "VKS Lab" --category login --title "SDDC Manager" \
+  --generate-password='20,letters,digits,symbols' username='admin@local'
+op item create --vault "VKS Lab" --category login --title "NSX Manager" \
+  --generate-password='20,letters,digits,symbols' username=admin
+op item create --vault "VKS Lab" --category login --title "Keycloak Admin" \
+  --generate-password='20,letters,digits,symbols' username=admin
 ```
 
 Ansible retrieves these credentials at runtime via lookups in `group_vars/all.yml`:
@@ -282,7 +285,36 @@ Ansible retrieves these credentials at runtime via lookups in `group_vars/all.ym
 esxi_root_password: "{{ lookup('community.general.onepassword', 'ESXi Root', field='password', vault='VKS Lab') }}"
 ```
 
-### 3.2d Keycloak Identity Provider (R-002, SVC-07, SVC-08)
+### 3.3 Ansible Setup on Operator Laptop
+
+Ansible runs from the operator's laptop (not the jumpbox) and connects to lab hosts via SSH ProxyJump through the jumpbox. Install it in a Python virtual environment to avoid conflicts with system packages.
+
+| Step | Action | Expected Result | Verification |
+|------|--------|-----------------|--------------|
+| 3.3.1 | Create Python virtual environment | venv created | `.venv/` directory exists |
+| 3.3.2 | Install ansible-core | Ansible available | `ansible --version` |
+| 3.3.3 | Install required Ansible collections | Collections installed | `ansible-galaxy collection list` shows community.general |
+| 3.3.4 | Validate inventory resolves | All IPs derived correctly | No errors in output |
+
+```bash
+# Create and activate virtual environment
+python3 -m venv .venv
+source .venv/bin/activate
+
+# Install Ansible
+pip install ansible-core
+
+# Install required collections (1Password lookups, VMware modules)
+ansible-galaxy collection install -r ansible/collections/requirements.yml
+
+# Validate inventory (variables won't fully resolve without 1Password,
+# but Jinja2 syntax errors will surface here)
+ansible-playbook -i ansible/inventory/hosts.yml --check ansible/playbooks/phase2_esxi.yml 2>&1 | head -5
+```
+
+> **Note**: Activate the virtual environment (`source .venv/bin/activate`) before running any `ansible-playbook` commands. The `.venv/` directory is already in `.gitignore`.
+
+### 3.4 Keycloak Identity Provider (R-002, SVC-07, SVC-08)
 
 Deploy Keycloak as a Docker container on the jumpbox for centralised OIDC identity. Keycloak provides SSO for vCenter and NSX Manager, replacing per-component local authentication.
 
@@ -290,14 +322,14 @@ Deploy Keycloak as a Docker container on the jumpbox for centralised OIDC identi
 
 | Step | Action | Expected Result | Verification |
 |------|--------|-----------------|--------------|
-| 3.2d.1 | Retrieve Keycloak admin password from 1Password | Password available | `op item get "Keycloak Admin" --vault "VKS Lab" --fields password` |
-| 3.2d.2 | Run Keycloak container (port 8443, HTTPS) | Container running | `docker ps` shows keycloak |
-| 3.2d.3 | Wait for Keycloak to start (1-2 minutes) | Admin console accessible | `https://jumpbox.lab.dreamfold.dev:8443` loads |
-| 3.2d.4 | Create "lab" realm | Realm created | Realm visible in admin console |
-| 3.2d.5 | Create "admin" user with admin role | User created | User appears in realm user list |
-| 3.2d.6 | Create "operator" user with view-only role | User created | User appears in realm user list |
-| 3.2d.7 | Create OIDC client for vCenter | Client created | Client ID `vcenter` visible in realm |
-| 3.2d.8 | Create OIDC client for NSX Manager | Client created | Client ID `nsx-manager` visible in realm |
+| 3.4.1 | Retrieve Keycloak admin password from 1Password | Password available | `op item get "Keycloak Admin" --vault "VKS Lab" --fields password` |
+| 3.4.2 | Run Keycloak container (port 8443, HTTPS) | Container running | `docker ps` shows keycloak |
+| 3.4.3 | Wait for Keycloak to start (1-2 minutes) | Admin console accessible | `https://jumpbox.lab.dreamfold.dev:8443` loads |
+| 3.4.4 | Create "lab" realm | Realm created | Realm visible in admin console |
+| 3.4.5 | Create "admin" user with admin role | User created | User appears in realm user list |
+| 3.4.6 | Create "operator" user with view-only role | User created | User appears in realm user list |
+| 3.4.7 | Create OIDC client for vCenter | Client created | Client ID `vcenter` visible in realm |
+| 3.4.8 | Create OIDC client for NSX Manager | Client created | Client ID `nsx-manager` visible in realm |
 
 ```bash
 # Retrieve admin password from 1Password
@@ -364,11 +396,11 @@ After VCF bringup (Phase 3), configure each vCenter to use Keycloak as an extern
 
 | Step | Action | Expected Result | Verification |
 |------|--------|-----------------|--------------|
-| 3.2d.9 | In vCenter, navigate to Administration → Single Sign-On → Configuration → Identity Provider | Identity provider settings page | — |
-| 3.2d.10 | Add OIDC identity provider with Keycloak discovery URL | Provider configured | Discovery URL validated |
-| 3.2d.11 | Set Client ID to `vcenter`, provide client secret | Client credentials accepted | — |
-| 3.2d.12 | Map Keycloak groups to vCenter roles (Administrators, ReadOnly) | Role mappings created | Keycloak users can login |
-| 3.2d.13 | Test SSO login with `lab-admin` user | Login succeeds | vCenter dashboard loads |
+| 3.4.9 | In vCenter, navigate to Administration → Single Sign-On → Configuration → Identity Provider | Identity provider settings page | — |
+| 3.4.10 | Add OIDC identity provider with Keycloak discovery URL | Provider configured | Discovery URL validated |
+| 3.4.11 | Set Client ID to `vcenter`, provide client secret | Client credentials accepted | — |
+| 3.4.12 | Map Keycloak groups to vCenter roles (Administrators, ReadOnly) | Role mappings created | Keycloak users can login |
+| 3.4.13 | Test SSO login with `lab-admin` user | Login succeeds | vCenter dashboard loads |
 
 vCenter OIDC configuration parameters:
 
@@ -385,11 +417,11 @@ Configure each NSX Manager to use Keycloak as an external identity provider.
 
 | Step | Action | Expected Result | Verification |
 |------|--------|-----------------|--------------|
-| 3.2d.14 | In NSX Manager, navigate to System → Settings → User Management → OIDC | OIDC configuration page | — |
-| 3.2d.15 | Add OIDC provider with Keycloak discovery URL | Provider configured | Metadata fetched |
-| 3.2d.16 | Set Client ID to `nsx-manager`, provide client secret | Client credentials accepted | — |
-| 3.2d.17 | Map Keycloak roles to NSX RBAC roles | Role mappings created | Keycloak users can login |
-| 3.2d.18 | Test SSO login with `lab-admin` user | Login succeeds | NSX dashboard loads |
+| 3.4.14 | In NSX Manager, navigate to System → Settings → User Management → OIDC | OIDC configuration page | — |
+| 3.4.15 | Add OIDC provider with Keycloak discovery URL | Provider configured | Metadata fetched |
+| 3.4.16 | Set Client ID to `nsx-manager`, provide client secret | Client credentials accepted | — |
+| 3.4.17 | Map Keycloak roles to NSX RBAC roles | Role mappings created | Keycloak users can login |
+| 3.4.18 | Test SSO login with `lab-admin` user | Login succeeds | NSX dashboard loads |
 
 NSX Manager OIDC configuration parameters:
 
@@ -400,7 +432,7 @@ NSX Manager OIDC configuration parameters:
 | Client ID | `nsx-manager` |
 | Client Secret | (generated in Keycloak admin console) |
 
-**Note**: Steps 3.2d.9 through 3.2d.18 cannot be completed until after VCF bringup (Phase 3) and workload domain creation (Phase 4), because vCenter and NSX Manager must be deployed first. Return to these steps after Phase 4 is complete.
+**Note**: Steps 3.4.9 through 3.4.18 cannot be completed until after VCF bringup (Phase 3) and workload domain creation (Phase 4), because vCenter and NSX Manager must be deployed first. Return to these steps after Phase 4 is complete.
 
 #### Keycloak Verification
 
@@ -413,7 +445,7 @@ NSX Manager OIDC configuration parameters:
 | vCenter SSO login | Login to vCenter with Keycloak user | Dashboard loads |
 | NSX SSO login | Login to NSX Manager with Keycloak user | Dashboard loads |
 
-### 3.4 Foundation Verification
+### 3.5 Foundation Verification
 
 | Check | Command / Method | Expected Result |
 |-------|------------------|-----------------|
@@ -435,18 +467,18 @@ ESXi hosts receive their management IP via DHCP from the jumpbox dnsmasq (config
 
 | Step | Action | Expected Result | Verification |
 |------|--------|-----------------|--------------|
-| 4.1.1 | Deploy esxi-01 (8 vCPU, 72 GB RAM, 200 GB NVMe disk) | VM powered on | ESXi DCUI accessible |
-| 4.1.2 | Note vmnic0 MAC address, update dnsmasq DHCP reservation | DHCP reservation configured | `sudo systemctl restart dnsmasq` |
-| 4.1.3 | Configure vmnic0 on VLAN 10 (access), vmnic1 on trunk | Networking connected | Host receives IP 10.0.10.11 via DHCP |
-| 4.1.4 | Repeat steps 4.1.1-4.1.3 for esxi-02 through esxi-04 | All 4 hosts deployed | All pingable on 10.0.10.{11..14} |
+| 4.1.1 | Clone esxi-01 from vApp template `[baked]esxi-9.0.2-2514807` in vCD (8 vCPU, 72 GB RAM, 200 GB NVMe disk) | VM powered on | ESXi DCUI accessible |
+| 4.1.2 | Note vmnic0 MAC address assigned by vCD, update `esxi_mac` in `ansible/inventory/hosts.yml` | MAC recorded | Inventory updated |
+| 4.1.3 | Configure vmnic0 on VLAN 10 (access), vmnic1 on trunk | Networking connected | Host receives IP via DHCP |
+| 4.1.4 | Repeat steps 4.1.1-4.1.3 for esxi-02 through esxi-04 | All 4 hosts deployed | All pingable from jumpbox |
 
 ### 4.2 Deploy Workload Domain Hosts
 
 | Step | Action | Expected Result | Verification |
 |------|--------|-----------------|--------------|
-| 4.2.1 | Deploy esxi-05 through esxi-07 (same spec as management hosts) | VMs powered on | ESXi DCUI accessible |
-| 4.2.2 | Note MAC addresses, update dnsmasq DHCP reservations, restart dnsmasq | Reservations configured | Hosts receive correct IPs |
-| 4.2.3 | Configure vmnic0 on VLAN 10 (access), vmnic1 on trunk | Networking connected | All pingable on 10.0.10.{15..17} |
+| 4.2.1 | Clone esxi-05 through esxi-07 from vApp template `[baked]esxi-9.0.2-2514807` (same spec as management hosts) | VMs powered on | ESXi DCUI accessible |
+| 4.2.2 | Note MAC addresses assigned by vCD, update `esxi_mac` in `ansible/inventory/hosts.yml` | MACs recorded | Inventory updated |
+| 4.2.3 | Configure vmnic0 on VLAN 10 (access), vmnic1 on trunk | Networking connected | All pingable from jumpbox |
 
 ### 4.3 Prepare Hosts (Automated)
 
@@ -516,45 +548,9 @@ In VCF 9.0, the SDDC Manager appliance doubles as the VCF Installer (Cloud Build
 
 #### VCF Deployment Parameter Workbook
 
-The VCF bringup requires a JSON parameter workbook. Key fields to configure:
+The bringup spec is defined as a YAML dict in `ansible/roles/vcf_bringup/defaults/main.yml`. All IPs are derived from `lab_network_prefix` and credentials are injected from 1Password at runtime — no manual JSON editing required. The Ansible `vcf_bringup` role validates and submits the spec to the Cloud Builder API.
 
-| Section | Parameter | Value |
-|---------|-----------|-------|
-| DNS / NTP | DNS server | 10.0.10.1 |
-| DNS / NTP | NTP server | 10.0.10.1 (jumpbox chrony) |
-| DNS / NTP | Domain | lab.dreamfold.dev |
-| Management Network | Subnet | 10.0.10.0/24 |
-| Management Network | Gateway | 10.0.10.1 |
-| Management Network | VLAN ID | 10 |
-| Management Network | MTU | 1500 |
-| vMotion Network | Subnet | 10.0.20.0/24 |
-| vMotion Network | Gateway | 10.0.20.1 |
-| vMotion Network | VLAN ID | 20 |
-| vMotion Network | MTU | 9000 |
-| vMotion Network | IP Pool | 10.0.20.11–10.0.20.14 |
-| vSAN Network | Subnet | 10.0.30.0/24 |
-| vSAN Network | Gateway | 10.0.30.1 |
-| vSAN Network | VLAN ID | 30 |
-| vSAN Network | MTU | 9000 |
-| vSAN Network | IP Pool | 10.0.30.11–10.0.30.14 |
-| Host Overlay | Subnet | 10.0.40.0/24 |
-| Host Overlay | Gateway | 10.0.40.1 |
-| Host Overlay | VLAN ID | 40 |
-| Host Overlay | MTU | 9000 |
-| Host Overlay | IP Pool | 10.0.40.11–10.0.40.14 |
-| vCenter | Hostname | vcenter-mgmt.lab.dreamfold.dev |
-| vCenter | IP | 10.0.10.4 |
-| SDDC Manager | Hostname | sddc-manager.lab.dreamfold.dev |
-| SDDC Manager | IP | 10.0.10.5 |
-| NSX Manager | Hostname | nsx-mgr-mgmt.lab.dreamfold.dev |
-| NSX Manager | IP | 10.0.10.6 |
-| NSX Manager | Deployment Size | small |
-| ESXi Hosts | esxi-01 through esxi-04 | 10.0.10.11 through 10.0.10.14 |
-| Licences | VCF licence key | As obtained |
-| Licences | vSAN licence key | As obtained |
-| Licences | NSX licence key | As obtained |
-
-Refer to the VMware VCF documentation for the complete workbook JSON schema and a template file.
+No licence keys are required at bringup — VCF 9.0 "License Later" mode provides a 90-day grace period. Licences are applied via SDDC Manager after bringup.
 
 #### Troubleshooting: vSAN HCL Timestamp Validation
 
