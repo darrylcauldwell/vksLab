@@ -45,33 +45,33 @@ ca_cert_path: /tmp/lab-root-ca.crt
 vlans:
   management:
     id: "{{ vlan_id_mgmt }}"
-    subnet: "{{ lab_mgmt_prefix }}.0/24"
-    gateway: "{{ lab_mgmt_prefix }}.1"
+    subnet: "{{ lab_network_prefix }}.{{ vlan_id_mgmt }}.0/24"
+    gateway: "{{ lab_network_prefix }}.{{ vlan_id_mgmt }}.1"
     mtu: 1500
   vmotion:
     id: "{{ vlan_id_vmotion }}"
-    subnet: "{{ lab_vmotion_prefix }}.0/24"
-    gateway: "{{ lab_vmotion_prefix }}.1"
+    subnet: "{{ lab_network_prefix }}.{{ vlan_id_vmotion }}.0/24"
+    gateway: "{{ lab_network_prefix }}.{{ vlan_id_vmotion }}.1"
     mtu: 9000
   vsan:
     id: "{{ vlan_id_vsan }}"
-    subnet: "{{ lab_vsan_prefix }}.0/24"
-    gateway: "{{ lab_vsan_prefix }}.1"
+    subnet: "{{ lab_network_prefix }}.{{ vlan_id_vsan }}.0/24"
+    gateway: "{{ lab_network_prefix }}.{{ vlan_id_vsan }}.1"
     mtu: 9000
   host_overlay:
     id: "{{ vlan_id_host_overlay }}"
-    subnet: "{{ lab_overlay_prefix }}.0/24"
-    gateway: "{{ lab_overlay_prefix }}.1"
+    subnet: "{{ lab_network_prefix }}.{{ vlan_id_host_overlay }}.0/24"
+    gateway: "{{ lab_network_prefix }}.{{ vlan_id_host_overlay }}.1"
     mtu: 9000
   edge_overlay:
     id: "{{ vlan_id_edge_overlay }}"
-    subnet: "{{ lab_edge_tep_prefix }}.0/24"
-    gateway: "{{ lab_edge_tep_prefix }}.1"
+    subnet: "{{ lab_network_prefix }}.{{ vlan_id_edge_overlay }}.0/24"
+    gateway: "{{ lab_network_prefix }}.{{ vlan_id_edge_overlay }}.1"
     mtu: 9000
   edge_uplink:
     id: "{{ vlan_id_edge_uplink }}"
-    subnet: "{{ lab_uplink_prefix }}.0/24"
-    gateway: "{{ lab_uplink_prefix }}.1"
+    subnet: "{{ lab_network_prefix }}.{{ vlan_id_edge_uplink }}.0/24"
+    gateway: "{{ lab_network_prefix }}.{{ vlan_id_edge_uplink }}.1"
     mtu: 1500
 
 # VCF depot
