@@ -154,7 +154,7 @@ See [Logical Design](logical-design.md) for phase details and [Delivery Guide](d
 |---|------|--------|--------|
 | 1 | Quagga BGP compatibility with NSX Tier-0 | Open | Verify BGP session establishes correctly in nested environment |
 | 2 | vCD resource allocation approval | Open | Substantial resource request — needs org approval |
-| 3 | Internet access from nested environment | Open | VKS content library and VCF depot sync require outbound internet — routing path through jumpbox may need NAT/masquerade |
+| 3 | Internet access from nested environment | Resolved | Jumpbox IP masquerade provides outbound internet for all lab hosts via ens160 public NIC |
 | 4 | VCF depot access | Resolved | Lab offline depot available at `depot.vcf-gcp.broadcom.net` |
 | 5 | Nested ESXi performance | Risk | Nested virtualisation adds overhead — vSAN and overlay performance degraded. Acceptable for lab only |
 | 6 | Certificate distribution | Open | Need automation to distribute root CA cert to ESXi hosts and appliances during deployment |

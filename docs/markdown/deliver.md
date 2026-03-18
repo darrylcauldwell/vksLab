@@ -32,7 +32,7 @@ The following must be in place before starting Phase 1.
 |---|-------------|--------|
 | 1 | vCD resources approved (60 vCPU, 512 GB RAM, 1.5 TB storage) | ☐ |
 | 2 | ISO images downloaded: Ubuntu 24.04 LTS, ESXi 9.0 | ☐ |
-| 3 | OVA images downloaded: VCF Installer | ☐ |
+| 3 | VCF Installer (Cloud Builder) OVA — download onto jumpbox after deployment (see §5.2) | ☐ |
 | 4 | DNS zone `lab.dreamfold.dev` prepared (internal use only or delegated) | ☐ |
 | 5 | VLAN trunk configuration confirmed on vCD private network (MTU 9000 support) | ☐ |
 | 6 | Licences obtained: VCF, vSAN, NSX | ☐ |
@@ -225,7 +225,7 @@ ssh root@esxi-XX 'esxcli security cert import --cert-file /tmp/lab-root-ca.crt'
 
 VCF depot sync (via `depot.vcf-gcp.broadcom.net`), content library updates, and VKS image pulls require outbound internet access from the nested environment. Components on the management VLAN (10.0.10.x) must be able to reach external URLs.
 
-The jumpbox is dual-homed (public NIC + management VLAN) and is the only component with direct internet access. Enable IP masquerading on the jumpbox so management VLAN traffic can reach the internet:
+The jumpbox is dual-homed (public NIC + management VLAN) and provides outbound internet for the entire lab. IP masquerading on the jumpbox allows all hosts on the management VLAN (and other VLANs) to reach external URLs via the jumpbox's public NIC:
 
 ```bash
 # Enable IP forwarding
@@ -503,13 +503,16 @@ Verify all DNS records are configured in dnsmasq (done in Phase 1). Forward and 
 | sddc-manager.lab.dreamfold.dev | 10.0.10.5 | SDDC Manager |
 | nsx-mgr-mgmt.lab.dreamfold.dev | 10.0.10.6 | Management NSX Manager |
 
-### 5.2 Deploy VCF Installer
+### 5.2 Download and Deploy VCF Installer
+
+The jumpbox has outbound internet access and is used to download the Cloud Builder OVA, then upload it to the ESXi datastore.
 
 | Step | Action | Expected Result | Verification |
 |------|--------|-----------------|--------------|
-| 5.2.1 | Upload VCF Installer OVA to esxi-01 datastore | OVA available | Datastore browser shows file |
-| 5.2.2 | Deploy VCF Installer OVA with IP 10.0.10.3, GW 10.0.10.1, DNS 10.0.10.1 | Appliance deployed | VM powered on |
-| 5.2.3 | Wait for installer services to start (5-10 minutes) | Services ready | `https://vcf-installer.lab.dreamfold.dev` accessible |
+| 5.2.1 | SSH to jumpbox and download VCF Installer (Cloud Builder) OVA from Broadcom support portal | OVA saved to jumpbox | `ls -lh ~/vcf-installer.ova` |
+| 5.2.2 | Upload OVA to esxi-01 datastore via `scp` or ESXi Host Client | OVA available on datastore | Datastore browser shows file |
+| 5.2.3 | Deploy VCF Installer OVA with IP 10.0.10.3, GW 10.0.10.1, DNS 10.0.10.1 | Appliance deployed | VM powered on |
+| 5.2.4 | Wait for installer services to start (5-10 minutes) | Services ready | `https://vcf-installer.lab.dreamfold.dev` accessible |
 
 #### VCF Deployment Parameter Workbook
 
