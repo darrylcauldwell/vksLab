@@ -37,47 +37,67 @@
 
 - name: Issue Keycloak TLS certificate from step-ca
   become: true
-  ansible.builtin.shell: >
-    step ca certificate {{ keycloak_hostname }}
-    {{ keycloak_cert_path }} {{ keycloak_key_path }}
-    --san {{ keycloak_hostname }}
-    --not-after 8760h
-    --force
-    --ca-url https://127.0.0.1:443
-    --root {{ ca_cert_path }}
-    --provisioner lab-admin
-    --provisioner-password-file /root/.step-ca-password
-  args:
+  ansible.builtin.command:
+    cmd: >
+      step ca certificate {{ keycloak_hostname }}
+      {{ keycloak_cert_path }} {{ keycloak_key_path }}
+      --san {{ keycloak_hostname }}
+      --not-after 8760h
+      --force
+      --ca-url https://127.0.0.1:443
+      --root {{ ca_cert_path }}
+      --provisioner lab-admin
+      --provisioner-password-file /root/.step-ca-password
     creates: "{{ keycloak_cert_path }}"
+
+- name: Make certificate key readable by Docker
+  become: true
+  ansible.builtin.file:
+    path: "{{ keycloak_key_path }}"
+    mode: "0644"
 
 # --- Keycloak container ---
 # Runs with HTTPS on port 8443, data persisted in a Docker volume.
 # Admin password is injected from 1Password at runtime.
+# Uses docker CLI to avoid dependency on Python docker library.
+
+- name: Check if Keycloak container exists
+  become: true
+  ansible.builtin.command: docker inspect keycloak
+  register: kc_inspect
+  failed_when: false
+  changed_when: false
 
 - name: Run Keycloak container
-  community.docker.docker_container:
-    name: "{{ keycloak_container_name }}"
-    image: "{{ keycloak_image }}"
-    state: started
-    restart_policy: unless-stopped
-    ports:
-      - "{{ keycloak_port }}:8443"
-    env:
-      KC_BOOTSTRAP_ADMIN_USERNAME: admin
-      KC_BOOTSTRAP_ADMIN_PASSWORD: "{{ keycloak_admin_password }}"
-      KC_HOSTNAME: "{{ keycloak_hostname }}"
-      KC_HTTPS_CERTIFICATE_FILE: /opt/keycloak/conf/server.crt
-      KC_HTTPS_CERTIFICATE_KEY_FILE: /opt/keycloak/conf/server.key
-    volumes:
-      - "{{ keycloak_cert_path }}:/opt/keycloak/conf/server.crt:ro"
-      - "{{ keycloak_key_path }}:/opt/keycloak/conf/server.key:ro"
-      - keycloak-data:/opt/keycloak/data
-    command: start
+  become: true
+  ansible.builtin.shell: >
+    docker run -d
+    --name {{ keycloak_container_name }}
+    --restart unless-stopped
+    -p {{ keycloak_port }}:8443
+    -e KC_BOOTSTRAP_ADMIN_USERNAME=admin
+    -e KC_BOOTSTRAP_ADMIN_PASSWORD='{{ keycloak_admin_password }}'
+    -e KC_HOSTNAME={{ keycloak_hostname }}
+    -e KC_HTTPS_CERTIFICATE_FILE=/opt/keycloak/conf/server.crt
+    -e KC_HTTPS_CERTIFICATE_KEY_FILE=/opt/keycloak/conf/server.key
+    -v {{ keycloak_cert_path }}:/opt/keycloak/conf/server.crt:ro
+    -v {{ keycloak_key_path }}:/opt/keycloak/conf/server.key:ro
+    -v keycloak-data:/opt/keycloak/data
+    {{ keycloak_image }} start
+  when: kc_inspect.rc != 0
   no_log: true
+
+- name: Ensure Keycloak container is running
+  become: true
+  ansible.builtin.command: docker start {{ keycloak_container_name }}
+  register: kc_start
+  changed_when: "'already started' not in kc_start.stderr"
+  failed_when: false
+  when: kc_inspect.rc == 0
 
 - name: Wait for Keycloak to be ready
   ansible.builtin.uri:
-    url: "https://{{ keycloak_hostname }}:{{ keycloak_port }}/realms/master"
+    url: "https://127.0.0.1:{{ keycloak_port }}/realms/master"
     validate_certs: false
     status_code: [200]
   register: kc_health
@@ -92,7 +112,7 @@
 
 - name: Obtain Keycloak admin access token
   ansible.builtin.uri:
-    url: "https://{{ keycloak_hostname }}:{{ keycloak_port }}/realms/master/protocol/openid-connect/token"
+    url: "https://127.0.0.1:{{ keycloak_port }}/realms/master/protocol/openid-connect/token"
     method: POST
     body_format: form-urlencoded
     body:
@@ -111,7 +131,7 @@
 
 - name: Check if lab realm exists
   ansible.builtin.uri:
-    url: "https://{{ keycloak_hostname }}:{{ keycloak_port }}/admin/realms/{{ keycloak_realm }}"
+    url: "https://127.0.0.1:{{ keycloak_port }}/admin/realms/{{ keycloak_realm }}"
     method: GET
     headers:
       Authorization: "Bearer {{ kc_token }}"
@@ -121,7 +141,7 @@
 
 - name: Create lab realm
   ansible.builtin.uri:
-    url: "https://{{ keycloak_hostname }}:{{ keycloak_port }}/admin/realms"
+    url: "https://127.0.0.1:{{ keycloak_port }}/admin/realms"
     method: POST
     headers:
       Authorization: "Bearer {{ kc_token }}"
@@ -137,7 +157,7 @@
 
 - name: Create Keycloak users
   ansible.builtin.uri:
-    url: "https://{{ keycloak_hostname }}:{{ keycloak_port }}/admin/realms/{{ keycloak_realm }}/users"
+    url: "https://127.0.0.1:{{ keycloak_port }}/admin/realms/{{ keycloak_realm }}/users"
     method: POST
     headers:
       Authorization: "Bearer {{ kc_token }}"
@@ -155,10 +175,10 @@
   loop: "{{ keycloak_users }}"
 
 # OIDC clients for vCenter and NSX Manager. After Phase 3/4, configure
-# each component to use these clients for SSO (see delivery guide §3.4).
+# each component to use these clients for SSO (see delivery guide §6.4).
 - name: Create Keycloak OIDC clients
   ansible.builtin.uri:
-    url: "https://{{ keycloak_hostname }}:{{ keycloak_port }}/admin/realms/{{ keycloak_realm }}/clients"
+    url: "https://127.0.0.1:{{ keycloak_port }}/admin/realms/{{ keycloak_realm }}/clients"
     method: POST
     headers:
       Authorization: "Bearer {{ kc_token }}"

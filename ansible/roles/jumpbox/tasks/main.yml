@@ -46,7 +46,14 @@
     owner: root
     group: root
     mode: "0600"
-  notify: apply netplan
+  register: netplan_result
+
+# Apply netplan immediately — VLAN sub-interfaces must be up before
+# dnsmasq (binds to ens192.10) and step-ca (listens on VLAN IPs).
+- name: Apply netplan now
+  become: true
+  ansible.builtin.command: netplan apply
+  when: netplan_result.changed
 
 # dnsmasq provides forward/reverse DNS for all lab hosts and DHCP on VLAN 10
 # with static MAC→IP reservations. ESXi hosts PXE/DHCP boot and receive their
@@ -186,6 +193,14 @@
     state: present
     update_cache: true
 
+# Generate password only if it doesn't exist — reusing ensures step-ca
+# can restart with the same password after init.
+- name: Check if step-ca password exists
+  become: true
+  ansible.builtin.stat:
+    path: /root/.step-ca-password
+  register: step_password_file
+
 - name: Generate step-ca password
   become: true
   ansible.builtin.copy:
@@ -193,6 +208,7 @@
     dest: /root/.step-ca-password
     owner: root
     mode: "0600"
+  when: not step_password_file.stat.exists
 
 - name: Initialise step-ca
   become: true
@@ -200,7 +216,7 @@
     cmd: >
       step ca init
       --name="VKS Lab CA"
-      --dns="{{ jumpbox_ip }}"
+      --dns="127.0.0.1"
       --address=":443"
       --provisioner="lab-admin"
       --password-file=/root/.step-ca-password
@@ -239,3 +255,14 @@
     state: started
     enabled: true
     daemon_reload: true
+
+# Wait for step-ca to be ready before docker_services role issues certs
+- name: Wait for step-ca to be ready
+  ansible.builtin.uri:
+    url: https://127.0.0.1:443/health
+    validate_certs: false
+    status_code: [200]
+  register: stepca_health
+  until: stepca_health.status == 200
+  retries: 30
+  delay: 2
