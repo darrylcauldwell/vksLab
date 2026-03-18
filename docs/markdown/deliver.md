@@ -32,10 +32,9 @@ The following must be in place before starting Phase 1.
 |---|-------------|--------|
 | 1 | vCD resources approved (60 vCPU, 512 GB RAM, 1.5 TB storage) | ☐ |
 | 2 | Ubuntu ISO available in vCD Content Hub (`ubuntu-24.04.2-live-server-amd64.iso`), ESXi vApp template available (`[baked]esxi-9.0.2-2514807`) | ☐ |
-| 3 | VCF Installer OVA (`VCF-SDDC-Manager-Appliance-9.0.2.0.25151285.ova`, 2.03 GB) — download from support.broadcom.com to operator laptop, SCP to jumpbox per §5.2 | ☐ |
-| 4 | 1Password credentials created in "VKS Lab" vault (see §2.1 and §3.2c) | ☐ |
-| 5 | vCD org administrator credentials available (SSO/OIDC — manual UI access) | ☐ |
-| 6 | RDP client installed on operator workstation | ☐ |
+| 3 | VCF Installer OVA (`VCF-SDDC-Manager-Appliance-9.0.2.0.25151285.ova`, 2.03 GB) — download from support.broadcom.com to operator laptop | ☐ |
+| 4 | vCD org administrator credentials available (SSO/OIDC — manual UI access) | ☐ |
+| 5 | RDP client installed on operator workstation | ☐ |
 
 ### 2.1 Credentials Checklist
 
