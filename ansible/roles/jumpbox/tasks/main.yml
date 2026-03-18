@@ -264,7 +264,7 @@
     state: directory
     mode: "0755"
 
-- name: Deploy Firefox enterprise policy to trust lab CA
+- name: Deploy Firefox enterprise policy
   become: true
   ansible.builtin.copy:
     content: |
@@ -272,7 +272,16 @@
         "policies": {
           "Certificates": {
             "ImportEnterpriseRoots": true
-          }
+          },
+          "ManagedBookmarks": [
+            { "toplevel_name": "VCF Lab" },
+            { "name": "vCenter (mgmt)", "url": "https://vcenter-mgmt.{{ lab_domain }}/ui" },
+            { "name": "SDDC Manager", "url": "https://sddc-manager.{{ lab_domain }}/ui" },
+            { "name": "NSX Manager (mgmt)", "url": "https://nsx-mgr-mgmt.{{ lab_domain }}" },
+            { "name": "vCenter (wld)", "url": "https://vcenter-wld.{{ lab_domain }}/ui" },
+            { "name": "NSX Manager (wld)", "url": "https://nsx-mgr-wld.{{ lab_domain }}" },
+            { "name": "Keycloak", "url": "https://jumpbox.{{ lab_domain }}:8443/admin/lab/console" }
+          ]
         }
       }
     dest: /etc/firefox/policies/policies.json
