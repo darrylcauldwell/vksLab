@@ -13,6 +13,7 @@ jumpbox_packages:
   - iptables-persistent
   - frr
   - jq
+  - conky-all
 
 # Smallstep packages (installed from Smallstep apt repo)
 jumpbox_step_packages:

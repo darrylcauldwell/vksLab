@@ -1,0 +1,59 @@
+-- /home/ubuntu/.conkyrc — managed by Ansible
+conky.config = {
+    background = true,
+    update_interval = 5,
+    double_buffer = true,
+    own_window = true,
+    own_window_type = 'desktop',
+    own_window_transparent = true,
+    own_window_hints = 'undecorated,below,sticky,skip_taskbar,skip_pager',
+    alignment = 'top_right',
+    gap_x = 30,
+    gap_y = 30,
+    minimum_width = 360,
+    use_xft = true,
+    font = 'DejaVu Sans Mono:size=10',
+    default_color = 'white',
+    color1 = '00aaff',
+    color2 = 'aaaaaa',
+    color3 = 'ffaa00',
+};
+
+conky.text = [[
+${color1}${font DejaVu Sans Mono:bold:size=16}VKS Lab${font}${color}
+${color2}${hr 2}${color}
+
+${color3}ENVIRONMENT${color}
+  Domain        ${color1}{{ lab_domain }}${color}
+  Lab Network   ${color1}{{ lab_network_prefix }}.0.0/16${color}
+
+${color3}JUMPBOX${color}
+  Hostname      ${color1}${nodename}${color}
+  Public IP     ${color1}${addr {{ jumpbox_public_nic }}}${color}
+  Management    ${color1}{{ jumpbox_ip }}${color}
+  Uptime        ${color1}${uptime}${color}
+
+${color3}SERVICES${color}
+  DNS/DHCP      ${color1}dnsmasq${color}   ${if_running dnsmasq}${color 00ff00}running${color}${else}${color ff0000}stopped${color}${endif}
+  NTP           ${color1}chrony${color}    ${if_running chronyd}${color 00ff00}running${color}${else}${color ff0000}stopped${color}${endif}
+  CA            ${color1}step-ca${color}   ${if_running step-ca}${color 00ff00}running${color}${else}${color ff0000}stopped${color}${endif}
+  BGP           ${color1}FRR${color}       ${if_running bgpd}${color 00ff00}running${color}${else}${color ff0000}stopped${color}${endif}
+  OIDC          ${color1}Keycloak${color}  ${if_running docker}${color 00ff00}running${color}${else}${color ff0000}stopped${color}${endif}
+
+${color3}VCF COMPONENTS${color}
+  vCenter mgmt  ${color1}vcenter-mgmt.{{ lab_domain }}${color}
+  SDDC Manager  ${color1}sddc-manager.{{ lab_domain }}${color}
+  NSX mgmt      ${color1}nsx-mgr-mgmt.{{ lab_domain }}${color}
+  vCenter wld   ${color1}vcenter-wld.{{ lab_domain }}${color}
+  NSX wld       ${color1}nsx-mgr-wld.{{ lab_domain }}${color}
+
+${color3}VLANS${color}
+{% for iface in jumpbox_vlan_interfaces %}
+  VLAN {{ "%-4s" | format(iface.vlan) }}      ${color1}{{ iface.description }}${color}  {{ iface.ip }}
+{% endfor %}
+
+${color3}RESOURCES${color}
+  CPU           ${color1}${cpu}%${color} ${cpubar 6}
+  RAM           ${color1}${memperc}%${color} ${membar 6}
+  Disk          ${color1}${fs_used_perc /}%${color} ${fs_bar 6 /}
+]];

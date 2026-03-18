@@ -101,6 +101,40 @@
     state: started
     enabled: true
 
+# Conky displays lab environment info on the desktop (like BGInfo on Windows)
+- name: Deploy conky configuration
+  become: true
+  ansible.builtin.template:
+    src: conkyrc.j2
+    dest: /home/ubuntu/.conkyrc
+    owner: ubuntu
+    group: ubuntu
+    mode: "0644"
+
+- name: Create XFCE autostart directory
+  become: true
+  ansible.builtin.file:
+    path: /home/ubuntu/.config/autostart
+    state: directory
+    owner: ubuntu
+    group: ubuntu
+    mode: "0755"
+
+- name: Create conky autostart entry
+  become: true
+  ansible.builtin.copy:
+    content: |
+      [Desktop Entry]
+      Type=Application
+      Name=Conky
+      Exec=conky --daemonize --pause=5
+      Hidden=false
+      X-GNOME-Autostart-enabled=true
+    dest: /home/ubuntu/.config/autostart/conky.desktop
+    owner: ubuntu
+    group: ubuntu
+    mode: "0644"
+
 # IP masquerading allows nested hosts (10.0.0.0/16) to reach the internet
 # via the jumpbox's public NIC. Required for VCF depot sync, content library
 # updates, and VKS image pulls.
