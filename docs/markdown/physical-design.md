@@ -355,3 +355,53 @@ These run inside the nested environment and consume resources from the ESXi host
 | **Nested Total** | **52** | **234** | **1,800** |
 
 > **Note**: The nested appliance resources are consumed from the 504 GB RAM and 1,400 GB storage provisioned to the ESXi VMs. The remaining ~270 GB RAM is available for VKS workloads and Supervisor VMs. Cross-reference with Holodeck benchmarks (~325 GB RAM for VCF 9.0 single-site with Automation).
+
+### 10.1 Capacity Headroom Analysis
+
+#### Management Domain Headroom
+
+The management domain hosts run all VCF infrastructure appliances. The VCF Installer is temporary and its resources are reclaimed after bringup.
+
+| Category | vCPU | RAM (GB) |
+|----------|------|----------|
+| **Total provisioned (4 hosts)** | 32 | 288 |
+| vCenter Server (management) | 4 | 21 |
+| SDDC Manager | 4 | 16 |
+| NSX Manager (management) | 6 | 24 |
+| VCF Operations | 4 | 16 |
+| VCF Automation | 4 | 24 |
+| **Appliance subtotal** | **22** | **101** |
+| VCF Installer (temporary, reclaimed after bringup) | 4 | 24 |
+| **Remaining after bringup** | **10** | **187** |
+| **Utilisation** | **~69%** | **~35%** |
+
+> **Note**: Management domain hosts are sized for appliance overhead with comfortable headroom. RAM utilisation is low because VCF appliances are CPU-bound rather than memory-bound. The surplus RAM provides a buffer for SDDC Manager lifecycle operations (e.g., in-place upgrades that temporarily run two appliance instances).
+
+#### Workload Domain Headroom
+
+The workload domain hosts run the workload vCenter, NSX Manager, NSX Edge cluster, Supervisor control plane, and VKS worker nodes. This domain is the tighter constraint.
+
+| Category | vCPU | RAM (GB) |
+|----------|------|----------|
+| **Total provisioned (3 hosts)** | 24 | 216 |
+| vCenter Server (workload) | 4 | 21 |
+| NSX Manager (workload) | 6 | 24 |
+| NSX Edge cluster (2x Large) | 16 | 64 |
+| Supervisor control plane (3 CP VMs) | ~6 | ~24 |
+| VKS workers (3x best-effort-medium) | 6 | 24 |
+| **Consumed subtotal** | **~38** | **~157** |
+| **Remaining** | **-14 (overcommit)** | **~59** |
+| **Utilisation** | **~158% (overcommit)** | **~73%** |
+
+> **Note**: CPU overcommit is expected and acceptable in a nested lab environment. Nested virtualisation already means no performance guarantees from the underlying vCD platform — the physical host's scheduler mediates all CPU access. Workload domain vCPU overcommit does not prevent operation but will cause contention under sustained load. RAM is the real constraint to watch: ~59 GB free provides room for modest workload growth but not additional large VMs.
+
+#### Scaling Thresholds
+
+Monitor these indicators to determine when the lab has reached practical limits. See [Operations Guide](operate.md) Section 5 for scaling procedures and options.
+
+| Indicator | Threshold | Action |
+|-----------|-----------|--------|
+| vSAN capacity | > 70% used | Plan storage addition or object cleanup |
+| Host RAM utilisation | > 90% sustained | Add ESXi host or reduce VM count |
+| VKS node CPU/RAM | > 80% sustained | Scale VM class up or add worker nodes |
+| Workload domain vCPU overcommit | > 200% | Reduce Edge size or add host |
