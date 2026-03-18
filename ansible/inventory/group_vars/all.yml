@@ -1,9 +1,22 @@
 # Lab-wide variables
 lab_domain: lab.dreamfold.dev
-lab_gateway: 10.0.10.1
-lab_dns_server: 10.0.10.1
+
+# Base network prefix — change this to relocate the entire lab
+lab_network_prefix: "10.0"
+
+# Per-VLAN subnet prefixes (derived from prefix + VLAN ID)
+lab_mgmt_prefix: "{{ lab_network_prefix }}.{{ vlans.management.id }}"
+lab_vmotion_prefix: "{{ lab_network_prefix }}.{{ vlans.vmotion.id }}"
+lab_vsan_prefix: "{{ lab_network_prefix }}.{{ vlans.vsan.id }}"
+lab_overlay_prefix: "{{ lab_network_prefix }}.{{ vlans.host_overlay.id }}"
+lab_edge_tep_prefix: "{{ lab_network_prefix }}.{{ vlans.edge_overlay.id }}"
+lab_uplink_prefix: "{{ lab_network_prefix }}.{{ vlans.edge_uplink.id }}"
+
+# Global services — all on management VLAN
+lab_gateway: "{{ lab_mgmt_prefix }}.1"
+lab_dns_server: "{{ lab_mgmt_prefix }}.1"
 lab_ntp_servers:
-  - 10.0.10.1
+  - "{{ lab_mgmt_prefix }}.1"
 
 # Jumpbox public IP (DHCP from vCD — update after deployment)
 jumpbox_public_ip: "<SET-AFTER-DEPLOY>"
@@ -23,33 +36,33 @@ ca_cert_path: /tmp/lab-root-ca.crt
 vlans:
   management:
     id: 10
-    subnet: 10.0.10.0/24
-    gateway: 10.0.10.1
+    subnet: "{{ lab_mgmt_prefix }}.0/24"
+    gateway: "{{ lab_mgmt_prefix }}.1"
     mtu: 1500
   vmotion:
     id: 20
-    subnet: 10.0.20.0/24
-    gateway: 10.0.20.1
+    subnet: "{{ lab_vmotion_prefix }}.0/24"
+    gateway: "{{ lab_vmotion_prefix }}.1"
     mtu: 9000
   vsan:
     id: 30
-    subnet: 10.0.30.0/24
-    gateway: 10.0.30.1
+    subnet: "{{ lab_vsan_prefix }}.0/24"
+    gateway: "{{ lab_vsan_prefix }}.1"
     mtu: 9000
   host_overlay:
     id: 40
-    subnet: 10.0.40.0/24
-    gateway: 10.0.40.1
+    subnet: "{{ lab_overlay_prefix }}.0/24"
+    gateway: "{{ lab_overlay_prefix }}.1"
     mtu: 9000
   edge_overlay:
     id: 50
-    subnet: 10.0.50.0/24
-    gateway: 10.0.50.1
+    subnet: "{{ lab_edge_tep_prefix }}.0/24"
+    gateway: "{{ lab_edge_tep_prefix }}.1"
     mtu: 9000
   edge_uplink:
     id: 60
-    subnet: 10.0.60.0/24
-    gateway: 10.0.60.1
+    subnet: "{{ lab_uplink_prefix }}.0/24"
+    gateway: "{{ lab_uplink_prefix }}.1"
     mtu: 1500
 
 # VCF depot
@@ -58,8 +71,8 @@ vcf_depot_url: depot.vcf-gcp.broadcom.net
 # BGP configuration
 bgp_local_asn: 65000
 bgp_nsx_asn: 65001
-bgp_router_id: 10.0.60.1
-bgp_nsx_uplink_ip: 10.0.60.2
+bgp_router_id: "{{ lab_uplink_prefix }}.1"
+bgp_nsx_uplink_ip: "{{ lab_uplink_prefix }}.2"
 bgp_keepalive: 60
 bgp_holdtime: 180
 

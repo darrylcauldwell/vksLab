@@ -6,11 +6,11 @@ nsx_password: "{{ nsx_admin_password }}"
 nsx_edge_cluster_name: edge-cluster-01
 nsx_edge_vms:
   - name: edge-01
-    management_ip: 10.0.10.20
-    tep_ip: 10.0.50.20
+    management_ip: "{{ lab_mgmt_prefix }}.20"
+    tep_ip: "{{ lab_edge_tep_prefix }}.20"
   - name: edge-02
-    management_ip: 10.0.10.21
-    tep_ip: 10.0.50.21
+    management_ip: "{{ lab_mgmt_prefix }}.21"
+    tep_ip: "{{ lab_edge_tep_prefix }}.21"
 nsx_edge_size: LARGE
 nsx_edge_tep_vlan: 50
 

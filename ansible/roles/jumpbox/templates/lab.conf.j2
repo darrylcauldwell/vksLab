@@ -14,7 +14,7 @@ address=/{{ record.hostname }}.{{ lab_domain }}/{{ record.ip }}
 
 # --- DHCP on VLAN 10 (management) ---
 interface={{ jumpbox_vlan_trunk_nic }}.10
-dhcp-range=10.0.10.100,10.0.10.199,255.255.255.0,12h
+dhcp-range={{ lab_mgmt_prefix }}.100,{{ lab_mgmt_prefix }}.199,255.255.255.0,12h
 dhcp-option=option:router,{{ lab_gateway }}
 dhcp-option=option:dns-server,{{ lab_dns_server }}
 dhcp-option=option:ntp-server,{{ lab_ntp_servers | join(',') }}

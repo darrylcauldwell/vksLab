@@ -1,7 +1,7 @@
-jumpbox_ip: 10.0.10.1
+jumpbox_ip: "{{ lab_mgmt_prefix }}.1"
 jumpbox_private_nic: ens192
 jumpbox_public_nic: ens160
-jumpbox_lab_network: 10.0.0.0/16
+jumpbox_lab_network: "{{ lab_network_prefix }}.0.0/16"
 jumpbox_vlan_trunk_nic: ens192
 
 jumpbox_packages:
@@ -17,12 +17,12 @@ jumpbox_packages:
 
 # VLAN sub-interface configuration
 jumpbox_vlan_interfaces:
-  - {vlan: 10, description: Management, ip: "10.0.10.1/24", mtu: 1500}
-  - {vlan: 20, description: vMotion, ip: "10.0.20.1/24", mtu: 9000}
-  - {vlan: 30, description: vSAN, ip: "10.0.30.1/24", mtu: 9000}
-  - {vlan: 40, description: "Host Overlay (TEP)", ip: "10.0.40.1/24", mtu: 9000}
-  - {vlan: 50, description: "Edge Overlay (TEP)", ip: "10.0.50.1/24", mtu: 9000}
-  - {vlan: 60, description: "Edge Uplink / BGP", ip: "10.0.60.1/24", mtu: 1500}
+  - {vlan: 10, description: Management, ip: "{{ lab_mgmt_prefix }}.1/24", mtu: 1500}
+  - {vlan: 20, description: vMotion, ip: "{{ lab_vmotion_prefix }}.1/24", mtu: 9000}
+  - {vlan: 30, description: vSAN, ip: "{{ lab_vsan_prefix }}.1/24", mtu: 9000}
+  - {vlan: 40, description: "Host Overlay (TEP)", ip: "{{ lab_overlay_prefix }}.1/24", mtu: 9000}
+  - {vlan: 50, description: "Edge Overlay (TEP)", ip: "{{ lab_edge_tep_prefix }}.1/24", mtu: 9000}
+  - {vlan: 60, description: "Edge Uplink / BGP", ip: "{{ lab_uplink_prefix }}.1/24", mtu: 1500}
 
 # Upstream DNS forwarders
 jumpbox_upstream_dns:
@@ -32,31 +32,31 @@ jumpbox_upstream_dns:
 
 # DNS records for dnsmasq
 jumpbox_dns_records:
-  - {hostname: jumpbox, ip: 10.0.10.1}
-  - {hostname: vcf-installer, ip: 10.0.10.3}
-  - {hostname: vcenter-mgmt, ip: 10.0.10.4}
-  - {hostname: sddc-manager, ip: 10.0.10.5}
-  - {hostname: nsx-mgr-mgmt, ip: 10.0.10.6}
-  - {hostname: vcf-ops, ip: 10.0.10.7}
-  - {hostname: vcf-auto, ip: 10.0.10.8}
-  - {hostname: vcenter-wld, ip: 10.0.10.9}
-  - {hostname: nsx-mgr-wld, ip: 10.0.10.10}
-  - {hostname: esxi-01, ip: 10.0.10.11}
-  - {hostname: esxi-02, ip: 10.0.10.12}
-  - {hostname: esxi-03, ip: 10.0.10.13}
-  - {hostname: esxi-04, ip: 10.0.10.14}
-  - {hostname: esxi-05, ip: 10.0.10.15}
-  - {hostname: esxi-06, ip: 10.0.10.16}
-  - {hostname: esxi-07, ip: 10.0.10.17}
-  - {hostname: edge-01, ip: 10.0.10.20}
-  - {hostname: edge-02, ip: 10.0.10.21}
+  - {hostname: jumpbox, ip: "{{ lab_mgmt_prefix }}.1"}
+  - {hostname: vcf-installer, ip: "{{ lab_mgmt_prefix }}.3"}
+  - {hostname: vcenter-mgmt, ip: "{{ lab_mgmt_prefix }}.4"}
+  - {hostname: sddc-manager, ip: "{{ lab_mgmt_prefix }}.5"}
+  - {hostname: nsx-mgr-mgmt, ip: "{{ lab_mgmt_prefix }}.6"}
+  - {hostname: vcf-ops, ip: "{{ lab_mgmt_prefix }}.7"}
+  - {hostname: vcf-auto, ip: "{{ lab_mgmt_prefix }}.8"}
+  - {hostname: vcenter-wld, ip: "{{ lab_mgmt_prefix }}.9"}
+  - {hostname: nsx-mgr-wld, ip: "{{ lab_mgmt_prefix }}.10"}
+  - {hostname: esxi-01, ip: "{{ lab_mgmt_prefix }}.11"}
+  - {hostname: esxi-02, ip: "{{ lab_mgmt_prefix }}.12"}
+  - {hostname: esxi-03, ip: "{{ lab_mgmt_prefix }}.13"}
+  - {hostname: esxi-04, ip: "{{ lab_mgmt_prefix }}.14"}
+  - {hostname: esxi-05, ip: "{{ lab_mgmt_prefix }}.15"}
+  - {hostname: esxi-06, ip: "{{ lab_mgmt_prefix }}.16"}
+  - {hostname: esxi-07, ip: "{{ lab_mgmt_prefix }}.17"}
+  - {hostname: edge-01, ip: "{{ lab_mgmt_prefix }}.20"}
+  - {hostname: edge-02, ip: "{{ lab_mgmt_prefix }}.21"}
 
 # DHCP reservations (MAC → IP)
 jumpbox_dhcp_reservations:
-  - {mac: "00:50:56:xx:xx:01", hostname: esxi-01, ip: 10.0.10.11}
-  - {mac: "00:50:56:xx:xx:02", hostname: esxi-02, ip: 10.0.10.12}
-  - {mac: "00:50:56:xx:xx:03", hostname: esxi-03, ip: 10.0.10.13}
-  - {mac: "00:50:56:xx:xx:04", hostname: esxi-04, ip: 10.0.10.14}
-  - {mac: "00:50:56:xx:xx:05", hostname: esxi-05, ip: 10.0.10.15}
-  - {mac: "00:50:56:xx:xx:06", hostname: esxi-06, ip: 10.0.10.16}
-  - {mac: "00:50:56:xx:xx:07", hostname: esxi-07, ip: 10.0.10.17}
+  - {mac: "00:50:56:xx:xx:01", hostname: esxi-01, ip: "{{ lab_mgmt_prefix }}.11"}
+  - {mac: "00:50:56:xx:xx:02", hostname: esxi-02, ip: "{{ lab_mgmt_prefix }}.12"}
+  - {mac: "00:50:56:xx:xx:03", hostname: esxi-03, ip: "{{ lab_mgmt_prefix }}.13"}
+  - {mac: "00:50:56:xx:xx:04", hostname: esxi-04, ip: "{{ lab_mgmt_prefix }}.14"}
+  - {mac: "00:50:56:xx:xx:05", hostname: esxi-05, ip: "{{ lab_mgmt_prefix }}.15"}
+  - {mac: "00:50:56:xx:xx:06", hostname: esxi-06, ip: "{{ lab_mgmt_prefix }}.16"}
+  - {mac: "00:50:56:xx:xx:07", hostname: esxi-07, ip: "{{ lab_mgmt_prefix }}.17"}
