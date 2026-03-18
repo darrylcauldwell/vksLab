@@ -66,9 +66,11 @@ op item create --vault Employee --category login --title "NSX Manager" \
   --generate-password='20,letters,digits,symbols' username=admin
 op item create --vault Employee --category login --title "Keycloak Admin" \
   --generate-password='20,letters,digits,symbols' username=admin
+op item create --vault Employee --category login --title "Jumpbox Ubuntu" \
+  --generate-password='20,letters,digits,symbols' username=ubuntu
 ```
 
-Verify: `op item list --vault Employee` shows all 5 items.
+Verify: `op item list --vault Employee` shows all 6 items.
 
 #### 3.1.2 Ansible
 
@@ -99,7 +101,7 @@ ansible-galaxy collection install -r ansible/collections/requirements.yml
 | Step | Action | Expected Result | Verification |
 |------|--------|-----------------|--------------|
 | 3.3.1 | Create Ubuntu 24.04 VM from Content Hub ISO (2 vCPU, 10 GB RAM, 60 GB disk) with NIC1 on Public network, NIC2 on private network | VM created | VM visible in vApp |
-| 3.3.2 | Power on and complete Ubuntu installer via vCD console | Ubuntu installed | Login prompt on console |
+| 3.3.2 | Power on and complete Ubuntu installer via vCD console — set server name `jumpbox`, username `ubuntu`, password from 1Password "Jumpbox Ubuntu" item | Ubuntu installed | Login prompt on console |
 | 3.3.3 | Note public IP assigned by DHCP to NIC1 (ens160) | IP obtained | `ip addr show ens160` |
 | 3.3.4 | If no SSH key exists, generate one: `ssh-keygen -t ed25519` | Key pair created | `~/.ssh/id_ed25519.pub` exists |
 | 3.3.5 | Copy SSH key to jumpbox: `ssh-copy-id ubuntu@<jumpbox-ip>` | Key deployed | `ssh ubuntu@<jumpbox-ip>` connects without password |
@@ -112,8 +114,7 @@ All jumpbox configuration (VLAN sub-interfaces, dnsmasq DNS/DHCP, chrony NTP, st
 ```bash
 source .venv/bin/activate
 cd ansible
-ansible-playbook playbooks/phase1_foundation.yml --ask-become-pass
-```
+ansible-playbook playbooks/phase1_foundation.yml```
 
 ### 3.5 Foundation Verification
 
@@ -156,8 +157,7 @@ Use the Ansible `esxi_prepare` role to configure all hosts. This sets hostname, 
 
 ```bash
 cd ansible
-ansible-playbook playbooks/phase2_esxi.yml --ask-become-pass
-
+ansible-playbook playbooks/phase2_esxi.yml
 # Or prepare a single host
 ansible-playbook playbooks/phase2_esxi.yml --ask-become-pass --limit esxi-01
 ```
