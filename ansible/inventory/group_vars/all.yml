@@ -1,13 +1,12 @@
 # Lab-wide variables
 lab_domain: lab.dreamfold.dev
 lab_gateway: 10.0.10.1
-lab_dns_server: 10.0.10.2
+lab_dns_server: 10.0.10.1
 lab_ntp_servers:
-  - 10.0.10.2
   - 10.0.10.1
 
-# vEOS public IP (DHCP from vCD — update after deployment)
-veos_public_ip: "<SET-AFTER-VEOS-DEPLOY>"
+# Jumpbox public IP (DHCP from vCD — update after deployment)
+jumpbox_public_ip: "<SET-AFTER-DEPLOY>"
 
 # 1Password vault and item names for secret lookups
 onepassword_vault: VKS Lab
@@ -57,9 +56,9 @@ vlans:
     mtu: 1500
 
 # BGP configuration
-bgp_veos_asn: 65000
+bgp_local_asn: 65000
 bgp_nsx_asn: 65001
-bgp_veos_router_id: 10.0.60.1
+bgp_router_id: 10.0.60.1
 bgp_nsx_uplink_ip: 10.0.60.2
 bgp_keepalive: 60
 bgp_holdtime: 180

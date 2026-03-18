@@ -1,0 +1,7 @@
+! /etc/quagga/zebra.conf — managed by Ansible
+hostname {{ inventory_hostname }}
+password zebra
+enable password zebra
+log file /var/log/quagga/zebra.log
+
+ip forwarding

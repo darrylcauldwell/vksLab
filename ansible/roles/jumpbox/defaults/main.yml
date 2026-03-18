@@ -1,7 +1,8 @@
-jumpbox_ip: 10.0.10.2
+jumpbox_ip: 10.0.10.1
 jumpbox_private_nic: ens192
 jumpbox_public_nic: ens160
 jumpbox_lab_network: 10.0.0.0/16
+jumpbox_vlan_trunk_nic: ens192
 
 jumpbox_packages:
   - xfce4
@@ -12,10 +13,26 @@ jumpbox_packages:
   - step-cli
   - step-ca
   - iptables-persistent
+  - quagga
+
+# VLAN sub-interface configuration
+jumpbox_vlan_interfaces:
+  - {vlan: 10, description: Management, ip: "10.0.10.1/24", mtu: 1500}
+  - {vlan: 20, description: vMotion, ip: "10.0.20.1/24", mtu: 9000}
+  - {vlan: 30, description: vSAN, ip: "10.0.30.1/24", mtu: 9000}
+  - {vlan: 40, description: "Host Overlay (TEP)", ip: "10.0.40.1/24", mtu: 9000}
+  - {vlan: 50, description: "Edge Overlay (TEP)", ip: "10.0.50.1/24", mtu: 9000}
+  - {vlan: 60, description: "Edge Uplink / BGP", ip: "10.0.60.1/24", mtu: 1500}
+
+# Upstream DNS forwarders
+jumpbox_upstream_dns:
+  - 192.19.189.20
+  - 192.19.189.10
+  - 192.19.189.30
 
 # DNS records for dnsmasq
 jumpbox_dns_records:
-  - {hostname: jumpbox, ip: 10.0.10.2}
+  - {hostname: jumpbox, ip: 10.0.10.1}
   - {hostname: vcf-installer, ip: 10.0.10.3}
   - {hostname: vcenter-mgmt, ip: 10.0.10.4}
   - {hostname: sddc-manager, ip: 10.0.10.5}

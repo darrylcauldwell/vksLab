@@ -1,6 +1,6 @@
 ---
-# Phase 1 — Jumpbox configuration (DNS, NTP, CA, networking)
-# Target: jumpbox host via SSH (ProxyJump not needed — reached directly via vEOS NAT)
+# Phase 1 — Jumpbox configuration (routing, DNS, NTP, CA, BGP, networking)
+# Target: jumpbox host via SSH (reached directly on public IP)
 
 - name: Install required packages
   become: true
@@ -79,6 +79,43 @@
     jump: MASQUERADE
     state: present
   notify: save iptables
+
+- name: Deploy Quagga daemons configuration
+  become: true
+  ansible.builtin.template:
+    src: daemons.j2
+    dest: /etc/quagga/daemons
+    owner: quagga
+    group: quagga
+    mode: "0644"
+  notify: restart quagga
+
+- name: Deploy Quagga zebra configuration
+  become: true
+  ansible.builtin.template:
+    src: zebra.conf.j2
+    dest: /etc/quagga/zebra.conf
+    owner: quagga
+    group: quagga
+    mode: "0644"
+  notify: restart quagga
+
+- name: Deploy Quagga BGP configuration
+  become: true
+  ansible.builtin.template:
+    src: bgpd.conf.j2
+    dest: /etc/quagga/bgpd.conf
+    owner: quagga
+    group: quagga
+    mode: "0644"
+  notify: restart quagga
+
+- name: Enable and start Quagga
+  become: true
+  ansible.builtin.service:
+    name: quagga
+    state: started
+    enabled: true
 
 - name: Initialise step-ca
   become: true

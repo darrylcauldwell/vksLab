@@ -4,13 +4,19 @@ network:
   ethernets:
     {{ jumpbox_public_nic }}:
       dhcp4: true
-    {{ jumpbox_private_nic }}:
+    {{ jumpbox_vlan_trunk_nic }}:
+      mtu: 9000
+  vlans:
+{% for iface in jumpbox_vlan_interfaces %}
+    {{ jumpbox_vlan_trunk_nic }}.{{ iface.vlan }}:
+      id: {{ iface.vlan }}
+      link: {{ jumpbox_vlan_trunk_nic }}
       addresses:
-        - {{ jumpbox_ip }}/24
-      routes:
-        - to: {{ jumpbox_lab_network }}
-          via: {{ lab_gateway }}
-      mtu: 1500
+        - {{ iface.ip }}
+      mtu: {{ iface.mtu }}
+{% if iface.vlan == 10 %}
       nameservers:
         addresses:
           - 127.0.0.1
+{% endif %}
+{% endfor %}
