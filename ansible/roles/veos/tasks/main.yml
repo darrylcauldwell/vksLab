@@ -1,0 +1,29 @@
+---
+# Phase 1 — vEOS router configuration via arista.eos collection
+
+- name: Generate vEOS startup configuration
+  ansible.builtin.template:
+    src: veos-startup.cfg.j2
+    dest: /tmp/veos-startup.cfg
+    mode: "0644"
+  delegate_to: localhost
+
+- name: Push full configuration to vEOS
+  arista.eos.eos_config:
+    src: /tmp/veos-startup.cfg
+    replace: config
+  register: config_result
+
+- name: Verify IP routing is enabled
+  arista.eos.eos_command:
+    commands:
+      - show ip route summary
+  register: route_summary
+  changed_when: false
+
+- name: Verify all SVIs are up
+  arista.eos.eos_command:
+    commands:
+      - show ip interface brief
+  register: svi_status
+  changed_when: false

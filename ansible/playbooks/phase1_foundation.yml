@@ -1,9 +1,15 @@
 ---
 # Phase 1 — Foundation: jumpbox services, Docker containers, vEOS
-- name: Phase 1 — Configure jumpbox
+- name: Phase 1a — Configure jumpbox
   hosts: jumpbox
   gather_facts: true
   become: false
   roles:
     - jumpbox
     - docker_services
+
+- name: Phase 1b — Configure vEOS router
+  hosts: veos
+  gather_facts: false
+  roles:
+    - veos

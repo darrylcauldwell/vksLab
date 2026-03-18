@@ -1,0 +1,49 @@
+! Arista vEOS startup-config — managed by Ansible
+!
+hostname {{ veos_hostname }}
+!
+vlan {{ veos_vlans | join(',') }}
+!
+ntp server {{ veos_ntp_server }} prefer
+ntp serve all
+!
+interface {{ veos_trunk_interface }}
+   description Lab trunk (vCD private network)
+   switchport mode trunk
+   switchport trunk allowed vlan {{ veos_vlans | join(',') }}
+   mtu 9000
+!
+interface {{ veos_uplink_interface }}
+   description Public uplink (internet gateway)
+   no switchport
+   ip address dhcp
+   ip nat outside
+!
+{% for svi in veos_svi_config %}
+interface Vlan{{ svi.vlan }}
+   description {{ svi.description }}
+   ip address {{ svi.ip }}
+   ip nat inside
+   mtu {{ svi.mtu }}
+!
+{% endfor %}
+ip access-list {{ veos_nat_acl_name }}
+   permit ip {{ veos_nat_source_network }} any
+!
+ip nat source list {{ veos_nat_acl_name }} interface {{ veos_uplink_interface }} overload
+!
+ip nat destination static tcp interface {{ veos_uplink_interface }} 3389 {{ veos_rdp_destination }} 3389
+!
+ip routing
+!
+ip route 0.0.0.0/0 {{ veos_default_route_next_hop }}
+!
+router bgp {{ bgp_veos_asn }}
+   router-id {{ bgp_veos_router_id }}
+   timers bgp {{ bgp_keepalive }} {{ bgp_holdtime }}
+   neighbor {{ bgp_nsx_uplink_ip }} remote-as {{ bgp_nsx_asn }}
+   neighbor {{ bgp_nsx_uplink_ip }} description NSX-Tier0
+   !
+   address-family ipv4
+      neighbor {{ bgp_nsx_uplink_ip }} activate
+      redistribute connected
