@@ -157,7 +157,7 @@ See [Logical Design](logical-design.md) for phase details and [Delivery Guide](d
 | 3 | Internet access from nested environment | Resolved | Jumpbox IP masquerade provides outbound internet for all lab hosts via ens160 public NIC |
 | 4 | VCF depot access | Resolved | Lab offline depot available at `depot.vcf-gcp.broadcom.net` |
 | 5 | Nested ESXi performance | Risk | Nested virtualisation adds overhead — vSAN and overlay performance degraded. Acceptable for lab only |
-| 6 | Certificate distribution | Open | Need automation to distribute root CA cert to ESXi hosts and appliances during deployment |
+| 6 | Certificate distribution | Resolved | ESXi hosts: automated by `esxi_prepare` role. VCF appliances: trust configured during bringup. Lab API calls use `validate_certs: false` |
 
 ## 12. Requirements Traceability Matrix
 

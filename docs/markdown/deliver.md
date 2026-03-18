@@ -203,7 +203,7 @@ After step-ca is running, the root CA certificate must be distributed to all com
 
 | Phase | Target | Method |
 |-------|--------|--------|
-| Phase 2 | ESXi hosts | Upload root cert via `esxcli security cert` after each host is configured |
+| Phase 2 | ESXi hosts | **Automated by `esxi_prepare` role** — copies root cert and runs `esxcli security cert import` via `phase2_esxi.yml` |
 | Phase 3 | VCF Installer | Provide root cert during OVA deployment parameters |
 | Phase 3 | vCenter, SDDC Manager, NSX Manager | Deployed by VCF Installer — configure trusted root in bringup workbook |
 | Phase 4 | Workload vCenter, NSX Manager | Deployed by SDDC Manager — inherits trust from management domain |
@@ -214,9 +214,10 @@ Export the root CA certificate from step-ca:
 step ca root /tmp/lab-root-ca.crt
 ```
 
-For each ESXi host (run after host is configured in Phase 2):
+For reference — the following manual steps are automated by `phase2_esxi.yml` and do not need to be run separately:
 
 ```bash
+# Automated by esxi_prepare role — shown for reference only
 scp /tmp/lab-root-ca.crt root@esxi-XX:/tmp/
 ssh root@esxi-XX 'esxcli security cert import --cert-file /tmp/lab-root-ca.crt'
 ```
