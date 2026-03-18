@@ -39,40 +39,11 @@ The following must be in place before starting Phase 1.
 
 > Phase 1 implements R-001, R-002, R-003, R-009 via VCD-01, VCD-02, NET-01, NET-05, SVC-01 through SVC-08.
 
-### 3.1 Create vCD vApp
+### 3.1 Operator Laptop Setup
 
-| Step | Action | Expected Result |
-|------|--------|-----------------|
-| 3.1.1 | Create new vApp in vCloud Director | Empty vApp created |
-| 3.1.2 | Add routed network (public) to vApp | External connectivity available |
-| 3.1.3 | Add isolated network (private, MTU 9000) to vApp | Trunk-capable internal network available |
+#### 3.1.1 1Password Secret Store
 
-### 3.2 Deploy Jumpbox VM (Manual in vCD)
-
-| Step | Action | Expected Result | Verification |
-|------|--------|-----------------|--------------|
-| 3.2.1 | Create Ubuntu 24.04 VM from Content Hub ISO (2 vCPU, 10 GB RAM, 60 GB disk) with NIC1 on Public network, NIC2 on private network | VM created | VM visible in vApp |
-| 3.2.2 | Power on and complete Ubuntu installer via vCD console | Ubuntu installed | Login prompt on console |
-| 3.2.3 | Note public IP assigned by DHCP to NIC1 (ens160) | IP obtained | `ip addr show ens160` |
-| 3.2.4 | Update `jumpbox_public_ip` in `ansible/inventory/group_vars/all.yml` | Inventory updated | SSH from operator laptop works |
-
-All further jumpbox configuration (VLAN sub-interfaces, dnsmasq DNS/DHCP, chrony NTP, step-ca, XFCE/xrdp, IP masquerading, Quagga BGP, Firefox) is automated by the `jumpbox` and `docker_services` Ansible roles. Run Phase 1:
-
-```bash
-source .venv/bin/activate
-ansible-playbook -i ansible/inventory/hosts.yml ansible/playbooks/phase1_foundation.yml
-```
-
-### 3.2c 1Password Secret Store
-
-Ansible runs from the operator's laptop and retrieves all lab credentials from 1Password using the `community.general.onepassword` lookup plugin. This requires the 1Password CLI (`op`) and a vault named **VKS Lab**.
-
-| Step | Action | Expected Result | Verification |
-|------|--------|-----------------|--------------|
-| 3.2c.1 | Install 1Password CLI (`op`) on operator laptop | CLI available | `op --version` |
-| 3.2c.2 | Sign in to 1Password CLI | Authenticated | `op vault list` shows vaults |
-| 3.2c.3 | Create "VKS Lab" vault | Vault exists | `op vault get "VKS Lab"` |
-| 3.2c.4 | Create credential items in the vault | All items stored | `op item list --vault "VKS Lab"` |
+Ansible retrieves all lab credentials from 1Password at runtime. Set up the vault and generate passwords:
 
 ```bash
 # Install 1Password CLI (macOS)
@@ -98,22 +69,11 @@ op item create --vault "VKS Lab" --category login --title "Keycloak Admin" \
   --generate-password='20,letters,digits,symbols' username=admin
 ```
 
-Ansible retrieves these credentials at runtime via lookups in `group_vars/all.yml`:
+Verify: `op item list --vault "VKS Lab"` shows all 5 items.
 
-```yaml
-esxi_root_password: "{{ lookup('community.general.onepassword', 'ESXi Root', field='password', vault='VKS Lab') }}"
-```
+#### 3.1.2 Ansible
 
-### 3.3 Ansible Setup on Operator Laptop
-
-Ansible runs from the operator's laptop (not the jumpbox) and connects to lab hosts via SSH ProxyJump through the jumpbox. Install it in a Python virtual environment to avoid conflicts with system packages.
-
-| Step | Action | Expected Result | Verification |
-|------|--------|-----------------|--------------|
-| 3.3.1 | Create Python virtual environment | venv created | `.venv/` directory exists |
-| 3.3.2 | Install ansible-core | Ansible available | `ansible --version` |
-| 3.3.3 | Install required Ansible collections | Collections installed | `ansible-galaxy collection list` shows community.general |
-| 3.3.4 | Validate inventory resolves | All IPs derived correctly | No errors in output |
+Ansible runs from the operator's laptop (not the jumpbox) and connects to lab hosts via SSH ProxyJump through the jumpbox.
 
 ```bash
 # Create and activate virtual environment
@@ -125,144 +85,35 @@ pip install ansible-core
 
 # Install required collections (1Password lookups, VMware modules)
 ansible-galaxy collection install -r ansible/collections/requirements.yml
-
-# Validate inventory (variables won't fully resolve without 1Password,
-# but Jinja2 syntax errors will surface here)
-ansible-playbook -i ansible/inventory/hosts.yml --check ansible/playbooks/phase2_esxi.yml 2>&1 | head -5
 ```
 
 > **Note**: Activate the virtual environment (`source .venv/bin/activate`) before running any `ansible-playbook` commands. The `.venv/` directory is already in `.gitignore`.
 
-### 3.4 Keycloak Identity Provider (R-002, SVC-07, SVC-08)
+### 3.2 Create vCD vApp (Manual)
 
-Deploy Keycloak as a Docker container on the jumpbox for centralised OIDC identity. Keycloak provides SSO for vCenter and NSX Manager, replacing per-component local authentication.
+| Step | Action | Expected Result |
+|------|--------|-----------------|
+| 3.2.1 | Create new vApp in vCloud Director | Empty vApp created |
+| 3.2.2 | Add routed network (public) to vApp | External connectivity available |
+| 3.2.3 | Add isolated network (private, MTU 9000) to vApp | Trunk-capable internal network available |
 
-**Prerequisites**: Docker Engine running on jumpbox. Keycloak admin password stored in 1Password (step 3.2c.4).
+### 3.3 Deploy Jumpbox VM (Manual in vCD)
 
 | Step | Action | Expected Result | Verification |
 |------|--------|-----------------|--------------|
-| 3.4.1 | Retrieve Keycloak admin password from 1Password | Password available | `op item get "Keycloak Admin" --vault "VKS Lab" --fields password` |
-| 3.4.2 | Run Keycloak container (port 8443, HTTPS) | Container running | `docker ps` shows keycloak |
-| 3.4.3 | Wait for Keycloak to start (1-2 minutes) | Admin console accessible | `https://jumpbox.lab.dreamfold.dev:8443` loads |
-| 3.4.4 | Create "lab" realm | Realm created | Realm visible in admin console |
-| 3.4.5 | Create "admin" user with admin role | User created | User appears in realm user list |
-| 3.4.6 | Create "operator" user with view-only role | User created | User appears in realm user list |
-| 3.4.7 | Create OIDC client for vCenter | Client created | Client ID `vcenter` visible in realm |
-| 3.4.8 | Create OIDC client for NSX Manager | Client created | Client ID `nsx-manager` visible in realm |
+| 3.3.1 | Create Ubuntu 24.04 VM from Content Hub ISO (2 vCPU, 10 GB RAM, 60 GB disk) with NIC1 on Public network, NIC2 on private network | VM created | VM visible in vApp |
+| 3.3.2 | Power on and complete Ubuntu installer via vCD console | Ubuntu installed | Login prompt on console |
+| 3.3.3 | Note public IP assigned by DHCP to NIC1 (ens160) | IP obtained | `ip addr show ens160` |
+| 3.3.4 | Update `jumpbox_public_ip` in `ansible/inventory/group_vars/all.yml` | Inventory updated | SSH from operator laptop works |
+
+### 3.4 Configure Jumpbox (Automated)
+
+All jumpbox configuration (VLAN sub-interfaces, dnsmasq DNS/DHCP, chrony NTP, step-ca, XFCE/xrdp, IP masquerading, Quagga BGP, Firefox, Keycloak) is automated by the `jumpbox` and `docker_services` Ansible roles:
 
 ```bash
-# Retrieve admin password from 1Password
-export KC_ADMIN_PASS=$(op item get "Keycloak Admin" --vault "VKS Lab" --fields password)
-
-# Run Keycloak container with HTTPS on port 8443
-docker run -d --name keycloak \
-  -p 8443:8443 \
-  -e KC_BOOTSTRAP_ADMIN_USERNAME=admin \
-  -e KC_BOOTSTRAP_ADMIN_PASSWORD="${KC_ADMIN_PASS}" \
-  -e KC_HOSTNAME=jumpbox.lab.dreamfold.dev \
-  -e KC_HTTPS_CERTIFICATE_FILE=/opt/keycloak/conf/server.crt \
-  -e KC_HTTPS_CERTIFICATE_KEY_FILE=/opt/keycloak/conf/server.key \
-  -v /etc/step-ca/certs/keycloak.crt:/opt/keycloak/conf/server.crt:ro \
-  -v /etc/step-ca/certs/keycloak.key:/opt/keycloak/conf/server.key:ro \
-  -v keycloak-data:/opt/keycloak/data \
-  --restart unless-stopped \
-  quay.io/keycloak/keycloak:latest start
-
-# Wait for Keycloak to become ready
-sleep 60
-
-# Obtain admin access token
-KC_TOKEN=$(curl -s -X POST \
-  "https://jumpbox.lab.dreamfold.dev:8443/realms/master/protocol/openid-connect/token" \
-  -d "grant_type=client_credentials&client_id=admin-cli" \
-  -d "grant_type=password&username=admin&password=${KC_ADMIN_PASS}&client_id=admin-cli" \
-  --cacert /tmp/lab-root-ca.crt | jq -r '.access_token')
-
-# Create "lab" realm
-curl -s -X POST "https://jumpbox.lab.dreamfold.dev:8443/admin/realms" \
-  -H "Authorization: Bearer ${KC_TOKEN}" \
-  -H "Content-Type: application/json" \
-  --cacert /tmp/lab-root-ca.crt \
-  -d '{"realm": "lab", "enabled": true, "displayName": "VKS Lab"}'
-
-# Create admin user
-curl -s -X POST "https://jumpbox.lab.dreamfold.dev:8443/admin/realms/lab/users" \
-  -H "Authorization: Bearer ${KC_TOKEN}" \
-  -H "Content-Type: application/json" \
-  --cacert /tmp/lab-root-ca.crt \
-  -d '{"username": "lab-admin", "enabled": true, "credentials": [{"type": "password", "value": "CHANGE-ME", "temporary": false}]}'
-
-# Create operator user
-curl -s -X POST "https://jumpbox.lab.dreamfold.dev:8443/admin/realms/lab/users" \
-  -H "Authorization: Bearer ${KC_TOKEN}" \
-  -H "Content-Type: application/json" \
-  --cacert /tmp/lab-root-ca.crt \
-  -d '{"username": "lab-operator", "enabled": true, "credentials": [{"type": "password", "value": "CHANGE-ME", "temporary": false}]}'
+source .venv/bin/activate
+ansible-playbook -i ansible/inventory/hosts.yml ansible/playbooks/phase1_foundation.yml
 ```
-
-**TLS certificate**: Before starting Keycloak, issue a TLS certificate from step-ca for the Keycloak HTTPS endpoint:
-
-```bash
-step ca certificate jumpbox.lab.dreamfold.dev \
-  /etc/step-ca/certs/keycloak.crt /etc/step-ca/certs/keycloak.key \
-  --san jumpbox.lab.dreamfold.dev \
-  --not-after 8760h
-```
-
-#### Configure vCenter OIDC Identity Source
-
-After VCF bringup (Phase 3), configure each vCenter to use Keycloak as an external identity provider.
-
-| Step | Action | Expected Result | Verification |
-|------|--------|-----------------|--------------|
-| 3.4.9 | In vCenter, navigate to Administration → Single Sign-On → Configuration → Identity Provider | Identity provider settings page | — |
-| 3.4.10 | Add OIDC identity provider with Keycloak discovery URL | Provider configured | Discovery URL validated |
-| 3.4.11 | Set Client ID to `vcenter`, provide client secret | Client credentials accepted | — |
-| 3.4.12 | Map Keycloak groups to vCenter roles (Administrators, ReadOnly) | Role mappings created | Keycloak users can login |
-| 3.4.13 | Test SSO login with `lab-admin` user | Login succeeds | vCenter dashboard loads |
-
-vCenter OIDC configuration parameters:
-
-| Parameter | Value |
-|-----------|-------|
-| Provider Name | Keycloak Lab |
-| Discovery Endpoint | `https://jumpbox.lab.dreamfold.dev:8443/realms/lab/.well-known/openid-configuration` |
-| Client ID | `vcenter` |
-| Client Secret | (generated in Keycloak admin console) |
-
-#### Configure NSX Manager OIDC Identity Source
-
-Configure each NSX Manager to use Keycloak as an external identity provider.
-
-| Step | Action | Expected Result | Verification |
-|------|--------|-----------------|--------------|
-| 3.4.14 | In NSX Manager, navigate to System → Settings → User Management → OIDC | OIDC configuration page | — |
-| 3.4.15 | Add OIDC provider with Keycloak discovery URL | Provider configured | Metadata fetched |
-| 3.4.16 | Set Client ID to `nsx-manager`, provide client secret | Client credentials accepted | — |
-| 3.4.17 | Map Keycloak roles to NSX RBAC roles | Role mappings created | Keycloak users can login |
-| 3.4.18 | Test SSO login with `lab-admin` user | Login succeeds | NSX dashboard loads |
-
-NSX Manager OIDC configuration parameters:
-
-| Parameter | Value |
-|-----------|-------|
-| Provider Name | Keycloak Lab |
-| Discovery Endpoint | `https://jumpbox.lab.dreamfold.dev:8443/realms/lab/.well-known/openid-configuration` |
-| Client ID | `nsx-manager` |
-| Client Secret | (generated in Keycloak admin console) |
-
-**Note**: Steps 3.4.9 through 3.4.18 cannot be completed until after VCF bringup (Phase 3) and workload domain creation (Phase 4), because vCenter and NSX Manager must be deployed first. Return to these steps after Phase 4 is complete.
-
-#### Keycloak Verification
-
-| Check | Method | Expected Result |
-|-------|--------|-----------------|
-| Keycloak admin console | Browse `https://jumpbox.lab.dreamfold.dev:8443` | Login page loads |
-| Lab realm exists | Admin console → Realms | "lab" realm listed |
-| Users created | Admin console → lab realm → Users | lab-admin and lab-operator listed |
-| OIDC discovery | `curl https://jumpbox.lab.dreamfold.dev:8443/realms/lab/.well-known/openid-configuration` | JSON with issuer, token, and auth endpoints |
-| vCenter SSO login | Login to vCenter with Keycloak user | Dashboard loads |
-| NSX SSO login | Login to NSX Manager with Keycloak user | Dashboard loads |
 
 ### 3.5 Foundation Verification
 
@@ -446,6 +297,33 @@ sudo sed -i 's/"jsonUpdatedTime":"[^"]*"/"jsonUpdatedTime":"'"$(date -u +%Y-%m-%
 | Workload NSX | Login to `https://nsx-mgr-wld.lab.dreamfold.dev` | Dashboard accessible |
 | Transport nodes | NSX Manager → System → Fabric → Nodes | 3 host transport nodes configured |
 | SDDC Manager | Domains overview | Both domains show Active |
+
+### 6.4 Configure Keycloak OIDC for vCenter and NSX Manager
+
+Keycloak was deployed in Phase 1 by the `docker_services` role with the lab realm, users, and OIDC clients already configured. Now that vCenter and NSX Manager exist, connect them to Keycloak for SSO.
+
+#### vCenter OIDC
+
+| Step | Action | Expected Result |
+|------|--------|-----------------|
+| 6.4.1 | In vCenter → Administration → SSO → Configuration → Identity Provider, add OIDC provider | Provider configured |
+| 6.4.2 | Set Discovery Endpoint to `https://jumpbox.lab.dreamfold.dev:8443/realms/lab/.well-known/openid-configuration` | Metadata fetched |
+| 6.4.3 | Set Client ID to `vcenter`, provide client secret from Keycloak admin console | Credentials accepted |
+| 6.4.4 | Map Keycloak groups to vCenter roles | Role mappings created |
+| 6.4.5 | Test SSO login with `lab-admin` user | vCenter dashboard loads |
+
+Repeat for workload vCenter (`vcenter-wld`).
+
+#### NSX Manager OIDC
+
+| Step | Action | Expected Result |
+|------|--------|-----------------|
+| 6.4.6 | In NSX Manager → System → User Management → OIDC, add provider | Provider configured |
+| 6.4.7 | Set Discovery Endpoint and Client ID `nsx-manager` with client secret | Credentials accepted |
+| 6.4.8 | Map Keycloak roles to NSX RBAC roles | Role mappings created |
+| 6.4.9 | Test SSO login with `lab-admin` user | NSX dashboard loads |
+
+Repeat for workload NSX Manager (`nsx-mgr-wld`).
 
 ## 7. Phase 5 — NSX Networking
 
