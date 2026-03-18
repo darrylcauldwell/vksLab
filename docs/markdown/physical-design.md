@@ -114,14 +114,18 @@ See [Delivery Guide](deliver.md) for netplan configuration. Key parameters:
 | DNS | dnsmasq | Zone: `lab.dreamfold.dev`, upstream forwarder via NIC1 |
 | DHCP | dnsmasq | Static MAC→IP reservations for ESXi hosts on VLAN 10 |
 | NTP | chrony | `allow 10.0.0.0/16`, servers: public NTP pools |
-| CA | step-ca | Root CA for `lab.dreamfold.dev`, ACME enabled |
+| CA | step-ca | Root CA for `lab.dreamfold.dev`, ACME enabled, max cert duration 8760h (1 year), listens on 127.0.0.1:443 |
 | OIDC | Keycloak (Docker) | Port 8443, centralised identity provider for vCenter and NSX |
 | Secrets | 1Password (operator laptop) | `community.general.onepassword` lookup plugin via 1Password CLI |
 | Routing | FRR (zebra + bgpd) | Inter-VLAN routing, BGP peering with NSX Tier-0 (ASN 65000) |
 | Remote access | xrdp | Listening on port 3389 (NIC1) |
 | Web browser | Firefox | Access vCenter, NSX Manager, SDDC Manager UIs |
 
-All VCF components point to 10.0.10.1 for DNS and NTP. The CA root certificate is distributed to ESXi hosts and management appliances during deployment.
+All VCF components point to 10.0.10.1 for DNS and NTP. systemd-resolved is disabled on the jumpbox to free port 53 for dnsmasq.
+
+**CA certificate distribution**: The step-ca root certificate is fetched from the jumpbox to the Ansible controller during Phase 1, then pushed to each ESXi host during Phase 2 via `ansible.builtin.copy` and imported with `esxcli security cert import`. See [Logical Design](logical-design.md) SVC-10 and "Certificate Distribution" for details.
+
+**DNS configuration**: dnsmasq listens on the VLAN 10 sub-interface (ens192.10) for lab DNS/DHCP. The jumpbox's own `/etc/resolv.conf` points to upstream DNS (192.19.189.20) — not through its own dnsmasq — so that package installation and external resolution work independently of dnsmasq state.
 
 ### DHCP Reservations (VLAN 10)
 

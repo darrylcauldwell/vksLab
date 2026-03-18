@@ -185,19 +185,26 @@ All infrastructure services (DNS, NTP, CA, secrets, identity) run on the Ubuntu 
 
 The CA root certificate must be distributed to ESXi hosts and management appliances during deployment.
 
+### Credential Management
+
+Lab credentials follow a two-tier model: **bootstrap** (simple, typed manually) and **runtime** (complex, injected by Ansible).
+
+- **Bootstrap password**: A single, simple password stored in 1Password as "Lab Bootstrap". The operator types this into the vCD console during Ubuntu jumpbox install and into the ESXi DCUI to set the initial root password. Ansible connects to hosts using this password.
+- **Runtime passwords**: Complex, auto-generated passwords stored as separate 1Password items. Ansible injects these into VCF components during deployment. The `esxi_prepare` role (Phase 2) changes ESXi root passwords from bootstrap to runtime credentials so that VCF bringup specs reference the correct values.
+- **Derived credentials**: Service passwords that do not need to be stored in 1Password are derived deterministically from the bootstrap password via salted SHA-256 hash (e.g., `(bootstrap_password + 'step-ca') | hash('sha256')`). This ensures playbook idempotency — reruns produce the same password rather than generating a new random value that would desynchronise with previously initialised services.
+
 ### 1Password Secret Store
 
-Lab credentials are stored in a 1Password vault ("VKS Lab") on the operator's laptop. Ansible retrieves them at runtime using the `community.general.onepassword` lookup plugin, which calls the 1Password CLI (`op`).
+Lab credentials are stored in the operator's 1Password vault ("Employee"). Ansible retrieves them at runtime using the `community.general.onepassword` lookup plugin, which calls the 1Password CLI (`op`).
 
-Items in the VKS Lab vault:
-
-| Item Title | Content |
-|------------|---------|
-| ESXi Root | Shared root password for all ESXi hosts |
-| vCenter SSO | vCenter SSO administrator password |
-| SDDC Manager | SDDC Manager admin password |
-| NSX Manager | NSX Manager admin password |
-| Keycloak Admin | Keycloak admin password |
+| Item Title | Fields | Purpose |
+|------------|--------|---------|
+| Lab Bootstrap | `password`, `ip_address` | Simple password for console/DCUI entry; jumpbox public IP |
+| ESXi Root | `password` | Runtime root password for all ESXi hosts |
+| vCenter SSO | `password` | vCenter SSO administrator password |
+| SDDC Manager | `password` | SDDC Manager admin password |
+| NSX Manager | `password` | NSX Manager admin password |
+| Keycloak Admin | `password` | Keycloak admin password |
 
 ### Design Decisions
 
@@ -223,6 +230,20 @@ Keycloak runs as a Docker container on the jumpbox (port 8443, HTTPS) and provid
 |------|-------------|-----------------|----------------------|-------------------|
 | R-002 | SVC-07 | Keycloak as centralised OIDC identity provider for vCenter and NSX Manager | Single sign-on reduces credential sprawl across VCF components; OIDC is natively supported by vCenter and NSX Manager | Risk: Keycloak container outage blocks SSO login. Mitigation: Local administrator accounts remain functional as fallback; Keycloak container configured with restart policy |
 | C-004 | SVC-08 | Local Keycloak realm with local users (no AD/LDAP) | Lab has no domain controller; local users in a single realm provide the simplest identity model | Risk: No directory sync — user management is manual. Mitigation: Acceptable for lab with a small number of operators |
+| R-009 | SVC-09 | step-ca max certificate duration set to 1 year (8760h) | Default step-ca provisioner limits certificates to 24 hours, which is too short for lab services like Keycloak that need stable TLS. 1-year duration avoids frequent renewal while remaining shorter than the 10-year root CA lifetime | Risk: Long-lived certificates are not rotated. Mitigation: Lab environment — acceptable; see [Operations Guide](operate.md) for renewal SOP |
+| R-009 | SVC-10 | step-ca binds to 127.0.0.1 only | Avoids dependency on VLAN sub-interface readiness during startup; all certificate operations originate from the jumpbox itself | Risk: Remote ACME clients cannot reach step-ca directly. Mitigation: All cert issuance is performed by Ansible from the jumpbox; no remote ACME clients are needed |
+| R-009 | SVC-11 | Keycloak container managed via Docker CLI (not community.docker Ansible module) | Avoids requiring the Python `docker` library on the jumpbox; reduces jumpbox package dependencies | Risk: Slightly less declarative than Ansible module. Mitigation: Idempotency achieved via `docker inspect` check before `docker run` |
+| R-002 | SVC-12 | Bootstrap-to-runtime password rotation during ESXi preparation | ESXi hosts start with a simple bootstrap password (typed via DCUI) and are rotated to complex runtime credentials by the `esxi_prepare` role. VCF bringup specs then reference the runtime passwords | Risk: Phase 2 playbook cannot be rerun after password change without DCUI reset. Mitigation: Lab deployment is a one-pass process; DCUI reset is documented as fallback |
+| R-002 | SVC-13 | Deterministic password derivation for service credentials | Service passwords (e.g., step-ca) are derived from the bootstrap password via salted SHA-256 hash rather than random generation. This ensures Ansible playbooks are idempotent — reruns produce the same password | Risk: Derived password security depends on bootstrap password entropy. Mitigation: Bootstrap password stored in 1Password; SHA-256 output provides sufficient complexity for lab services |
+
+### Certificate Distribution
+
+The step-ca root CA certificate must be trusted by ESXi hosts and VCF management appliances for TLS validation. The distribution mechanism spans two Ansible phases:
+
+1. **Phase 1** (jumpbox role): step-ca generates the root CA during initialisation. The certificate is exported to a local path on the jumpbox and then fetched to the Ansible controller using `ansible.builtin.fetch`.
+2. **Phase 2** (esxi_prepare role): The controller pushes the root CA certificate to each ESXi host via `ansible.builtin.copy`, then imports it into the ESXi trust store with `esxcli security cert import`.
+
+This two-step fetch-then-push pattern is necessary because the Ansible `copy` module sources files from the controller, not from intermediate hosts.
 
 ## 5. Compute Design
 
