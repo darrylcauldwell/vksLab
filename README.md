@@ -16,12 +16,11 @@ VMware Kubernetes Service (VKS) lab environment — infrastructure-as-documentat
 
 | File | Description |
 |------|-------------|
-| [`configs/veos-startup.cfg`](configs/veos-startup.cfg) | Complete Arista vEOS startup-config (VLANs, SVIs, NTP, NAT, BGP) |
 | [`configs/vcf-bringup.json`](configs/vcf-bringup.json) | VCF deployment parameter workbook template (passwords as `<CHANGE-ME>`) |
 
 ## Ansible Automation
 
-Ansible roles and playbooks automate all 6 deployment phases. Runs from the operator's laptop via SSH ProxyJump through vEOS, with secrets from 1Password.
+Ansible roles and playbooks automate all 6 deployment phases. Runs from the operator's laptop via SSH ProxyJump through the jumpbox, with secrets from 1Password.
 
 ```bash
 # Install collections

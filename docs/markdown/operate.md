@@ -16,15 +16,14 @@ The lab must be powered on in a specific order to ensure service dependencies ar
 | Order | Component | Action | Wait For |
 |-------|-----------|--------|----------|
 | 1 | Jumpbox | Power on VM | SSH/RDP accessible |
-| 2 | Arista vEOS | Power on VM | SVIs up (`show ip interface brief`) |
-| 3 | Management ESXi hosts (esxi-01 to esxi-04) | Power on VMs | ESXi DCUI shows management IP |
-| 4 | Wait for vSAN cluster | Automatic | vSAN health green in vCenter |
-| 5 | Management appliances auto-start | Automatic (HA/DRS) | vCenter, SDDC Manager, NSX Manager accessible |
-| 6 | Workload ESXi hosts (esxi-05 to esxi-07) | Power on VMs | ESXi DCUI shows management IP |
-| 7 | Wait for workload vSAN | Automatic | vSAN health green |
-| 8 | Workload appliances auto-start | Automatic | Workload vCenter, NSX Manager accessible |
-| 9 | NSX Edge VMs | Verify running | BGP adjacency re-established |
-| 10 | Supervisor & VKS | Verify running | `kubectl get nodes` shows Ready |
+| 2 | Management ESXi hosts (esxi-01 to esxi-04) | Power on VMs | ESXi DCUI shows management IP |
+| 3 | Wait for vSAN cluster | Automatic | vSAN health green in vCenter |
+| 4 | Management appliances auto-start | Automatic (HA/DRS) | vCenter, SDDC Manager, NSX Manager accessible |
+| 5 | Workload ESXi hosts (esxi-05 to esxi-07) | Power on VMs | ESXi DCUI shows management IP |
+| 6 | Wait for workload vSAN | Automatic | vSAN health green |
+| 7 | Workload appliances auto-start | Automatic | Workload vCenter, NSX Manager accessible |
+| 8 | NSX Edge VMs | Verify running | BGP adjacency re-established |
+| 9 | Supervisor & VKS | Verify running | `kubectl get nodes` shows Ready |
 
 ### 1.2 Lab Power Off Sequence (Safe Shutdown)
 
@@ -38,8 +37,7 @@ The lab must be powered on in a specific order to ensure service dependencies ar
 | 4 | Workload ESXi hosts | Put in maintenance mode (evacuate VMs first), then shut down | Hosts in maintenance, then powered off |
 | 5 | Management appliances | Shut down VCF Ops, VCF Auto, NSX Manager, SDDC Manager, then vCenter (last) | All management VMs powered off |
 | 6 | Management ESXi hosts | Put in maintenance mode, then shut down | Hosts powered off |
-| 7 | Arista vEOS | Power off | VM stopped |
-| 8 | Jumpbox | Power off (last) | VM stopped |
+| 7 | Jumpbox | Power off (last) | VM stopped |
 
 **vCenter must be the last management appliance shut down and the first to start up.**
 
@@ -70,7 +68,7 @@ The lab must be powered on in a specific order to ensure service dependencies ar
 |------|--------|-------------|
 | 1 | Deploy new nested ESXi VM with standard spec (8 vCPU, 72 GB RAM, 200 GB + 10 GB disk) | VM powered on |
 | 2 | Configure networking (management access + trunk) | Management IP pingable |
-| 3 | Set hostname, DNS (10.0.10.2), NTP (10.0.10.2) | Services configured |
+| 3 | Set hostname, DNS (10.0.10.1), NTP (10.0.10.1) | Services configured |
 | 4 | Add DNS record to jumpbox dnsmasq | `dig` resolves new hostname |
 | 5 | Commission host in SDDC Manager | Host appears in free pool |
 | 6 | Expand the target domain cluster | Host added to cluster |
@@ -105,11 +103,11 @@ Use this procedure to verify Active-Standby failover behaviour or to test resili
 | Step | Action | Verification |
 |------|--------|-------------|
 | 1 | Identify active Edge | NSX Manager → System → Fabric → Edge Clusters → click cluster → note which Edge shows "Active" for Tier-0 |
-| 2 | Verify BGP adjacency before test | `show ip bgp summary` on vEOS → Established with 10.0.60.2 |
+| 2 | Verify BGP adjacency before test | `vtysh -c 'show ip bgp summary'` on jumpbox → Established with 10.0.60.2 |
 | 3 | Start continuous ping from jumpbox | `ping -i 1 <VKS-LB-VIP>` (or any pod-reachable IP via SNAT) |
 | 4 | Power off the active Edge VM | vCenter → right-click active Edge VM → Power Off |
 | 5 | Observe failover | NSX Manager → Edge Clusters → standby Edge promotes to Active (expect 2-4s) |
-| 6 | Monitor BGP re-establishment | `show ip bgp summary` on vEOS → watch for Established (expect 30-60s) |
+| 6 | Monitor BGP re-establishment | `vtysh -c 'show ip bgp summary'` on jumpbox → watch for Established (expect 30-60s) |
 | 7 | Verify traffic restoration | Continuous ping resumes; count lost packets (expect 30-60 lost at 1/sec) |
 | 8 | Power on the failed Edge VM | vCenter → Power On; Edge rejoins cluster as Standby |
 | 9 | Verify cluster health | NSX Manager → Edge Clusters → both Edges show Up |
@@ -206,7 +204,7 @@ SDDC Manager coordinates updates to vCenter, NSX Manager, SDDC Manager itself, a
 | 5 | Upgrade NSX Manager cluster | Coordinator handles rolling upgrade |
 | 6 | Upgrade host transport nodes | Rolling upgrade, one host at a time |
 | 7 | Upgrade Edge cluster | Rolling upgrade, one Edge at a time |
-| 8 | Verify BGP adjacency after Edge upgrade | `show ip bgp summary` on vEOS |
+| 8 | Verify BGP adjacency after Edge upgrade | `vtysh -c 'show ip bgp summary'` on jumpbox |
 | 9 | Verify VPC and VKS connectivity | Test workload accessible |
 
 ### 2.4 VKS Kubernetes Version Upgrades
@@ -221,19 +219,7 @@ SDDC Manager coordinates updates to vCenter, NSX Manager, SDDC Manager itself, a
 | 6 | Verify cluster health | `kubectl get nodes` — all nodes Ready, new version |
 | 7 | Verify workloads | `kubectl get pods` — all pods Running |
 
-### 2.5 vEOS Software Update
-
-| Step | Action | Notes |
-|------|--------|-------|
-| 1 | Download new vEOS image | From Arista support portal |
-| 2 | Upload to vEOS flash | `copy scp: flash:` or via vCD datastore |
-| 3 | Set boot image | `boot system flash:<new-image>.swi` |
-| 4 | Take lab snapshot | — |
-| 5 | Reload vEOS | `reload` |
-| 6 | Verify SVIs and routing | `show ip interface brief`, `show ip route` |
-| 7 | Verify BGP adjacency | `show ip bgp summary` — should re-establish |
-
-### 2.6 Jumpbox OS Patching
+### 2.5 Jumpbox OS Patching
 
 | Step | Action | Notes |
 |------|--------|-------|
@@ -245,7 +231,7 @@ SDDC Manager coordinates updates to vCenter, NSX Manager, SDDC Manager itself, a
 | 6 | Reboot if kernel update | `sudo reboot` |
 | 7 | Verify all lab services post-reboot | DNS, NTP, CA, RDP all functional |
 
-### 2.7 1Password Secret Store
+### 2.6 1Password Secret Store
 
 Lab credentials are stored in a 1Password vault ("VKS Lab") on the operator's laptop. Ansible retrieves them at runtime via the `community.general.onepassword` lookup plugin.
 
@@ -281,9 +267,9 @@ op item list --vault "VKS Lab"
 
 | # | Check | Method | Expected Result |
 |---|-------|--------|-----------------|
-| 1 | BGP adjacency | `show ip bgp summary` on vEOS | Established |
-| 2 | BGP routes received | `show ip bgp` on vEOS | VPC prefixes present |
-| 3 | DNS resolution | `dig @10.0.10.2 vcenter-mgmt.lab.dreamfold.dev` | Correct response |
+| 1 | BGP adjacency | `vtysh -c 'show ip bgp summary'` on jumpbox | Established |
+| 2 | BGP routes received | `vtysh -c 'show ip bgp'` on jumpbox | VPC prefixes present |
+| 3 | DNS resolution | `dig @10.0.10.1 vcenter-mgmt.lab.dreamfold.dev` | Correct response |
 | 4 | NTP synchronisation | `chronyc tracking` on jumpbox | System clock synchronised |
 | 5 | ESXi NTP sync | `esxcli system ntp get` on each host | Server reachable |
 | 6 | Certificate expiry (R-009) | `step ca certificate list` or check expiry dates | No certs expiring within 30 days |
@@ -321,7 +307,7 @@ op item list --vault "VKS Lab"
 | vSAN health warnings | Disk group degraded | Check `esxcli vsan health cluster list`; rebuild disk group if needed |
 | Objects inaccessible | Insufficient hosts for FTT=1 | Ensure minimum 3 hosts (workload) or 4 hosts (management) are available |
 | Resync stuck | Insufficient bandwidth or capacity | Wait for resync; check vSAN capacity; consider reducing object count |
-| Network partition | VLAN 30 misconfigured | Verify vmk2 on VLAN 30 across all hosts; check vEOS SVI |
+| Network partition | VLAN 30 misconfigured | Verify vmk2 on VLAN 30 across all hosts; check jumpbox VLAN sub-interface |
 
 #### BGP Flapping
 
@@ -345,7 +331,7 @@ op item list --vault "VKS Lab"
 
 | Symptom | Possible Cause | Resolution |
 |---------|---------------|------------|
-| Content library sync failed | No internet access from vCenter | Verify NAT/masquerade on jumpbox; check vEOS default route to jumpbox |
+| Content library sync failed | No internet access from vCenter | Verify NAT/masquerade on jumpbox; check jumpbox default route and iptables |
 | Sync stuck at 0% | DNS resolution failure | Verify vCenter can resolve VMware CDN URLs via jumpbox DNS |
 | VKr images not appearing | Library not subscribed or sync incomplete | Check subscription URL in vCenter → Content Libraries; trigger manual sync |
 | Insufficient storage for sync | Datastore full | Check vSAN capacity; remove old/unused items from library |
@@ -357,7 +343,7 @@ op item list --vault "VKS Lab"
 | Node shows NotReady | kubelet not running | SSH to node, check `systemctl status kubelet` |
 | Node unreachable | NSX VPC connectivity issue | Check VPC status, verify Tier-0/Tier-1 routing |
 | Pods stuck Pending | Insufficient node resources | Check `kubectl describe node`; consider scaling VM class |
-| Image pull failures | No internet access from VPC | Verify NAT rule on Tier-0; check route to internet via vEOS/jumpbox |
+| Image pull failures | No internet access from VPC | Verify NAT rule on Tier-0; check route to internet via jumpbox |
 
 #### DNS Resolution Failures
 
@@ -374,7 +360,7 @@ op item list --vault "VKS Lab"
 | ESXi host not getting IP | MAC address mismatch | Verify MAC in vCD matches `dhcp-host` entry in `/etc/dnsmasq.d/lab.conf`; restart dnsmasq |
 | Host gets wrong IP | Duplicate DHCP reservation | Check for duplicate MAC entries in dnsmasq config |
 | DHCP lease expired | Host powered off too long | Restart dnsmasq; host will get new lease on next boot |
-| No DHCP offers | dnsmasq not listening on VLAN 10 | Verify dnsmasq is bound to ens192 (management VLAN interface); check `dhcp-range` config |
+| No DHCP offers | dnsmasq not listening on VLAN 10 | Verify dnsmasq is bound to ens192.10 (management VLAN sub-interface); check `dhcp-range` config |
 
 #### 1Password Issues
 
@@ -410,7 +396,7 @@ op item list --vault "VKS Lab"
 | Jumpbox dnsmasq | `/var/log/syslog` (filter: dnsmasq) | `journalctl -u dnsmasq` |
 | Jumpbox chrony | `/var/log/syslog` (filter: chronyd) | `journalctl -u chronyd` |
 | Jumpbox step-ca | `journalctl -u step-ca` | systemd journal |
-| vEOS | `show logging` | vEOS CLI |
+| Quagga | `/var/log/quagga/zebra.log`, `/var/log/quagga/bgpd.log` | `journalctl` or file |
 | 1Password | Operator laptop | `op item list --vault "VKS Lab"` |
 | Keycloak | Container stdout | `docker logs keycloak` |
 
@@ -430,7 +416,7 @@ vmkping -I vmk2 10.0.30.1 -s 8972  # vSAN with jumbo frames
 esxcli system ntp get
 
 # Check DNS
-nslookup vcenter-mgmt.lab.dreamfold.dev 10.0.10.2
+nslookup vcenter-mgmt.lab.dreamfold.dev 10.0.10.1
 ```
 
 #### vSAN (from ESXi host SSH)
@@ -489,43 +475,38 @@ vCenter → Cluster → Monitor → vSAN → Performance
   - Congestion indicators
 ```
 
-#### vEOS
+#### Jumpbox Routing (Quagga)
 
-```text
-! Check all interfaces
-show ip interface brief
+```bash
+# Check all VLAN sub-interfaces
+ip addr show | grep ens192
 
-! Check routing table
-show ip route
+# Check routing table
+ip route
 
-! --- BGP diagnostics ---
-! Session summary (state, prefixes received, uptime)
-show ip bgp summary
+# --- BGP diagnostics (via Quagga vtysh) ---
+# Session summary (state, prefixes received, uptime)
+sudo vtysh -c 'show ip bgp summary'
 
-! Full BGP table (all received prefixes)
-show ip bgp
+# Full BGP table (all received prefixes)
+sudo vtysh -c 'show ip bgp'
 
-! Detailed neighbor state (timers, capabilities, counters)
-show ip bgp neighbors 10.0.60.2
+# Detailed neighbor state (timers, capabilities, counters)
+sudo vtysh -c 'show ip bgp neighbors 10.0.60.2'
 
-! Routes advertised TO NSX Tier-0 (should show all connected subnets)
-show ip bgp neighbors 10.0.60.2 advertised-routes
+# Routes advertised TO NSX Tier-0 (should show all connected subnets)
+sudo vtysh -c 'show ip bgp neighbors 10.0.60.2 advertised-routes'
 
-! Routes received FROM NSX Tier-0 (should show VPC/overlay prefixes)
-show ip bgp neighbors 10.0.60.2 received-routes
+# Routes received FROM NSX Tier-0 (should show VPC/overlay prefixes)
+sudo vtysh -c 'show ip bgp neighbors 10.0.60.2 received-routes'
 
-! --- NAT diagnostics ---
-! Active NAT translations (shows current sessions)
-show ip nat translations
+# --- NAT diagnostics ---
+# Active iptables NAT rules
+sudo iptables -t nat -L POSTROUTING -v -n
 
-! NAT statistics (total translations, hits, misses)
-show ip nat statistics
-
-! Check NAT rules
-show ip nat source
-
-! --- Logs ---
-show logging last 50
+# --- Logs ---
+tail -50 /var/log/quagga/bgpd.log
+tail -50 /var/log/quagga/zebra.log
 ```
 
 #### NSX
@@ -640,4 +621,4 @@ Refer to [Physical Design](physical-design.md) Section 10 for the canonical vCD 
 | VKS node resources | `kubectl top nodes` | CPU and memory usage per node |
 | VKS pod resources | `kubectl top pods` | Per-pod resource consumption |
 | NSX Edge throughput | NSX Manager → Edge dashboard | Data plane throughput |
-| BGP route count | `show ip bgp summary` on vEOS | Prefixes received/advertised |
+| BGP route count | `vtysh -c 'show ip bgp summary'` on jumpbox | Prefixes received/advertised |

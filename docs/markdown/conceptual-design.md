@@ -70,9 +70,8 @@ The lab is designed to be **disposable and reproducible**. The delivery guide en
 |-------|------------|
 | A-001 | The vCloud Director provider supports nested virtualisation and jumbo frames (MTU 9000) |
 | A-002 | Sufficient vCD resources are available (60 vCPU, 512 GB RAM, 1.5 TB storage) |
-| A-003 | Arista vEOS lab/evaluation licence is available for router use |
-| A-004 | VCF depot access is available (online or via offline bundles) |
-| A-005 | The lab.dreamfold.dev DNS zone is delegated or used internally only |
+| A-003 | VCF depot access is available (online or via offline bundles) |
+| A-004 | The lab.dreamfold.dev DNS zone is delegated or used internally only |
 
 ## 8. Functional Overview
 
@@ -153,7 +152,7 @@ See [Logical Design](logical-design.md) for phase details and [Delivery Guide](d
 
 | # | Item | Status | Impact |
 |---|------|--------|--------|
-| 1 | Virtual router licensing for lab use | Open | May require a licence key — check if lab/eval licence is available |
+| 1 | Quagga BGP compatibility with NSX Tier-0 | Open | Verify BGP session establishes correctly in nested environment |
 | 2 | vCD resource allocation approval | Open | Substantial resource request — needs org approval |
 | 3 | Internet access from nested environment | Open | VKS content library and VCF depot sync require outbound internet — routing path through jumpbox may need NAT/masquerade |
 | 4 | VCF depot access | Open | VCF Installer and SDDC Manager need access to VMware depot — may need offline bundles if internet is restricted |
@@ -171,7 +170,7 @@ See [Logical Design](logical-design.md) for phase details and [Delivery Guide](d
 | R-003 | DNS, NTP, CA on jumpbox | NET-05, SVC-01, SVC-03, SVC-04, SVC-05 | Phase 1 — jumpbox services (§3.2.5–3.2.7) | `dig`, `chronyc sources`, `step ca health` |
 | R-004 | Two VCF domains (mgmt + wld) | NET-03, NET-04, ESX-02, VCF-01, VCF-02, VCF-03, VCF-04 | Phase 3 (§5) + Phase 4 (§6) | SDDC Manager shows both domains Active |
 | R-005 | VKS cluster via Supervisor with NSX VPC | VKS-01, VKS-02, VKS-03, VKS-04 | Phase 6 — Supervisor + VKS (§8) | `kubectl get nodes` shows 6 Ready |
-| R-006 | BGP peering between NSX and vEOS | NET-02, NSX-01, NSX-02 | Phase 5 — BGP config (§7.2–7.3) | `show ip bgp summary` — Established |
+| R-006 | BGP peering between NSX and jumpbox | NET-02, NSX-01, NSX-02 | Phase 5 — BGP config (§7.2–7.3) | `vtysh -c 'show ip bgp summary'` — Established |
 | R-007 | vSAN ESA with FTT=1 | ESX-03 | Phase 2 — ESXi prep (§4.3) | `esxcli vsan health cluster list` green |
 | R-008 | NSX VPC centralised Edge | NSX-03, NSX-04 | Phase 5 — VPC config (§7.5) | VPC shows Realised in NSX Manager |
 | R-009 | TLS certs from internal step-ca | SVC-02 | Phase 1 — CA setup (§3.2.7) + cert distribution (§3.2a) | `step ca health`; certs valid on components |
@@ -193,6 +192,5 @@ See [Logical Design](logical-design.md) for phase details and [Delivery Guide](d
 |------------|-------------|-------------------|----------------|
 | A-001 | vCD supports nested virtualisation and jumbo frames | Deploy test VM, enable nested virt flag, ping with MTU 9000 | Deliver Guide §3.1 (vApp network creation) |
 | A-002 | Sufficient vCD resources (60 vCPU, 512 GB RAM, 1.5 TB) | Check vCD tenant quota before deployment | Deliver Guide §2 prerequisites checklist |
-| A-003 | Arista vEOS lab/eval licence available | Obtain licence from Arista portal before deployment | Deliver Guide §2 prerequisites #6 |
-| A-004 | VCF depot access available | Confirm online depot reachable or stage offline bundles | Deliver Guide §2 prerequisites #8 |
-| A-005 | lab.dreamfold.dev DNS zone delegated or internal-only | Verify zone delegation or confirm internal-only use | Deliver Guide §2 prerequisites #4 |
+| A-003 | VCF depot access available | Confirm online depot reachable or stage offline bundles | Deliver Guide §2 prerequisites #8 |
+| A-004 | lab.dreamfold.dev DNS zone delegated or internal-only | Verify zone delegation or confirm internal-only use | Deliver Guide §2 prerequisites #4 |

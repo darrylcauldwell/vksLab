@@ -25,9 +25,9 @@ date: "March 2026"
                     │              ┌─────┼───┼──────────────┼──────────┐       │       │
                     │              │     ▼   ▼              ▼          │       │       │
                     │              │  ┌──────────┐                    │       │       │
-                    │              │  │  Arista   │                    │       │       │
-                    │              │  │  vEOS     │◄─── BGP ───┐      │       │       │
-                    │              │  │  Router   │            │      │       │       │
+                    │              │  │  Ubuntu   │                    │       │       │
+                    │              │  │  Jumpbox  │◄─── BGP ───┐      │       │       │
+                    │              │  │  (Quagga) │            │      │       │       │
                     │              │  └──────────┘            │      │       │       │
                     │              │       │                    │      │       │       │
                     │              │       │ Inter-VLAN         │      │       │       │
@@ -77,8 +77,7 @@ See [Delivery Guide](deliver.md) for step-by-step deployment procedures with exa
 
 | Component | Quantity | Role |
 |-----------|----------|------|
-| Ubuntu Jumpbox | 1 | External access, CA, DNS, DHCP, NTP, identity (Keycloak) |
-| Arista vEOS | 1 | Inter-VLAN routing, BGP peer |
+| Ubuntu Jumpbox | 1 | External access, inter-VLAN routing, BGP (Quagga), CA, DNS, DHCP, NTP, identity (Keycloak) |
 | Nested ESXi (Management) | 4 | VCF management domain hosts |
 | Nested ESXi (Workload) | 3 | VCF workload domain hosts |
 | VCF Installer | 1 | Drives VCF bringup (temporary) |
@@ -96,7 +95,6 @@ See [Delivery Guide](deliver.md) for step-by-step deployment procedures with exa
 All lab VMs run inside a single vCloud Director vApp:
 
 - 1x Ubuntu jumpbox
-- 1x Arista vEOS router
 - 7x nested ESXi hosts
 - VCF management appliances (deployed during bringup onto nested ESXi)
 
@@ -107,7 +105,7 @@ All lab VMs run inside a single vCloud Director vApp:
 | vCD Public | Org VDC external/routed | Jumpbox external access (RDP, SSH) |
 | vCD Private | Org VDC internal (isolated) | All inter-VM communication, carries VCF VLANs as trunk |
 
-The vCD public network provides external reachability. The vCD private network is an isolated org VDC network that carries all internal lab traffic as a trunk — VLAN tagging is handled by the nested ESXi vSwitches and the Arista vEOS router.
+The vCD public network provides external reachability. The vCD private network is an isolated org VDC network that carries all internal lab traffic as a trunk — VLAN tagging is handled by the nested ESXi vSwitches and the jumpbox VLAN sub-interfaces.
 
 ### Design Decisions
 
@@ -126,15 +124,16 @@ The Ubuntu jumpbox is dual-homed:
 - **NIC1** (vCD public network): externally reachable via RDP/SSH
 - **NIC2** (vCD private network): connects to the internal lab fabric on the management VLAN
 
-All other lab VMs have a single NIC on the vCD private network. The jumpbox does not perform IP forwarding — it is not a router.
+All other lab VMs have a single NIC on the vCD private network. The jumpbox performs IP forwarding and inter-VLAN routing via VLAN sub-interfaces on ens192.
 
-### Arista vEOS Router
+### Jumpbox Routing (Quagga)
 
-The vEOS router sits on the vCD private network with a trunk port carrying all VCF VLANs. It provides:
+The jumpbox has a trunk interface (ens192, MTU 9000) on the vCD private network carrying all VCF VLANs via 802.1Q sub-interfaces. It provides:
 
-- **Inter-VLAN routing** between management, vMotion, and other VCF networks via SVIs
-- **BGP peering** with the NSX Tier-0 gateway for north-south routing from VPC workloads
+- **Inter-VLAN routing** between management, vMotion, and other VCF networks via VLAN sub-interfaces
+- **BGP peering** with the NSX Tier-0 gateway for north-south routing from VPC workloads (via Quagga)
 - **Default gateway** for nested ESXi management interfaces
+- **NAT** for outbound internet access via iptables masquerade on ens160
 
 ### VLAN Segmentation Strategy
 
@@ -147,7 +146,7 @@ Six VLANs segment traffic by function, each on its own /24 subnet:
 | 30 | vSAN | vSAN storage traffic | Jumbo |
 | 40 | Host Overlay | NSX host transport endpoint tunnels | Jumbo |
 | 50 | Edge Overlay | NSX Edge TEP tunnels | Jumbo |
-| 60 | Edge Uplink | NSX Tier-0 ↔ Arista vEOS BGP peering | Standard |
+| 60 | Edge Uplink | NSX Tier-0 ↔ Jumpbox BGP peering | Standard |
 
 ### MTU Strategy
 
@@ -164,7 +163,7 @@ The jumpbox runs dnsmasq, authoritative for the `lab.dreamfold.dev` zone. Unknow
 | Req. | Decision ID | Design Decision | Design Justification | Risk / Mitigation |
 |------|-------------|-----------------|----------------------|-------------------|
 | R-002 | NET-01 | Dual-homed jumpbox provides the only external entry point | Single ingress point simplifies security and avoids exposing VCF management interfaces directly | Risk: Jumpbox outage removes all external access. Mitigation: Acceptable for lab; vCD console access remains available |
-| R-006 | NET-02 | Arista vEOS provides inter-VLAN routing and BGP peering | Purpose-built network OS provides production-grade routing features (BGP, SVIs, ACLs) in a VM form factor | Risk: vEOS licensing may be required. Mitigation: Lab/evaluation licence available from Arista |
+| R-006 | NET-02 | Jumpbox provides inter-VLAN routing (VLAN sub-interfaces) and BGP peering (Quagga) | Consolidates routing onto the jumpbox — eliminates a separate router VM, saves 2 vCPU / 4 GB RAM, removes Arista licence dependency | Risk: Quagga is less feature-rich than a dedicated network OS. Mitigation: Only basic L3 routing and BGP needed for lab |
 | R-004 | NET-03 | Six VLANs segment traffic by function | Matches VCF reference architecture VLAN model — management, vMotion, vSAN, host TEP, edge TEP, edge uplink | Risk: Over-segmentation for a lab. Mitigation: Required by VCF — cannot reduce without breaking bringup |
 | R-004 | NET-04 | Jumbo frames (MTU 9000) for overlay and storage VLANs | Required for NSX Geneve encapsulation overhead and optimal vSAN performance | Risk: vCD private network must support MTU 9000. Mitigation: Verify provider portgroup MTU before deployment |
 | R-003 | NET-05 | dnsmasq on jumpbox provides authoritative DNS for lab.dreamfold.dev | Lightweight, simple configuration, dual-homed jumpbox can forward to upstream DNS | Risk: Single DNS server — no redundancy. Mitigation: Acceptable for lab; dnsmasq restarts quickly |
@@ -173,7 +172,7 @@ The jumpbox runs dnsmasq, authoritative for the `lab.dreamfold.dev` zone. Unknow
 
 All infrastructure services (DNS, NTP, CA, secrets, identity) run on the Ubuntu jumpbox.
 
-**Rationale**: The jumpbox sits on the management VLAN (10.0.10.2), reachable by all internal VMs. It uses the vEOS router (10.0.10.1) as its default gateway for upstream DNS forwarding and NTP synchronisation. Running all services on one VM minimises resource consumption and component count.
+**Rationale**: The jumpbox sits on the management VLAN (10.0.10.1), reachable by all internal VMs. Running all services on one VM minimises resource consumption and component count.
 
 | Service | Technology | Role |
 |---------|------------|------|
@@ -183,8 +182,6 @@ All infrastructure services (DNS, NTP, CA, secrets, identity) run on the Ubuntu 
 | CA | step-ca | ACME-capable CA for TLS certs across VCF components |
 | Secrets | 1Password (operator laptop) | Credentials retrieved via `community.general.onepassword` lookup plugin |
 | OIDC | Keycloak (Docker) | Centralised identity provider for vCenter and NSX Manager (HTTPS, port 8443) |
-
-The Arista vEOS router (10.0.10.1) also serves as a secondary NTP source. VCF validation requires two NTP servers — the jumpbox chrony (primary) and vEOS NTP (secondary) satisfy this requirement.
 
 The CA root certificate must be distributed to ESXi hosts and management appliances during deployment.
 
@@ -206,11 +203,11 @@ Items in the VKS Lab vault:
 
 | Req. | Decision ID | Design Decision | Design Justification | Risk / Mitigation |
 |------|-------------|-----------------|----------------------|-------------------|
-| R-003 | SVC-01 | All infrastructure services (DNS, NTP, CA, DHCP, secrets) co-located on the jumpbox | Minimises VM count; jumpbox on management VLAN is reachable by all internal VMs; upstream access via vEOS NAT | Risk: Jumpbox overloaded or single point of failure. Mitigation: Services are lightweight; lab-grade availability is acceptable |
+| R-003 | SVC-01 | All infrastructure services (DNS, NTP, CA, DHCP, secrets) co-located on the jumpbox | Minimises VM count; jumpbox on management VLAN is reachable by all internal VMs; upstream access via iptables masquerade on public NIC | Risk: Jumpbox overloaded or single point of failure. Mitigation: Services are lightweight; lab-grade availability is acceptable |
 | R-009 | SVC-02 | step-ca provides ACME-capable CA for TLS certificates | Automated certificate issuance via ACME protocol; avoids manual certificate management | Risk: Root CA compromise affects all lab TLS. Mitigation: Lab-only CA — no production trust chain |
 | R-003 | SVC-03 | chrony as NTP server syncing to public pools | Provides accurate time source for VCF components; stratum 2 sufficient for lab | Risk: Upstream NTP unreachable from nested environment. Mitigation: chrony maintains local time accuracy during short outages |
 | R-003 | SVC-04 | dnsmasq DHCP with static MAC→IP reservations for ESXi hosts | Eliminates manual IP configuration during ESXi deployment; hosts receive correct IP on first boot | Risk: MAC address mismatch prevents DHCP lease. Mitigation: Verify MAC assignments in vCD before first boot |
-| R-003 | SVC-05 | vEOS as secondary NTP server (10.0.10.1) alongside jumpbox chrony (10.0.10.2) | VCF validation requires two NTP sources; vEOS provides a second time source with minimal additional configuration | Risk: vEOS NTP accuracy depends on upstream sync via Ethernet2. Mitigation: vEOS syncs to public NTP pools directly |
+| R-003 | SVC-05 | Single NTP server on jumpbox (10.0.10.1) | Jumpbox chrony syncs to ntp.broadcom.net upstream and serves time to all lab VMs; VCF validation may require a second NTP entry — use ntp.broadcom.net as fallback if needed | Risk: Single NTP server — no local redundancy. Mitigation: chrony maintains local time accuracy during short upstream outages |
 | R-002 | SVC-06 | 1Password as centralised secret store for lab credentials | Leverages existing 1Password subscription on operator laptop; `community.general.onepassword` Ansible lookup plugin; no in-lab infrastructure required | Risk: Requires 1Password CLI and active session on operator laptop. Mitigation: `op signin` before running playbooks |
 
 ### Identity and Access Management
@@ -426,20 +423,20 @@ The Tier-0 gateway operates in **Active-Standby** mode across the two Edge VMs. 
 
 1. Active Edge fails → BFD detects failure (~500ms)
 2. Standby Edge promotes to active (~2-4s)
-3. New active Edge re-establishes the BGP session with vEOS on VLAN 60
-4. BGP hold timer (180s) on vEOS determines when stale routes are withdrawn
+3. New active Edge re-establishes the BGP session with the jumpbox (Quagga) on VLAN 60
+4. BGP hold timer (180s) on the jumpbox determines when stale routes are withdrawn
 5. New BGP session establishes, routes are re-exchanged
 
 **Expected convergence time**: In a nested lab environment, expect 30-60 seconds for full north-south traffic restoration. This includes BFD detection (~0.5s), Edge promotion (~2-4s), and BGP session re-establishment (variable, up to the hold timer). The BGP hold timer (180s) is the worst case for route withdrawal if the session never re-establishes.
 
-**Graceful restart**: NSX supports BGP graceful restart, which allows the new active Edge to signal the peer (vEOS) that it is restarting BGP. vEOS retains stale routes during the restart window rather than immediately withdrawing them, reducing traffic disruption.
+**Graceful restart**: NSX supports BGP graceful restart, which allows the new active Edge to signal the peer (jumpbox Quagga) that it is restarting BGP. Quagga retains stale routes during the restart window rather than immediately withdrawing them, reducing traffic disruption.
 
 ### Gateway Hierarchy
 
 ```
 NSX Tier-0 Gateway (Active-Standby)
     │
-    ├── BGP peering with Arista vEOS
+    ├── BGP peering with jumpbox (Quagga)
     │   (external connectivity)
     │
     └── NSX Tier-1 Gateway
@@ -451,21 +448,21 @@ NSX Tier-0 Gateway (Active-Standby)
                     └── VKS pod and service networks
 ```
 
-- **Tier-0**: Active-Standby HA mode, BGP uplink to vEOS, source NAT for outbound traffic
+- **Tier-0**: Active-Standby HA mode, BGP uplink to jumpbox (Quagga), source NAT for outbound traffic
 - **Tier-1**: Linked to Tier-0, advertises connected subnets, hosts NSX LB for Kubernetes services
 - **VPC**: Centralised connectivity model — all north-south traffic traverses the Edge cluster
 
 ### BGP Design
 
-| Parameter | vEOS | NSX Tier-0 |
+| Parameter | Jumpbox (Quagga) | NSX Tier-0 |
 |-----------|------|------------|
 | ASN | 65000 | 65001 |
 | Router ID | 10.0.60.1 | 10.0.60.2 |
-| Role | External peer | Internal peer |
+| Role | External peer (Quagga) | Internal peer |
 | Keepalive / Hold | 60s / 180s | 60s / 180s |
 | Advertisements | Connected subnets (all VLANs) | VPC/overlay prefixes |
 
-BGP provides dynamic route exchange: vEOS advertises lab infrastructure subnets to NSX, and NSX advertises VPC/overlay prefixes back. This gives VKS workloads a routed path out through the Edge cluster → Tier-0 → vEOS → jumpbox.
+BGP provides dynamic route exchange: the jumpbox advertises lab infrastructure subnets to NSX, and NSX advertises VPC/overlay prefixes back. This gives VKS workloads a routed path out through the Edge cluster → Tier-0 → jumpbox.
 
 **Timer selection**: Keepalive 60s / hold 180s (3× keepalive) are conservative values suited to a nested lab. Default BGP timers (60/180) provide tolerance for momentary delays caused by nested virtualisation overhead, vSAN latency spikes, or Edge VM resource contention. More aggressive timers (e.g., 10/30) would detect failures faster but risk false positives in a resource-constrained nested environment.
 
@@ -474,7 +471,7 @@ BGP provides dynamic route exchange: vEOS advertises lab infrastructure subnets 
 NSX VPC provides project-level network isolation for VKS workloads:
 
 - **Connectivity**: Centralised (via Edge cluster) — not distributed
-- **External connectivity**: Via Tier-0 BGP to vEOS
+- **External connectivity**: Via Tier-0 BGP to jumpbox
 - **Subnets**: Created dynamically by VKS for pod and service networks
 - **NAT**: Source NAT on Tier-0 for outbound traffic
 - **Load balancing**: NSX LB via Tier-1 for Kubernetes services
@@ -490,9 +487,9 @@ SNAT on the Tier-0 gateway translates outbound VPC traffic so that external netw
 | Applied on | Tier-0 gateway |
 | Direction | Outbound (egress from VPC to external) |
 
-**Why SNAT is required**: VPC pod and service CIDRs (192.168.0.0/16, 10.96.0.0/12) are internal overlay addresses. External networks (vEOS, jumpbox, internet) cannot route return traffic to these addresses directly. SNAT translates the source to 10.0.60.2, which vEOS knows how to reach via the directly connected VLAN 60 subnet. Return traffic is reverse-NATted by the Tier-0 back to the original pod/service IP.
+**Why SNAT is required**: VPC pod and service CIDRs (192.168.0.0/16, 10.96.0.0/12) are internal overlay addresses. External networks (jumpbox, internet) cannot route return traffic to these addresses directly. SNAT translates the source to 10.0.60.2, which the jumpbox knows how to reach via the directly connected VLAN 60 sub-interface. Return traffic is reverse-NATted by the Tier-0 back to the original pod/service IP.
 
-**Inbound traffic** to Kubernetes services uses NSX Load Balancer VIPs on the Tier-1 gateway. The LB VIP is a routable address advertised via Tier-1 → Tier-0 → BGP to vEOS, so inbound traffic does not require DNAT rules on the Tier-0. of type LoadBalancer
+**Inbound traffic** to Kubernetes services uses NSX Load Balancer VIPs on the Tier-1 gateway. The LB VIP is a routable address advertised via Tier-1 → Tier-0 → BGP to the jumpbox, so inbound traffic does not require DNAT rules on the Tier-0.
 
 ### Route Redistribution Chain
 
@@ -507,9 +504,9 @@ Tier-1 Gateway
   ▼
 Tier-0 Gateway
   │  Route redistribution: connected, static, NAT
-  │  BGP advertisement to vEOS
+  │  BGP advertisement to jumpbox
   ▼
-Arista vEOS (ASN 65000)
+Jumpbox / Quagga (ASN 65000)
   │  Receives VPC prefixes via BGP
   │  Redistributes connected subnets back to NSX
   ▼
@@ -533,7 +530,7 @@ Infrastructure VLANs (10.0.10–60.0/24)
 | NAT IPs | Enabled | Redistributes SNAT translated IPs |
 | Tier-1 Connected | Enabled | Redistributes Tier-1 advertised routes into BGP |
 
-**vEOS route redistribution**: The vEOS BGP configuration uses `redistribute connected` to advertise all SVI subnets (VLANs 10–60) to the NSX Tier-0. This gives the Tier-0 reachability to the infrastructure VLANs without requiring static routes.
+**Jumpbox route redistribution**: The Quagga BGP configuration uses `redistribute connected` to advertise all VLAN sub-interface subnets (VLANs 10–60) to the NSX Tier-0. This gives the Tier-0 reachability to the infrastructure VLANs without requiring static routes.
 
 ### End-to-End Traffic Flow
 
@@ -549,13 +546,10 @@ Infrastructure VLANs (10.0.10–60.0/24)
 3. Tier-1 gateway routes to Tier-0 (connected subnet → parent gateway)
    │
    ▼ SNAT: source 192.168.x.x → 10.0.60.2
-4. Tier-0 gateway forwards via uplink on VLAN 60 to next-hop 10.0.60.1 (vEOS)
+4. Tier-0 gateway forwards via uplink on VLAN 60 to next-hop 10.0.60.1 (jumpbox)
    │
-   ▼ Standard L3 routing
-5. vEOS routes to default gateway 10.0.10.2 (jumpbox) via VLAN 10
-   │
-   ▼ NAT: source 10.0.x.x → jumpbox public IP (ip nat source list LAB-INTERNAL)
-6. Jumpbox forwards via ens160 (public NIC) → internet
+   ▼ NAT: source 10.0.x.x → jumpbox public IP (iptables masquerade)
+5. Jumpbox masquerades source IP via iptables and forwards via ens160 (public NIC) → internet
 ```
 
 #### North-South: Internet → Pod (Ingress via LoadBalancer)
@@ -564,10 +558,10 @@ Infrastructure VLANs (10.0.10–60.0/24)
 1. External client connects to Kubernetes LoadBalancer VIP (routable address)
    │
    ▼ Traffic arrives at jumpbox public NIC (if from internet)
-2. Jumpbox routes to VIP via vEOS (10.0.10.1 is jumpbox gateway for 10.0.0.0/16)
+2. Jumpbox routes to VIP via jumpbox (connected route for 10.0.60.0/24)
    │
-   ▼ vEOS has BGP route for VIP → next-hop 10.0.60.2
-3. vEOS forwards to Tier-0 uplink (10.0.60.2) on VLAN 60
+   ▼ Jumpbox has BGP route (Quagga) for VIP → next-hop 10.0.60.2
+3. Jumpbox forwards to Tier-0 uplink (10.0.60.2) on VLAN 60
    │
    ▼ Standard L3 routing
 4. Tier-0 forwards to Tier-1 (VIP is Tier-1 LB address)
@@ -586,15 +580,15 @@ Infrastructure VLANs (10.0.10–60.0/24)
 | Pod → ESXi host | Container networking (VPC overlay) | Pod-to-pod within same host is local |
 | ESXi host → Edge VM | Geneve tunnel (VLAN 40 → VLAN 50) | NSX overlay, MTU 9000 required |
 | Edge VM → Tier-0 uplink | Standard Ethernet (VLAN 60) | Geneve decapsulated at Edge; MTU 1500 |
-| Tier-0 uplink → vEOS | Standard Ethernet (VLAN 60) | Routed L3, no encapsulation |
-| vEOS → Jumpbox | Standard Ethernet (VLAN 10) | NAT at jumpbox for internet-bound |
+| Tier-0 uplink → Jumpbox | Standard Ethernet (VLAN 60) | Routed L3, no encapsulation |
+| Jumpbox ens192.60 → ens160 | IP forwarding + iptables masquerade | NAT for internet-bound |
 
 ### Design Decisions
 
 | Req. | Decision ID | Design Decision | Design Justification | Risk / Mitigation |
 |------|-------------|-----------------|----------------------|-------------------|
 | R-006 | NSX-01 | Two-node NSX Edge cluster sized Large | Minimum for Active-Standby HA; Large sizing required for VKS workloads | Risk: Large Edges consume significant resources (8 vCPU, 32 GB each). Mitigation: Workload domain hosts sized accordingly |
-| R-006 | NSX-02 | Active-Standby Tier-0 with BGP uplink to vEOS (keepalive 60s, hold 180s) | Provides dynamic route exchange; vEOS advertises infrastructure subnets, NSX advertises VPC prefixes; conservative timers tolerate nested virtualisation overhead | Risk: BGP misconfiguration breaks north-south routing. Mitigation: Verify adjacency and route tables in Phase 5 |
+| R-006 | NSX-02 | Active-Standby Tier-0 with BGP uplink to jumpbox (Quagga) (keepalive 60s, hold 180s) | Provides dynamic route exchange; jumpbox advertises infrastructure subnets, NSX advertises VPC prefixes; conservative timers tolerate nested virtualisation overhead | Risk: BGP misconfiguration breaks north-south routing. Mitigation: Verify adjacency and route tables in Phase 5 |
 | R-008 | NSX-03 | Centralised VPC connectivity model (via Edge cluster) | All north-south traffic traverses Edge — simpler than distributed model for lab | Risk: Edge cluster becomes throughput bottleneck. Mitigation: Acceptable for lab traffic volumes |
 | R-008 | NSX-04 | Source NAT on Tier-0 for outbound VPC traffic | Simplifies return routing — external networks see traffic from Tier-0 uplink IP | Risk: NAT hides source IPs. Mitigation: Acceptable for lab; can add specific SNAT rules if needed |
 
@@ -610,7 +604,7 @@ A vSphere Namespace provides the tenancy boundary for VKS. It defines the allowe
 
 ### Content Library
 
-A subscribed content library provides Kubernetes release images (VKr — VMware Kubernetes releases). The library syncs from VMware's public endpoint. Internet access from the nested environment is required (routed via vEOS → jumpbox → vCD public network).
+A subscribed content library provides Kubernetes release images (VKr — VMware Kubernetes releases). The library syncs from VMware's public endpoint. Internet access from the nested environment is required (routed via jumpbox → vCD public network).
 
 ### VKS Cluster Topology
 
@@ -669,5 +663,5 @@ Worker Node → Pod mount
 |------|-------------|-----------------|----------------------|-------------------|
 | R-005 | VKS-01 | Supervisor enabled on workload domain cluster with NSX networking | Required for VKS; NSX provides pod networking via VPC | Risk: Supervisor enablement requires stable NSX and vSAN. Mitigation: Validate both before enabling Supervisor |
 | R-005 | VKS-02 | 3 control plane + 3 worker nodes for VKS cluster | HA control plane with 3 workers provides realistic cluster topology | Risk: 6 VMs consume significant workload domain resources. Mitigation: Use best-effort-medium VM class (2 vCPU, 8 GB) |
-| R-005 | VKS-03 | Subscribed content library for VKr images | Automatic sync of Kubernetes release images from VMware | Risk: Requires internet access from nested environment. Mitigation: Route via vEOS → jumpbox → vCD public network |
+| R-005 | VKS-03 | Subscribed content library for VKr images | Automatic sync of Kubernetes release images from VMware | Risk: Requires internet access from nested environment. Mitigation: Route via jumpbox → vCD public network |
 | C-004 | VKS-04 | best-effort-medium VM class for VKS nodes | Balances resource use against lab constraints | Risk: Insufficient resources for complex workloads. Mitigation: Scale VM class up if needed; monitor resource utilisation |

@@ -18,7 +18,7 @@ date: "March 2026"
 | 30 | vSAN | 10.0.30.0/24 | vSAN storage traffic | 9000 |
 | 40 | Host Overlay (TEP) | 10.0.40.0/24 | NSX host transport endpoint tunnels | 9000 |
 | 50 | Edge Overlay | 10.0.50.0/24 | NSX Edge TEP tunnels | 9000 |
-| 60 | Edge Uplink | 10.0.60.0/24 | NSX Tier-0 ↔ Arista vEOS BGP peering | 1500 |
+| 60 | Edge Uplink | 10.0.60.0/24 | NSX Tier-0 ↔ Jumpbox BGP peering | 1500 |
 
 ## 2. IP Addressing Scheme
 
@@ -26,8 +26,7 @@ date: "March 2026"
 
 | IP Address | Hostname | Role |
 |------------|----------|------|
-| 10.0.10.1 | gateway | Arista vEOS SVI (default gateway) |
-| 10.0.10.2 | jumpbox | Ubuntu jumpbox (NIC2) |
+| 10.0.10.1 | jumpbox | Jumpbox VLAN 10 sub-interface (default gateway) |
 | 10.0.10.3 | vcf-installer | VCF Installer appliance |
 | 10.0.10.4 | vcenter-mgmt | vCenter Server (management) |
 | 10.0.10.5 | sddc-manager | SDDC Manager |
@@ -76,7 +75,7 @@ date: "March 2026"
 
 | IP Address | Role |
 |------------|------|
-| 10.0.60.1 | Arista vEOS (BGP neighbor) |
+| 10.0.60.1 | Jumpbox ens192.60 (BGP neighbor) |
 | 10.0.60.2 | NSX Tier-0 uplink interface |
 
 ## 3. Ubuntu Jumpbox Specification
@@ -91,15 +90,22 @@ date: "March 2026"
 | RAM | 10 GB |
 | Disk | 60 GB |
 | NIC1 | vCD public network (DHCP or static from vCD) |
-| NIC2 | vCD private network — VLAN 10 (management), IP 10.0.10.2 |
+| NIC2 | vCD private network — 802.1Q trunk (MTU 9000), VLAN sub-interfaces |
 
 ### Network Configuration
 
 See [Delivery Guide](deliver.md) for netplan configuration. Key parameters:
 
 - NIC1 (ens160): vCD public network, DHCP
-- NIC2 (ens192): vCD private network, static 10.0.10.2/24, gateway 10.0.10.1
-- IP forwarding disabled — jumpbox is not a router
+- NIC2 (ens192): vCD private network, 802.1Q trunk (MTU 9000)
+  - ens192.10: 10.0.10.1/24 (Management, MTU 1500)
+  - ens192.20: 10.0.20.1/24 (vMotion, MTU 9000)
+  - ens192.30: 10.0.30.1/24 (vSAN, MTU 9000)
+  - ens192.40: 10.0.40.1/24 (Host Overlay, MTU 9000)
+  - ens192.50: 10.0.50.1/24 (Edge Overlay, MTU 9000)
+  - ens192.60: 10.0.60.1/24 (Edge Uplink / BGP, MTU 1500)
+- IP forwarding enabled — jumpbox is the inter-VLAN router
+- Quagga provides BGP peering with NSX Tier-0
 
 ### Services Configuration
 
@@ -111,10 +117,11 @@ See [Delivery Guide](deliver.md) for netplan configuration. Key parameters:
 | CA | step-ca | Root CA for `lab.dreamfold.dev`, ACME enabled |
 | OIDC | Keycloak (Docker) | Port 8443, centralised identity provider for vCenter and NSX |
 | Secrets | 1Password (operator laptop) | `community.general.onepassword` lookup plugin via 1Password CLI |
+| Routing | Quagga (zebra + bgpd) | Inter-VLAN routing, BGP peering with NSX Tier-0 (ASN 65000) |
 | Remote access | xrdp | Listening on port 3389 (NIC1) |
 | Web browser | Firefox | Access vCenter, NSX Manager, SDDC Manager UIs |
 
-All VCF components point to 10.0.10.2 for DNS and NTP. The CA root certificate is distributed to ESXi hosts and management appliances during deployment.
+All VCF components point to 10.0.10.1 for DNS and NTP. The CA root certificate is distributed to ESXi hosts and management appliances during deployment.
 
 ### DHCP Reservations (VLAN 10)
 
@@ -131,31 +138,6 @@ ESXi hosts receive their management IP via DHCP with static MAC→IP reservation
 | 00:50:56:xx:xx:07 | esxi-07 | 10.0.10.17 |
 
 > Replace `xx:xx` placeholders with actual MAC addresses from vCD after VM creation.
-
-## 4. Arista vEOS Router Specification
-
-> Implements NET-02 (vEOS inter-VLAN routing and BGP peering) and SVC-05 (secondary NTP). See [Logical Design](logical-design.md) Section 3.
-
-| Resource | Value |
-|----------|-------|
-| Image | Arista vEOS 4.32.x |
-| vCPU | 2 |
-| RAM | 4 GB |
-| Disk | 8 GB |
-| NIC | vCD private network (trunk, all VLANs) |
-
-See [Delivery Guide](deliver.md) for complete vEOS startup-config including interface, NTP, and BGP configuration.
-
-| Parameter | Value |
-|-----------|-------|
-| vEOS ASN | 65000 |
-| NSX Tier-0 ASN | 65001 |
-| Peering subnet | 10.0.60.0/24 |
-| NTP server | Secondary NTP source (10.0.10.1) for VCF validation |
-
-BGP advertises all connected subnets to NSX, and receives VPC/overlay prefixes from the Tier-0. This gives VKS workloads a routed path out through the vEOS to the jumpbox and beyond.
-
-vEOS also serves as a secondary NTP source. VCF validation requires two NTP servers — jumpbox chrony (10.0.10.2) is primary and vEOS (10.0.10.1) is secondary.
 
 ## 5. Nested ESXi Host Specification
 
@@ -298,7 +280,7 @@ Edge VMs are sized as **Large** (8 vCPU, 32 GB RAM) to support VKS workloads.
 | Edge Cluster | workload-edge-cluster |
 | Uplink Interface | 10.0.60.2/24 on VLAN 60 |
 | BGP ASN | 65001 |
-| BGP Neighbor | 10.0.60.1 (Arista vEOS, ASN 65000) |
+| BGP Neighbor | 10.0.60.1 (Jumpbox Quagga, ASN 65000) |
 
 ### Tier-1 Gateway Settings
 
@@ -314,7 +296,7 @@ Edge VMs are sized as **Large** (8 vCPU, 32 GB RAM) to support VKS workloads.
 |---------|-------|
 | VPC Name | vks-vpc |
 | Connectivity | Centralised (via Edge cluster) |
-| External Connectivity | Via Tier-0 BGP to vEOS |
+| External Connectivity | Via Tier-0 BGP to jumpbox |
 | Subnets | Created dynamically by VKS for pod and service networks |
 | NAT | Source NAT on Tier-0 for outbound traffic |
 | Load Balancing | NSX LB via Tier-1 for Kubernetes services |
@@ -323,21 +305,21 @@ Edge VMs are sized as **Large** (8 vCPU, 32 GB RAM) to support VKS workloads.
 
 After NSX networking is configured and BGP is established, the following routes should be present.
 
-#### vEOS Route Table (`show ip route`)
+#### Jumpbox Route Table (`ip route` / `vtysh -c 'show ip bgp'`)
 
 ```text
-Gateway of last resort:
- S     0.0.0.0/0 [1/0] via 10.0.10.2               ← default route to jumpbox
+default via <public-gw> dev ens160              ← internet via public NIC
 
- C     10.0.10.0/24 is directly connected, Vlan10   ← Management
- C     10.0.20.0/24 is directly connected, Vlan20   ← vMotion
- C     10.0.30.0/24 is directly connected, Vlan30   ← vSAN
- C     10.0.40.0/24 is directly connected, Vlan40   ← Host Overlay
- C     10.0.50.0/24 is directly connected, Vlan50   ← Edge Overlay
- C     10.0.60.0/24 is directly connected, Vlan60   ← Edge Uplink / BGP
+10.0.10.0/24 dev ens192.10 scope link           ← Management
+10.0.20.0/24 dev ens192.20 scope link           ← vMotion
+10.0.30.0/24 dev ens192.30 scope link           ← vSAN
+10.0.40.0/24 dev ens192.40 scope link           ← Host Overlay
+10.0.50.0/24 dev ens192.50 scope link           ← Edge Overlay
+10.0.60.0/24 dev ens192.60 scope link           ← Edge Uplink / BGP
 
- B E   192.168.0.0/16 [200/0] via 10.0.60.2         ← VKS pod CIDR (from NSX Tier-0)
- B E   10.96.0.0/12 [200/0] via 10.0.60.2           ← VKS service CIDR (from NSX Tier-0)
+# BGP routes (vtysh -c 'show ip bgp'):
+B>   192.168.0.0/16 [20/0] via 10.0.60.2           ← VKS pod CIDR (from NSX Tier-0)
+B>   10.96.0.0/12 [20/0] via 10.0.60.2             ← VKS service CIDR (from NSX Tier-0)
 ```
 
 > **Note**: The exact VPC/overlay prefixes received via BGP depend on which subnets the Supervisor and VKS cluster create. The pod CIDR (192.168.0.0/16) and service CIDR (10.96.0.0/12) are defined in the VKS cluster manifest. Additional /24 subnets may appear as VPC segments are created.
@@ -352,17 +334,17 @@ GET https://nsx-mgr-wld.lab.dreamfold.dev/policy/api/v1/infra/tier-0s/tier0-gate
 
 | Prefix | Next Hop | Type | Source |
 |--------|----------|------|--------|
-| 10.0.10.0/24 | 10.0.60.1 | BGP | vEOS (management) |
-| 10.0.20.0/24 | 10.0.60.1 | BGP | vEOS (vMotion) |
-| 10.0.30.0/24 | 10.0.60.1 | BGP | vEOS (vSAN) |
-| 10.0.40.0/24 | 10.0.60.1 | BGP | vEOS (host overlay) |
-| 10.0.50.0/24 | 10.0.60.1 | BGP | vEOS (edge overlay) |
+| 10.0.10.0/24 | 10.0.60.1 | BGP | Jumpbox (management) |
+| 10.0.20.0/24 | 10.0.60.1 | BGP | Jumpbox (vMotion) |
+| 10.0.30.0/24 | 10.0.60.1 | BGP | Jumpbox (vSAN) |
+| 10.0.40.0/24 | 10.0.60.1 | BGP | Jumpbox (host overlay) |
+| 10.0.50.0/24 | 10.0.60.1 | BGP | Jumpbox (edge overlay) |
 | 10.0.60.0/24 | — | Connected | Tier-0 uplink |
 | 192.168.x.0/24 | — | Connected | Tier-1 (VKS pod subnets) |
 | 10.96.x.0/24 | — | Connected | Tier-1 (VKS service subnets) |
-| 0.0.0.0/0 | 10.0.60.1 | Static | Default route to vEOS |
+| 0.0.0.0/0 | 10.0.60.1 | Static | Default route to jumpbox |
 
-> **Expected route count**: ~6 BGP routes from vEOS (one per VLAN SVI) plus connected/redistributed routes from Tier-1. The exact count depends on how many VPC subnets are created by the Supervisor and VKS.
+> **Expected route count**: ~6 BGP routes from jumpbox (one per VLAN SVI) plus connected/redistributed routes from Tier-1. The exact count depends on how many VPC subnets are created by the Supervisor and VKS.
 
 ## 9. VKS Cluster Specification
 
@@ -401,7 +383,7 @@ GET https://nsx-mgr-wld.lab.dreamfold.dev/policy/api/v1/infra/tier-0s/tier0-gate
 
 ### Content Library
 
-A subscribed content library provides Kubernetes release images (VKr). The library syncs from VMware's public endpoint. Internet access from the nested environment is required (routed via vEOS → jumpbox → vCD public network).
+A subscribed content library provides Kubernetes release images (VKr). The library syncs from VMware's public endpoint. Internet access from the nested environment is required (routed via jumpbox → vCD public network).
 
 ## 10. Resource Summary Tables
 
@@ -410,10 +392,9 @@ A subscribed content library provides Kubernetes release images (VKr). The libra
 | Component | vCPU | RAM (GB) | Storage (GB) |
 |-----------|------|----------|-------------|
 | Ubuntu Jumpbox | 2 | 10 | 60 |
-| Arista vEOS | 2 | 4 | 8 |
 | ESXi (Management, 4x) | 32 | 288 | 800 |
 | ESXi (Workload, 3x) | 24 | 216 | 600 |
-| **vCD Total** | **60** | **518** | **1,468** |
+| **vCD Total** | **58** | **514** | **1,460** |
 
 ### VCF Appliances (Nested, on ESXi)
 

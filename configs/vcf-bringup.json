@@ -2,12 +2,9 @@
   "_comment": "VCF Bringup Parameter Workbook — VKS Lab. Replace <CHANGE-ME> with actual values.",
   "dnsSpec": {
     "domain": "lab.dreamfold.dev",
-    "nameserver": "10.0.10.2"
+    "nameserver": "10.0.10.1"
   },
   "ntpServers": [
-    {
-      "ipAddress": "10.0.10.2"
-    },
     {
       "ipAddress": "10.0.10.1"
     }

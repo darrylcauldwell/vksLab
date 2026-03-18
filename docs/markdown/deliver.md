@@ -20,7 +20,7 @@ The lab is built in six sequential phases. Each phase depends on the successful 
 | 5 | NSX Networking | Phase 4 | 1-2 hours |
 | 6 | VKS | Phase 5 | 1-2 hours |
 
-**Phase 1** establishes the vApp, jumpbox (DNS, NTP, CA), and vEOS router with inter-VLAN routing. **Phase 2** deploys all seven nested ESXi hosts. **Phase 3** runs the VCF Installer to bring up the management domain (vCenter, SDDC Manager, NSX Manager, VCF Operations, VCF Automation). **Phase 4** commissions workload hosts and creates the workload domain. **Phase 5** deploys the NSX Edge cluster, configures Tier-0/Tier-1 gateways, establishes BGP peering, and creates the NSX VPC. **Phase 6** enables the Supervisor, creates a vSphere Namespace, and deploys a VKS cluster with a test workload.
+**Phase 1** establishes the vApp, jumpbox (DNS, NTP, CA, inter-VLAN routing, Quagga BGP). **Phase 2** deploys all seven nested ESXi hosts. **Phase 3** runs the VCF Installer to bring up the management domain (vCenter, SDDC Manager, NSX Manager, VCF Operations, VCF Automation). **Phase 4** commissions workload hosts and creates the workload domain. **Phase 5** deploys the NSX Edge cluster, configures Tier-0/Tier-1 gateways, establishes BGP peering, and creates the NSX VPC. **Phase 6** enables the Supervisor, creates a vSphere Namespace, and deploys a VKS cluster with a test workload.
 
 ## 2. Prerequisites
 
@@ -31,11 +31,11 @@ The following must be in place before starting Phase 1.
 | # | Prerequisite | Status |
 |---|-------------|--------|
 | 1 | vCD resources approved (60 vCPU, 512 GB RAM, 1.5 TB storage) | ☐ |
-| 2 | ISO images downloaded: Ubuntu 24.04 LTS, Arista vEOS 4.32.x, ESXi 9.0 | ☐ |
+| 2 | ISO images downloaded: Ubuntu 24.04 LTS, ESXi 9.0 | ☐ |
 | 3 | OVA images downloaded: VCF Installer | ☐ |
 | 4 | DNS zone `lab.dreamfold.dev` prepared (internal use only or delegated) | ☐ |
 | 5 | VLAN trunk configuration confirmed on vCD private network (MTU 9000 support) | ☐ |
-| 6 | Licences obtained: VCF, vSAN, NSX, Arista vEOS evaluation | ☐ |
+| 6 | Licences obtained: VCF, vSAN, NSX | ☐ |
 | 7 | VCF deployment parameter workbook prepared (JSON) | ☐ |
 | 8 | VCF depot access confirmed (online or offline bundles staged) | ☐ |
 | 9 | vCD org administrator credentials available | ☐ |
@@ -51,11 +51,10 @@ The following credentials must be prepared before deployment. Use consistent, do
 | 2 | vCenter SSO administrator password | vcenter-mgmt, vcenter-wld | administrator@vsphere.local |
 | 3 | SDDC Manager admin password | sddc-manager | Set during VCF bringup |
 | 4 | NSX Manager admin password | nsx-mgr-mgmt, nsx-mgr-wld | Set during VCF bringup |
-| 5 | vEOS admin password | veos-router | Set during initial configuration |
-| 6 | Jumpbox user password | jumpbox | Ubuntu user account |
-| 7 | step-ca provisioner password | jumpbox | Used for ACME certificate requests |
-| 8 | Keycloak admin password | jumpbox | Keycloak admin console access |
-| 9 | VCF deployment workbook passwords | VCF Installer | Embedded in the JSON parameter workbook |
+| 5 | Jumpbox user password | jumpbox | Ubuntu user account |
+| 6 | step-ca provisioner password | jumpbox | Used for ACME certificate requests |
+| 7 | Keycloak admin password | jumpbox | Keycloak admin console access |
+| 8 | VCF deployment workbook passwords | VCF Installer | Embedded in the JSON parameter workbook |
 
 ### 2.2 Assumptions Verification
 
@@ -65,7 +64,6 @@ Verify each assumption before proceeding to Phase 1. Cross-reference: [Conceptua
 |----|-----------|-------------------|----------|
 | A-001 | vCD supports nested virtualisation and jumbo frames (MTU 9000) | Deploy test VM; enable nested virt flag; ping with `-s 8972` across vCD private network | ☐ |
 | A-002 | Sufficient vCD resources (60 vCPU, 512 GB RAM, 1.5 TB storage) | Check vCD tenant portal → Organisation → Allocation | ☐ |
-| A-003 | Arista vEOS lab/eval licence available | Confirm licence obtained from Arista portal | ☐ |
 | A-004 | VCF depot access available (online or offline bundles) | Test connectivity to VMware depot URL or confirm offline bundles staged | ☐ |
 | A-005 | lab.dreamfold.dev DNS zone delegated or internal-only | Confirm zone delegation record exists or document internal-only usage | ☐ |
 
@@ -87,9 +85,9 @@ Verify each assumption before proceeding to Phase 1. Cross-reference: [Conceptua
 |------|--------|-----------------|--------------|
 | 3.2.1 | Deploy Ubuntu 24.04 VM (2 vCPU, 10 GB RAM, 60 GB disk) | VM powered on | VM accessible via vCD console |
 | 3.2.2 | Configure NIC1 (ens160) on public network | DHCP address obtained | `ip addr show ens160` shows IP |
-| 3.2.3 | Configure NIC2 (ens192) on private network, IP 10.0.10.2/24 | Static IP configured | `ping 10.0.10.2` from local |
+| 3.2.3 | Configure NIC2 (ens192) on private network as VLAN trunk (MTU 9000) | Static IP configured | `ping 10.0.10.1` from local |
 | 3.2.4 | Install XFCE desktop and xrdp | Remote desktop available | RDP connection on port 3389 |
-| 3.2.5 | Install and configure dnsmasq for lab.dreamfold.dev | DNS server running | `dig @10.0.10.2 jumpbox.lab.dreamfold.dev` |
+| 3.2.5 | Install and configure dnsmasq for lab.dreamfold.dev | DNS server running | `dig @10.0.10.1 jumpbox.lab.dreamfold.dev` |
 | 3.2.6 | Install and configure chrony | NTP server running | `chronyc sources` shows upstream |
 | 3.2.7 | Install and configure step-ca | CA running with ACME | `step ca health` returns ok |
 | 3.2.8 | Install Firefox for web management UIs | Browser available | Launch Firefox via RDP |
@@ -104,15 +102,40 @@ network:
     ens160:
       dhcp4: true
     ens192:
-      addresses:
-        - 10.0.10.2/24
-      routes:
-        - to: 10.0.0.0/16
-          via: 10.0.10.1
+      mtu: 9000
+  vlans:
+    ens192.10:
+      id: 10
+      link: ens192
+      addresses: [10.0.10.1/24]
       mtu: 1500
       nameservers:
-        addresses:
-          - 127.0.0.1
+        addresses: [127.0.0.1]
+    ens192.20:
+      id: 20
+      link: ens192
+      addresses: [10.0.20.1/24]
+      mtu: 9000
+    ens192.30:
+      id: 30
+      link: ens192
+      addresses: [10.0.30.1/24]
+      mtu: 9000
+    ens192.40:
+      id: 40
+      link: ens192
+      addresses: [10.0.40.1/24]
+      mtu: 9000
+    ens192.50:
+      id: 50
+      link: ens192
+      addresses: [10.0.50.1/24]
+      mtu: 9000
+    ens192.60:
+      id: 60
+      link: ens192
+      addresses: [10.0.60.1/24]
+      mtu: 1500
 ```
 
 Apply with `sudo netplan apply`.
@@ -123,10 +146,13 @@ Apply with `sudo netplan apply`.
 # /etc/dnsmasq.d/lab.conf
 domain=lab.dreamfold.dev
 local=/lab.dreamfold.dev/
+server=192.19.189.20
+server=192.19.189.10
+server=192.19.189.30
 
 # --- DNS Records ---
 # Infrastructure
-address=/jumpbox.lab.dreamfold.dev/10.0.10.2
+address=/jumpbox.lab.dreamfold.dev/10.0.10.1
 address=/vcf-installer.lab.dreamfold.dev/10.0.10.3
 address=/vcenter-mgmt.lab.dreamfold.dev/10.0.10.4
 address=/sddc-manager.lab.dreamfold.dev/10.0.10.5
@@ -150,8 +176,8 @@ address=/edge-02.lab.dreamfold.dev/10.0.10.21
 # --- DHCP on VLAN 10 (management) ---
 dhcp-range=10.0.10.100,10.0.10.199,255.255.255.0,12h
 dhcp-option=option:router,10.0.10.1
-dhcp-option=option:dns-server,10.0.10.2
-dhcp-option=option:ntp-server,10.0.10.2,10.0.10.1
+dhcp-option=option:dns-server,10.0.10.1
+dhcp-option=option:ntp-server,10.0.10.1
 
 # Static MAC→IP reservations (replace xx:xx with actual MACs from vCD)
 dhcp-host=00:50:56:xx:xx:01,esxi-01,10.0.10.11
@@ -167,7 +193,7 @@ dhcp-host=00:50:56:xx:xx:07,esxi-07,10.0.10.17
 
 ```ini
 # /etc/chrony/chrony.conf
-pool pool.ntp.org iburst
+pool ntp.broadcom.net iburst
 allow 10.0.0.0/16
 ```
 
@@ -212,12 +238,6 @@ sudo iptables -t nat -A POSTROUTING -s 10.0.0.0/16 -o ens160 -j MASQUERADE
 # Persist iptables rules
 sudo apt install -y iptables-persistent
 sudo netfilter-persistent save
-```
-
-The vEOS router must have a default route pointing to the jumpbox for internet-bound traffic:
-
-```text
-ip route 0.0.0.0/0 10.0.10.2
 ```
 
 | Verification | Command | Expected Result |
@@ -392,73 +412,17 @@ NSX Manager OIDC configuration parameters:
 | vCenter SSO login | Login to vCenter with Keycloak user | Dashboard loads |
 | NSX SSO login | Login to NSX Manager with Keycloak user | Dashboard loads |
 
-### 3.3 Deploy and Configure Arista vEOS
-
-| Step | Action | Expected Result | Verification |
-|------|--------|-----------------|--------------|
-| 3.3.1 | Deploy vEOS VM (2 vCPU, 4 GB RAM, 8 GB disk) | VM powered on | vEOS console accessible |
-| 3.3.2 | Connect NIC to vCD private network (trunk) | Trunk interface active | `show interfaces status` |
-| 3.3.3 | Configure management SVI (VLAN 10, 10.0.10.1/24) | SVI up | `ping 10.0.10.2` (jumpbox) |
-| 3.3.4 | Configure all SVIs (VLANs 20-60) | All SVIs up | `show ip interface brief` |
-| 3.3.5 | Configure IP routing | Inter-VLAN routing active | `show ip route` |
-
-#### vEOS startup-config
-
-See [`configs/veos-startup.cfg`](../../configs/veos-startup.cfg) for the complete configuration. Key excerpt:
-
-```text
-hostname veos-router
-!
-vlan 10,20,30,40,50,60
-!
-ntp server pool.ntp.org prefer
-ntp serve all
-!
-interface Ethernet1
-   switchport mode trunk
-   switchport trunk allowed vlan 10,20,30,40,50,60
-   mtu 9000
-!
-interface Vlan10
-   ip address 10.0.10.1/24
-   mtu 1500
-!
-interface Vlan20
-   ip address 10.0.20.1/24
-   mtu 9000
-!
-interface Vlan30
-   ip address 10.0.30.1/24
-   mtu 9000
-!
-interface Vlan40
-   ip address 10.0.40.1/24
-   mtu 9000
-!
-interface Vlan50
-   ip address 10.0.50.1/24
-   mtu 9000
-!
-interface Vlan60
-   ip address 10.0.60.1/24
-   mtu 1500
-!
-ip routing
-!
-ip route 0.0.0.0/0 10.0.10.2
-```
-
 ### 3.4 Foundation Verification
 
 | Check | Command / Method | Expected Result |
 |-------|------------------|-----------------|
 | Jumpbox external access | RDP to jumpbox public IP | Desktop accessible |
-| Jumpbox DNS | `dig @10.0.10.2 jumpbox.lab.dreamfold.dev` | Returns 10.0.10.2 |
+| Jumpbox DNS | `dig @10.0.10.1 jumpbox.lab.dreamfold.dev` | Returns 10.0.10.1 |
 | Jumpbox NTP | `chronyc sources` | Shows upstream servers |
 | Jumpbox CA | `step ca health` | Returns "ok" |
-| vEOS SVIs | `show ip interface brief` | All 6 SVIs up/up |
-| Jumpbox to vEOS | `ping 10.0.10.1` from jumpbox | Success |
-| Inter-VLAN routing | Create test hosts on different VLANs, ping across | Success |
+| VLAN sub-interfaces | `ip addr show ens192.10` on jumpbox | Shows 10.0.10.1 |
+| Inter-VLAN routing | `ping 10.0.20.1` from a host on VLAN 10 | Success |
+| Quagga BGP | `vtysh -c 'show ip bgp summary'` on jumpbox | Quagga running |
 
 ## 4. Phase 2 — Nested ESXi
 
@@ -499,7 +463,7 @@ The `prepare` command performs these steps on each host via SSH:
 
 1. Set hostname (`esxcli system hostname set`)
 2. Configure DNS server (`esxcli network ip dns server add`)
-3. Configure NTP servers — 10.0.10.2 (primary) and 10.0.10.1 (secondary)
+3. Configure NTP server — 10.0.10.1
 4. Set root password
 5. **vSAN ESA preparation**:
    - Set acceptance level to CommunitySupported (for mock VIB)
@@ -516,9 +480,9 @@ The `prepare` command performs these steps on each host via SSH:
 | Check | Command / Method | Expected Result |
 |-------|------------------|-----------------|
 | All hosts reachable | `ping 10.0.10.{11..17}` from jumpbox | All respond |
-| DNS resolution | `nslookup esxi-01.lab.dreamfold.dev 10.0.10.2` | Returns correct IP for all hosts |
-| Reverse DNS | `nslookup 10.0.10.11 10.0.10.2` | Returns esxi-01.lab.dreamfold.dev |
-| NTP sync | `esxcli system ntp get` on each host | Two NTP servers configured (10.0.10.2, 10.0.10.1) |
+| DNS resolution | `nslookup esxi-01.lab.dreamfold.dev 10.0.10.1` | Returns correct IP for all hosts |
+| Reverse DNS | `nslookup 10.0.10.11 10.0.10.1` | Returns esxi-01.lab.dreamfold.dev |
+| NTP sync | `esxcli system ntp get` on each host | NTP server configured (10.0.10.1) |
 | Time sync | Compare time across all hosts | Within 1 second |
 | vSAN ESA ready | `esxcli vsan storage list` on each host | NVMe device marked as SSD |
 | Mock VIB installed | `esxcli software vib list \| grep mock` | Mock HCL VIB present |
@@ -544,7 +508,7 @@ Verify all DNS records are configured in dnsmasq (done in Phase 1). Forward and 
 | Step | Action | Expected Result | Verification |
 |------|--------|-----------------|--------------|
 | 5.2.1 | Upload VCF Installer OVA to esxi-01 datastore | OVA available | Datastore browser shows file |
-| 5.2.2 | Deploy VCF Installer OVA with IP 10.0.10.3, GW 10.0.10.1, DNS 10.0.10.2 | Appliance deployed | VM powered on |
+| 5.2.2 | Deploy VCF Installer OVA with IP 10.0.10.3, GW 10.0.10.1, DNS 10.0.10.1 | Appliance deployed | VM powered on |
 | 5.2.3 | Wait for installer services to start (5-10 minutes) | Services ready | `https://vcf-installer.lab.dreamfold.dev` accessible |
 
 #### VCF Deployment Parameter Workbook
@@ -553,9 +517,8 @@ The VCF bringup requires a JSON parameter workbook. Key fields to configure:
 
 | Section | Parameter | Value |
 |---------|-----------|-------|
-| DNS / NTP | DNS server | 10.0.10.2 |
-| DNS / NTP | NTP server (primary) | 10.0.10.2 (jumpbox chrony) |
-| DNS / NTP | NTP server (secondary) | 10.0.10.1 (vEOS) |
+| DNS / NTP | DNS server | 10.0.10.1 |
+| DNS / NTP | NTP server | 10.0.10.1 (jumpbox chrony) |
 | DNS / NTP | Domain | lab.dreamfold.dev |
 | Management Network | Subnet | 10.0.10.0/24 |
 | Management Network | Gateway | 10.0.10.1 |
@@ -677,27 +640,26 @@ Refer to the VMware VCF documentation for the complete workbook JSON schema and 
 | 7.2.3 | Configure BGP: ASN 65001, neighbor 10.0.60.1 (ASN 65000), keepalive 60s, hold 180s | BGP configured | — |
 | 7.2.4 | Enable route redistribution (connected subnets, NAT) | Routes advertised | — |
 
-### 7.3 Configure BGP on vEOS
+### 7.3 Configure BGP on Jumpbox (Quagga)
 
 | Step | Action | Expected Result | Verification |
 |------|--------|-----------------|--------------|
-| 7.3.1 | SSH to vEOS or access console | CLI access | — |
-| 7.3.2 | Configure BGP (ASN 65000, neighbor 10.0.60.2, redistribute connected) | BGP configured | `show ip bgp summary` |
-| 7.3.3 | Verify BGP adjacency established | Session state: Established | `show ip bgp summary` shows Established |
-| 7.3.4 | Verify route exchange | Routes received from NSX | `show ip bgp` shows VPC prefixes |
+| 7.3.1 | SSH to jumpbox | CLI access | — |
+| 7.3.2 | Verify Quagga BGP configuration deployed by Ansible | BGP configured | `vtysh -c 'show ip bgp summary'` |
+| 7.3.3 | Verify BGP adjacency established | Session state: Established | `vtysh -c 'show ip bgp summary'` shows Established |
+| 7.3.4 | Verify route exchange | Routes received from NSX | `vtysh -c 'show ip bgp'` shows VPC prefixes |
 
-#### vEOS BGP configuration
+#### Jumpbox Quagga BGP configuration
 
 ```text
 router bgp 65000
-   router-id 10.0.60.1
-   timers bgp 60 180
-   neighbor 10.0.60.2 remote-as 65001
-   neighbor 10.0.60.2 description NSX-Tier0
-   !
-   address-family ipv4
-      neighbor 10.0.60.2 activate
-      redistribute connected
+ bgp router-id 10.0.60.1
+ timers bgp 60 180
+ neighbor 10.0.60.2 remote-as 65001
+ neighbor 10.0.60.2 description NSX-Tier0
+ address-family ipv4 unicast
+  neighbor 10.0.60.2 activate
+  redistribute connected
 ```
 
 > **BGP timers**: `timers bgp 60 180` sets keepalive to 60 seconds and hold time to 180 seconds (3× keepalive). These are conservative values suited to a nested lab where Edge VM reboots or vSAN latency spikes may briefly delay BGP keepalives. The NSX Tier-0 must be configured with matching timers (keepalive 60, hold 180) to avoid asymmetric dead-peer detection.
@@ -745,9 +707,9 @@ SNAT rule parameters:
 
 | Check | Command / Method | Expected Result |
 |-------|------------------|-----------------|
-| BGP adjacency | `show ip bgp summary` on vEOS | Established with 10.0.60.2 |
-| Routes from NSX | `show ip bgp` on vEOS | VPC/overlay prefixes received |
-| Routes from vEOS | NSX Manager → Networking → Tier-0 → Routing Table | Infrastructure subnets received |
+| BGP adjacency | `vtysh -c 'show ip bgp summary'` on jumpbox | Established with 10.0.60.2 |
+| Routes from NSX | `vtysh -c 'show ip bgp'` on jumpbox | VPC/overlay prefixes received |
+| Routes from jumpbox | NSX Manager → Networking → Tier-0 → Routing Table | Infrastructure subnets received |
 | Edge cluster health | NSX Manager → System → Fabric → Edge Clusters | Both Edges Up |
 | Tier-0 status | NSX Manager → Networking → Tier-0 Gateways | Realised, interfaces Up |
 | VPC status | NSX Manager → VPC overview | vks-vpc shows Realised |
@@ -911,11 +873,11 @@ Final verification checklist before the lab is considered operational.
 | # | Check | Method | Expected Result | Pass |
 |---|-------|--------|-----------------|------|
 | 1 | External RDP access | RDP to jumpbox public IP | Desktop loads | ☐ |
-| 2 | DNS forward resolution | `dig @10.0.10.2 vcenter-mgmt.lab.dreamfold.dev` | Returns 10.0.10.4 | ☐ |
-| 3 | DNS reverse resolution | `dig @10.0.10.2 -x 10.0.10.4` | Returns vcenter-mgmt.lab.dreamfold.dev | ☐ |
+| 2 | DNS forward resolution | `dig @10.0.10.1 vcenter-mgmt.lab.dreamfold.dev` | Returns 10.0.10.4 | ☐ |
+| 3 | DNS reverse resolution | `dig @10.0.10.1 -x 10.0.10.4` | Returns vcenter-mgmt.lab.dreamfold.dev | ☐ |
 | 4 | NTP synchronisation | `chronyc sources` on jumpbox | Upstream servers reachable | ☐ |
 | 5 | CA health | `step ca health` on jumpbox | Returns "ok" | ☐ |
-| 6 | Inter-VLAN routing | `ping 10.0.20.1` from jumpbox (via vEOS) | Success | ☐ |
+| 6 | Inter-VLAN routing | `ping 10.0.20.1` from an ESXi host | Success | ☐ |
 
 ### 9.2 VCF Platform
 
@@ -932,8 +894,8 @@ Final verification checklist before the lab is considered operational.
 
 | # | Check | Method | Expected Result | Pass |
 |---|-------|--------|-----------------|------|
-| 13 | BGP adjacency | `show ip bgp summary` on vEOS | Established | ☐ |
-| 14 | Route exchange | `show ip bgp` on vEOS | VPC prefixes received | ☐ |
+| 13 | BGP adjacency | `vtysh -c 'show ip bgp summary'` on jumpbox | Established | ☐ |
+| 14 | Route exchange | `vtysh -c 'show ip bgp'` on jumpbox | VPC prefixes received | ☐ |
 | 15 | Edge cluster health | NSX Manager → Edge Clusters | Both Edges Up | ☐ |
 | 16 | Tier-0 status | NSX Manager → Tier-0 Gateways | Realised | ☐ |
 | 17 | VPC status | NSX Manager → VPC | Realised | ☐ |
