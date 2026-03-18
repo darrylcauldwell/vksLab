@@ -101,6 +101,51 @@
     state: started
     enabled: true
 
+# SSH config for all lab hosts — `ssh esxi-01` just works
+- name: Create .ssh directory
+  become: true
+  ansible.builtin.file:
+    path: /home/ubuntu/.ssh
+    state: directory
+    owner: ubuntu
+    group: ubuntu
+    mode: "0700"
+
+- name: Deploy SSH config for lab hosts
+  become: true
+  ansible.builtin.template:
+    src: ssh_config.j2
+    dest: /home/ubuntu/.ssh/config
+    owner: ubuntu
+    group: ubuntu
+    mode: "0600"
+
+# kubectl for VKS cluster management in later phases
+- name: Add Kubernetes apt repository key
+  become: true
+  ansible.builtin.get_url:
+    url: https://pkgs.k8s.io/core:/stable:/v1.31/deb/Release.key
+    dest: /etc/apt/keyrings/kubernetes.asc
+    mode: "0644"
+
+- name: Add Kubernetes apt repository
+  become: true
+  ansible.builtin.copy:
+    content: |
+      Types: deb
+      URIs: https://pkgs.k8s.io/core:/stable:/v1.31/deb/
+      Suites: /
+      Signed-By: /etc/apt/keyrings/kubernetes.asc
+    dest: /etc/apt/sources.list.d/kubernetes.sources
+    mode: "0644"
+
+- name: Install kubectl
+  become: true
+  ansible.builtin.apt:
+    name: kubectl
+    state: present
+    update_cache: true
+
 # Conky displays lab environment info on the desktop (like BGInfo on Windows)
 - name: Deploy conky configuration
   become: true

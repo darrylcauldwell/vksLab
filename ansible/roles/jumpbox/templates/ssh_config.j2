@@ -1,0 +1,15 @@
+# ~/.ssh/config — managed by Ansible
+
+{% for record in jumpbox_dns_records %}
+{% if record.hostname != 'jumpbox' %}
+Host {{ record.hostname }}
+    HostName {{ record.ip }}
+{% if record.hostname.startswith('esxi') %}
+    User root
+{% endif %}
+    StrictHostKeyChecking no
+    UserKnownHostsFile /dev/null
+    LogLevel ERROR
+
+{% endif %}
+{% endfor %}
