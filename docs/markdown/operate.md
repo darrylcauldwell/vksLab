@@ -322,6 +322,25 @@ done
 | Routes withdrawn | Tier-0 uplink interface down | Check NSX Tier-0 uplink status; verify Edge TEP connectivity |
 | Frequent flaps | Hold/keepalive timers too aggressive | Increase BGP timers (hold: 180s, keepalive: 60s) |
 
+#### NSX Fabric and VPC Issues
+
+| Symptom | Possible Cause | Resolution |
+|---------|---------------|------------|
+| Transport node disconnected | Host TEP interface down | Check vmk3 (VLAN 40) on ESXi host; verify MTU 9000 end-to-end |
+| Transport node config not realised | NSX Manager communication failure | Restart nsx-proxy on ESXi host: `/etc/init.d/nsx-proxy restart` |
+| VPC subnet not reachable | Tier-1 route advertisement disabled | NSX Manager → Tier-1 → Route Advertisement: enable connected subnets |
+| VPC to external connectivity broken | Tier-0 uplink down or NAT rule missing | Check Tier-0 uplink interface status; verify SNAT rule exists |
+| Distributed firewall blocking traffic | Default DFW rule set to deny | NSX Manager → Security → Distributed Firewall: check default rule |
+
+#### Content Library Issues
+
+| Symptom | Possible Cause | Resolution |
+|---------|---------------|------------|
+| Content library sync failed | No internet access from vCenter | Verify NAT/masquerade on jumpbox; check vEOS default route to jumpbox |
+| Sync stuck at 0% | DNS resolution failure | Verify vCenter can resolve VMware CDN URLs via jumpbox DNS |
+| VKr images not appearing | Library not subscribed or sync incomplete | Check subscription URL in vCenter → Content Libraries; trigger manual sync |
+| Insufficient storage for sync | Datastore full | Check vSAN capacity; remove old/unused items from library |
+
 #### VKS Node Not Ready
 
 | Symptom | Possible Cause | Resolution |
@@ -424,6 +443,34 @@ show ip route
 
 ! Check logs
 show logging last 50
+```
+
+#### NSX
+
+```bash
+# Check transport node status (from NSX Manager API)
+curl -k -u admin:<password> https://nsx-mgr-wld.lab.dreamfold.dev/api/v1/transport-nodes/state
+
+# Check logical router status
+curl -k -u admin:<password> https://nsx-mgr-wld.lab.dreamfold.dev/api/v1/logical-routers/status
+
+# Check Tier-0 routing table
+# NSX Manager → Networking → Tier-0 → tier0-gateway → Routing Table
+
+# Check Tier-1 route advertisements
+# NSX Manager → Networking → Tier-1 → tier1-gateway → Route Advertisement
+
+# Check VPC status
+# NSX Manager → Networking → VPC → vks-vpc → Overview
+
+# Check Edge cluster status (from Edge VM CLI)
+nsxcli
+> get edge-cluster status
+
+# Check host transport node connectivity (from ESXi host)
+nsxcli
+> get logical-switches
+> get vtep-table
 ```
 
 #### VKS / Kubernetes
