@@ -260,6 +260,87 @@ Three nested ESXi hosts form the workload domain cluster. This is the minimum fo
 - Each host contributes one NVMe storage device to a single storage pool (no separate cache/capacity tiers)
 - Nested environments require a mock HCL VIB and NVMe devices marked as SSD
 
+#### Storage Policy: "vSAN Default"
+
+The default vSAN storage policy is applied to all VM home objects, VMDKs, and VKS PersistentVolumes unless overridden.
+
+| Setting | Value | Rationale |
+|---------|-------|-----------|
+| Failures to Tolerate (FTT) | 1 | Minimum for data protection; RAID-1 mirror across 2 hosts |
+| Failure Tolerance Method | RAID-1 (Mirroring) | Required at minimum host counts (3-4 hosts); RAID-5/6 requires ≥4 hosts and reduces write performance |
+| Stripe Width | 1 | Default; no performance benefit from wider stripes in nested environment |
+| Object Space Reservation | 0% (thin provisioning) | Maximises usable capacity in resource-constrained lab |
+| Deduplication and Compression | Enabled (ESA default) | ESA performs inline dedup and compression at the storage pool level; reduces consumed capacity |
+| Encryption at Rest | Disabled | Not required for lab; avoids KMS dependency and reduces CPU overhead |
+
+#### ESA vs OSA
+
+vSAN ESA (Express Storage Architecture) differs from the legacy OSA (Original Storage Architecture):
+
+| Aspect | ESA | OSA |
+|--------|-----|-----|
+| Storage tiers | Single pool (no cache/capacity split) | Separate cache and capacity tiers |
+| Dedup/compression | Always-on, inline, at pool level | Optional, per disk group |
+| Device type | NVMe only | SAS/SATA/NVMe with dedicated cache device |
+| Rebalancing | Operates on single pool — faster rebalance | Rebalances within disk groups, then across |
+| Snapshots | Native efficient snapshots (no chain limits) | Legacy redo-log chain (depth limits) |
+| Minimum vSAN version | vSAN 8+ / ESXi 8+ | All versions |
+
+ESA was chosen (ESX-03) because it is the VMware-recommended architecture for new vSAN deployments on vSAN 8+ and eliminates the complexity of cache/capacity tier management.
+
+#### vSAN Object Model and Data Placement
+
+vSAN stores VM data as **objects**. Each VMDK, VM home namespace, and swap file is a separate vSAN object. With FTT=1 RAID-1, each object is stored as two mirrored **components** placed on different hosts, plus a **witness** on a third host.
+
+```
+Object (e.g., VM disk.vmdk)
+  ├── Component (data replica) → Host A
+  ├── Component (data mirror) → Host B
+  └── Witness (metadata)      → Host C
+```
+
+**Quorum**: An object requires >50% of its votes to be accessible. With FTT=1 RAID-1 (2 data components + 1 witness = 3 votes), losing one host still leaves 2/3 votes — the object remains accessible. Losing two hosts drops below quorum and the object becomes inaccessible.
+
+**3-host workload domain impact**: With exactly 3 hosts and FTT=1, losing a single host means:
+- All objects remain accessible (2/3 quorum maintained)
+- vSAN enters a **degraded** state — objects are not fully protected (only one data copy remains)
+- vSAN cannot rebuild the missing components until the host returns or a new host is added
+- A second host failure before rebuild completes would cause data loss
+
+This is acceptable for a lab environment (C-004) where data is disposable and reproducible.
+
+#### Nested vSAN Performance Expectations
+
+Nested vSAN operates on virtual NVMe devices backed by the vCD provider's physical storage. Performance is fundamentally limited by:
+
+1. **Double virtualisation overhead** — I/O passes through the nested ESXi storage stack, then the outer ESXi/vCD stack
+2. **vCD provider storage backend** — IOPS and latency depend on the physical storage behind vCD (SAN, NFS, vSAN)
+3. **Shared trunk NIC** — vSAN traffic (VLAN 30) shares the single trunk vNIC with vMotion, TEP, and Edge traffic
+
+**Expected performance ranges** (highly variable by vCD provider):
+
+| Metric | Expected Range | Notes |
+|--------|---------------|-------|
+| Read latency | 2-10 ms | vs <1 ms on bare-metal vSAN |
+| Write latency | 5-20 ms | Higher due to FTT=1 synchronous mirror write |
+| Random 4K IOPS | 500-2,000 | vs 50,000+ on bare-metal NVMe vSAN |
+| Sequential throughput | 200-500 MB/s | Limited by trunk NIC bandwidth |
+
+**This is not suitable for performance benchmarking** (C-002, C-004). Nested vSAN provides functional storage for VCF operations and VKS workloads but performance metrics are not representative of production environments.
+
+#### Data Protection Boundary
+
+The lab's data protection model is deliberately simple:
+
+| Protection Layer | Method | Scope | Limitation |
+|-----------------|--------|-------|------------|
+| Entire lab state | vApp snapshot (VCD-03, R-010) | All VM disks + memory across entire vApp | All-or-nothing; cannot restore individual VMs or PVs |
+| vSAN object level | FTT=1 RAID-1 mirroring | Protects against single host failure | Does not protect against vSAN cluster-wide failure or logical corruption |
+| VKS PersistentVolume level | None | — | No PV-level backup, snapshot, or replication |
+| Application data level | None | — | No file-level backup for data within VKS pods |
+
+**There is no NFS server, no file-level backup infrastructure, and no PersistentVolume backup solution.** The lab is designed to be disposable (C-004). If future workloads require persistent data protection beyond vApp snapshots, consider adding Velero (Kubernetes backup) or an NFS server on the jumpbox for shared storage — but these are out of scope for the current design.
+
 ### Host Networking Model
 
 Each nested ESXi host has two virtual NICs:
@@ -540,6 +621,47 @@ The VKS cluster is deployed using the Cluster v1beta1 API:
 - **VM class**: Medium (balances resource use against lab constraints)
 - **Storage**: vSAN Default policy
 - **Networking**: NSX VPC subnet
+
+### Persistent Storage (vSphere CSI)
+
+VKS clusters use the **vSphere Container Storage Interface (CSI) driver** to provision PersistentVolumes from vSAN. The CSI driver is automatically installed when the Supervisor is enabled.
+
+**How it works**: When a pod requests a PersistentVolumeClaim (PVC), the CSI driver creates a First Class Disk (FCD) — an independent VMDK on the vSAN datastore — and attaches it to the worker node VM as a virtual disk. The Kubernetes kubelet then mounts the formatted volume into the pod.
+
+```
+PVC (Kubernetes)
+  │
+  ▼ CSI CreateVolume
+vSphere CSI Driver
+  │
+  ▼ CreateVolume → FCD (First Class Disk)
+vSAN Datastore
+  │
+  ▼ AttachVolume → vSCSI device on worker VM
+Worker Node → Pod mount
+```
+
+**StorageClass configuration**:
+
+| Parameter | Value | Purpose |
+|-----------|-------|---------|
+| provisioner | `csi.vsphere.vmware.com` | vSphere CSI driver |
+| storagePolicyName | `vsan-default-storage-policy` | Maps to vSAN Default policy (FTT=1 RAID-1) |
+| reclaimPolicy | `Delete` | PV is deleted when PVC is deleted (lab — no need to retain) |
+| volumeBindingMode | `WaitForFirstConsumer` | Delays volume creation until pod is scheduled (ensures correct host placement) |
+| allowVolumeExpansion | `true` | Permits online PV resize via PVC edit |
+
+**PersistentVolume lifecycle**:
+
+| Phase | Action | vSAN Impact |
+|-------|--------|-------------|
+| Provision | PVC created → CSI driver creates FCD on vSAN | New vSAN object (VMDK) with FTT=1 RAID-1 components |
+| Attach | Pod scheduled → FCD attached to worker node VM | vSCSI hot-add; vSAN serves I/O from local or remote component |
+| Use | Pod reads/writes the mounted volume | I/O traverses nested storage stack (pod → guest OS → nested ESXi → vCD) |
+| Detach | Pod deleted or rescheduled → FCD detached from VM | vSCSI hot-remove; FCD remains on vSAN |
+| Delete | PVC deleted with `reclaimPolicy: Delete` → FCD deleted | vSAN object removed; space reclaimed after dedup/compression cleanup |
+
+> **Note**: PersistentVolumes inherit vSAN data protection (FTT=1) but have **no backup or snapshot mechanism** beyond vApp snapshots. Deleting a PVC permanently removes the data. See [Data Protection Boundary](#data-protection-boundary) in Section 5.
 
 ### Design Decisions
 

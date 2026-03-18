@@ -204,6 +204,39 @@ vEOS also serves as a secondary NTP source. VCF validation requires two NTP serv
 - Each host: 1x 200 GB NVMe storage device in a single storage pool (no separate cache tier)
 - Nested ESXi preparation: NVMe devices marked as SSD, mock HCL VIB installed, FakeSCSIReservations enabled
 
+### vSAN Usable Capacity
+
+With FTT=1 RAID-1, each object is mirrored — raw capacity is halved for data protection. vSAN ESA also requires operational reserve for rebalancing and component rebuilds.
+
+> **Note on ESA slack space**: vSAN ESA does not require the 30% slack space reservation that OSA recommended. ESA's single-pool architecture with inline dedup/compression handles space management more efficiently. VMware recommends maintaining **~25% free space** for operational headroom — primarily for component rebuilds after host failure and temporary space during lifecycle operations. The 70% utilisation threshold in the scaling guidance (Section 10.1) reflects this.
+
+#### Management Domain Storage
+
+| Metric | Value | Calculation |
+|--------|-------|-------------|
+| Raw capacity | 800 GB | 4 hosts × 200 GB |
+| FTT=1 RAID-1 overhead | 50% | Mirror = 2× data |
+| Usable after RAID | ~400 GB | 800 GB ÷ 2 |
+| Operational reserve (25%) | ~100 GB | Rebalancing, rebuilds, lifecycle headroom |
+| Available for VM data | ~300 GB | After reserve |
+| Appliance allocation | ~1,100 GB (thin) | See Section 6 + resource table (thin-provisioned — actual consumption is 30-50% of allocated) |
+
+> Appliance disks are thin-provisioned. The allocated total far exceeds raw capacity, but actual vSAN consumption is much lower due to thin provisioning plus ESA inline dedup/compression. Monitor via vCenter → vSAN → Capacity.
+
+#### Workload Domain Storage
+
+| Metric | Value | Calculation |
+|--------|-------|-------------|
+| Raw capacity | 600 GB | 3 hosts × 200 GB |
+| FTT=1 RAID-1 overhead | 50% | Mirror = 2× data |
+| Usable after RAID | ~300 GB | 600 GB ÷ 2 |
+| Operational reserve (25%) | ~75 GB | Rebalancing, rebuilds |
+| Available for VM data | ~225 GB | After reserve |
+| Infrastructure allocation | ~800 GB (thin) | vCenter + NSX Mgr + 2× Edge + Supervisor CPs (thin-provisioned) |
+| Available for VKS PVs | ~50-100 GB | Depends on actual consumption after thin + dedup |
+
+> The workload domain is the tighter storage constraint. VKS PersistentVolumes compete with NSX Edge VMs and the Supervisor control plane for vSAN capacity. Monitor vSAN capacity utilisation closely — see [Operations Guide](operate.md) Section 5.
+
 ## 6. VCF Management Domain
 
 > Implements VCF-01 (domain separation), VCF-03 (VCF Ops/Auto in mgmt domain), VCF-04 (installer-driven bringup). See [Logical Design](logical-design.md) Section 6.

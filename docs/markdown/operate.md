@@ -432,9 +432,6 @@ done
 # Check host health
 esxcli system health status get
 
-# Check vSAN status
-esxcli vsan health cluster list
-
 # Check network connectivity
 vmkping -I vmk0 10.0.10.1    # Management gateway
 vmkping -I vmk2 10.0.30.1 -s 8972  # vSAN with jumbo frames
@@ -444,6 +441,62 @@ esxcli system ntp get
 
 # Check DNS
 nslookup vcenter-mgmt.lab.dreamfold.dev 10.0.10.2
+```
+
+#### vSAN (from ESXi host SSH)
+
+```bash
+# Cluster-wide health summary (run from any host in the cluster)
+esxcli vsan health cluster list
+
+# List vSAN storage devices and their status
+esxcli vsan storage list
+
+# Check vSAN disk group/pool status (ESA uses single pool)
+esxcli vsan debug disk list
+
+# Check vSAN network connectivity (vmk2 on VLAN 30)
+esxcli vsan network list
+
+# Check resync/rebalance status
+esxcli vsan debug resync summary
+
+# Check object health and placement
+esxcli vsan debug object health summary
+
+# Check dedup/compression savings (ESA)
+esxcli vsan debug disk stats get
+
+# Check FakeSCSIReservations (nested vSAN requirement)
+esxcli system settings advanced list -o /VSAN/FakeSCSIReservations
+```
+
+#### vSAN (from vCenter UI / API)
+
+```text
+# Capacity overview
+vCenter → Cluster → Monitor → vSAN → Capacity
+  - Used / Free / Total
+  - Dedup/compression savings ratio
+  - Object breakdown by type
+
+# Health deep-dive
+vCenter → Cluster → Monitor → vSAN → Health
+  - Network: vmk2 connectivity, multicast, MTU
+  - Storage: disk balance, component metadata health
+  - Cluster: host membership, object health
+
+# Object browser (inspect individual vSAN objects)
+vCenter → Cluster → Monitor → vSAN → Virtual Objects
+  - Shows FCDs (PersistentVolumes), VMDKs, VM home namespaces
+  - Component placement across hosts
+  - Compliance with storage policy (FTT=1)
+
+# Performance (latency, IOPS, throughput)
+vCenter → Cluster → Monitor → vSAN → Performance
+  - Cluster-level and per-host IOPS, throughput, latency
+  - Backend (disk) vs frontend (VM) latency split
+  - Congestion indicators
 ```
 
 #### vEOS

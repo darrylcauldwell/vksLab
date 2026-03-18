@@ -837,6 +837,34 @@ spec:
         value: vsan-default-storage-policy
 ```
 
+### 8.4a Verify StorageClass and PersistentVolume Provisioning
+
+The vSphere CSI driver is automatically installed when the Supervisor is enabled. Verify that the StorageClass is available and can provision PersistentVolumes from vSAN.
+
+| Step | Action | Expected Result | Verification |
+|------|--------|-----------------|--------------|
+| 8.4a.1 | Login to VKS cluster | Authenticated | `kubectl get nodes` shows 6 nodes |
+| 8.4a.2 | Verify StorageClass exists | StorageClass listed | `kubectl get storageclass` shows `vsan-default-storage-policy` |
+| 8.4a.3 | Create test PVC (1 Gi) | PVC bound | `kubectl get pvc` shows Bound |
+| 8.4a.4 | Verify PV created on vSAN | FCD visible | vCenter → Datastores → vSAN → Monitor → Virtual Objects |
+| 8.4a.5 | Delete test PVC | PVC and PV deleted | `kubectl get pv` shows no orphaned PVs |
+
+```yaml
+# Test PVC — apply, verify Bound, then delete
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: test-pvc
+spec:
+  accessModes: ["ReadWriteOnce"]
+  storageClassName: vsan-default-storage-policy
+  resources:
+    requests:
+      storage: 1Gi
+```
+
+> **StorageClass parameters**: The `vsan-default-storage-policy` StorageClass uses `csi.vsphere.vmware.com` as the provisioner, `reclaimPolicy: Delete`, and `volumeBindingMode: WaitForFirstConsumer`. PVs are backed by vSAN First Class Disks (FCDs) with FTT=1 RAID-1 data protection. See [Logical Design](logical-design.md) Section 8 for full CSI/PV architecture.
+
 ### 8.5 Deploy Test Workload
 
 | Step | Action | Expected Result | Verification |

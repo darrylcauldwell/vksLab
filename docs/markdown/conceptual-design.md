@@ -52,6 +52,8 @@ Demonstrate VMware Kubernetes Service (VKS) on VCF 9 with NSX VPC in a fully nes
 
 The lab is designed to be **disposable and reproducible**. The delivery guide enables a full rebuild from scratch; vApp snapshots provide a faster restore path for iterative experimentation. No traditional backup/replication infrastructure is required.
 
+**Data protection boundary**: vApp snapshots protect the entire lab state (all VM disks and memory) as a single unit. There is no file-level backup, no PersistentVolume-level snapshot or replication, and no NFS or shared storage for application data. vSAN FTT=1 RAID-1 protects against single host failure within a domain, but does not protect against cluster-wide failure, logical corruption, or accidental deletion of Kubernetes PersistentVolumes. Any workload with persistent data requirements beyond "disposable" should be treated as at-risk in this environment.
+
 ## 6. Constraints
 
 | ID    | Constraint |
