@@ -9,6 +9,8 @@ date: "March 2026"
 
 ## 1. VLAN & Subnet Table
 
+> Implements NET-03 (six-VLAN segmentation) and NET-04 (jumbo frames for overlay/storage). See [Logical Design](logical-design.md) Section 3.
+
 | VLAN ID | Name | Subnet | Purpose | MTU |
 |---------|------|--------|---------|-----|
 | 10 | Management | 10.0.10.0/24 | ESXi management, vCenter, SDDC Manager, NSX Manager | 1500 |
@@ -79,6 +81,8 @@ date: "March 2026"
 
 ## 3. Ubuntu Jumpbox Specification
 
+> Implements NET-01 (dual-homed single entry point), SVC-01 through SVC-06 (co-located infrastructure services). See [Logical Design](logical-design.md) Sections 3–4.
+
 | Resource | Value |
 |----------|-------|
 | OS | Ubuntu 24.04 LTS |
@@ -130,6 +134,8 @@ ESXi hosts receive their management IP via DHCP with static MAC→IP reservation
 
 ## 4. Arista vEOS Router Specification
 
+> Implements NET-02 (vEOS inter-VLAN routing and BGP peering) and SVC-05 (secondary NTP). See [Logical Design](logical-design.md) Section 3.
+
 | Resource | Value |
 |----------|-------|
 | Image | Arista vEOS 4.32.x |
@@ -152,6 +158,8 @@ BGP advertises all connected subnets to NSX, and receives VPC/overlay prefixes f
 vEOS also serves as a secondary NTP source. VCF validation requires two NTP servers — jumpbox chrony (10.0.10.2) is primary and vEOS (10.0.10.1) is secondary.
 
 ## 5. Nested ESXi Host Specification
+
+> Implements ESX-01 (nested VMs on vCD), ESX-02 (4+3 host split), ESX-03 (vSAN ESA), ESX-04 (two-vNIC model). See [Logical Design](logical-design.md) Section 5.
 
 ### Management Domain Hosts (4x)
 
@@ -198,6 +206,8 @@ vEOS also serves as a secondary NTP source. VCF validation requires two NTP serv
 
 ## 6. VCF Management Domain
 
+> Implements VCF-01 (domain separation), VCF-03 (VCF Ops/Auto in mgmt domain), VCF-04 (installer-driven bringup). See [Logical Design](logical-design.md) Section 6.
+
 ### Component Table
 
 | Component | Hostname | IP (VLAN 10) | Role |
@@ -222,6 +232,8 @@ See [Delivery Guide](deliver.md) Phase 3 for the step-by-step bringup procedure.
 
 ## 7. VCF Workload Domain
 
+> Implements VCF-01 (domain separation) and VCF-02 (single-node NSX Manager). See [Logical Design](logical-design.md) Section 6.
+
 ### Component Table
 
 | Component | Hostname | IP (VLAN 10) | Role |
@@ -232,6 +244,8 @@ See [Delivery Guide](deliver.md) Phase 3 for the step-by-step bringup procedure.
 See [Delivery Guide](deliver.md) Phase 4 for the host commissioning and domain creation procedure.
 
 ## 8. NSX Edge Cluster
+
+> Implements NSX-01 (two-node Large Edge cluster), NSX-02 (Active-Standby Tier-0 with BGP), NSX-03 (centralised VPC), NSX-04 (source NAT). See [Logical Design](logical-design.md) Section 7.
 
 ### Edge VM Specifications
 
@@ -273,6 +287,8 @@ Edge VMs are sized as **Large** (8 vCPU, 32 GB RAM) to support VKS workloads.
 | Load Balancing | NSX LB via Tier-1 for Kubernetes services |
 
 ## 9. VKS Cluster Specification
+
+> Implements VKS-01 (Supervisor with NSX), VKS-02 (3+3 node topology), VKS-03 (subscribed content library), VKS-04 (best-effort-medium VM class). See [Logical Design](logical-design.md) Section 8.
 
 ### Supervisor Settings
 
