@@ -112,7 +112,7 @@ All jumpbox configuration (VLAN sub-interfaces, dnsmasq DNS/DHCP, chrony NTP, st
 ```bash
 source .venv/bin/activate
 cd ansible
-ansible-playbook playbooks/phase1_foundation.yml
+ansible-playbook playbooks/phase1_foundation.yml --ask-become-pass
 ```
 
 ### 3.5 Foundation Verification
@@ -156,10 +156,10 @@ Use the Ansible `esxi_prepare` role to configure all hosts. This sets hostname, 
 
 ```bash
 cd ansible
-ansible-playbook playbooks/phase2_esxi.yml
+ansible-playbook playbooks/phase2_esxi.yml --ask-become-pass
 
 # Or prepare a single host
-ansible-playbook playbooks/phase2_esxi.yml --limit esxi-01
+ansible-playbook playbooks/phase2_esxi.yml --ask-become-pass --limit esxi-01
 ```
 
 The `prepare` command performs these steps on each host via SSH:
