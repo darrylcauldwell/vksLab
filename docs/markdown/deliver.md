@@ -138,18 +138,16 @@ ESXi hosts receive their management IP via DHCP from the jumpbox dnsmasq (config
 
 | Step | Action | Expected Result | Verification |
 |------|--------|-----------------|--------------|
-| 4.1.1 | Clone esxi-01 from vApp template `[baked]esxi-9.0.2-2514807` in vCD (8 vCPU, 72 GB RAM, 200 GB NVMe disk) | VM powered on | ESXi DCUI accessible |
+| 4.1.1 | Clone esxi-01 from vApp template `[baked]esxi-9.0.2-2514807` in vCD (8 vCPU, 72 GB RAM, 200 GB NVMe disk), both NICs on `lab-trunk` network | VM powered on | ESXi DCUI accessible |
 | 4.1.2 | Note vmnic0 MAC address assigned by vCD, update `esxi_mac` in `ansible/inventory/hosts.yml` | MAC recorded | Inventory updated |
-| 4.1.3 | Configure vmnic0 on VLAN 10 (access), vmnic1 on trunk | Networking connected | Host receives IP via DHCP |
 | 4.1.4 | Repeat steps 4.1.1-4.1.3 for esxi-02 through esxi-04 | All 4 hosts deployed | All pingable from jumpbox |
 
 ### 4.2 Deploy Workload Domain Hosts
 
 | Step | Action | Expected Result | Verification |
 |------|--------|-----------------|--------------|
-| 4.2.1 | Clone esxi-05 through esxi-07 from vApp template `[baked]esxi-9.0.2-2514807` (same spec as management hosts) | VMs powered on | ESXi DCUI accessible |
+| 4.2.1 | Clone esxi-05 through esxi-07 from vApp template `[baked]esxi-9.0.2-2514807` (same spec as management hosts), both NICs on `lab-trunk` | VMs powered on | ESXi DCUI accessible |
 | 4.2.2 | Note MAC addresses assigned by vCD, update `esxi_mac` in `ansible/inventory/hosts.yml` | MACs recorded | Inventory updated |
-| 4.2.3 | Configure vmnic0 on VLAN 10 (access), vmnic1 on trunk | Networking connected | All pingable from jumpbox |
 
 ### 4.3 Prepare Hosts (Automated)
 
