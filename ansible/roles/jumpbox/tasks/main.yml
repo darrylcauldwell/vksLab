@@ -186,16 +186,24 @@
     state: present
     update_cache: true
 
+- name: Generate step-ca password
+  become: true
+  ansible.builtin.copy:
+    content: "{{ lookup('ansible.builtin.password', '/dev/null', length=32) }}"
+    dest: /root/.step-ca-password
+    owner: root
+    mode: "0600"
+
 - name: Initialise step-ca
   become: true
-  ansible.builtin.shell: >
-    step ca init
-    --name="VKS Lab CA"
-    --dns="{{ jumpbox_ip }}"
-    --address=":443"
-    --provisioner="lab-admin"
-    --password-file=/dev/stdin <<< "{{ lookup('ansible.builtin.password', '/dev/null', length=32) }}"
-  args:
+  ansible.builtin.command:
+    cmd: >
+      step ca init
+      --name="VKS Lab CA"
+      --dns="{{ jumpbox_ip }}"
+      --address=":443"
+      --provisioner="lab-admin"
+      --password-file=/root/.step-ca-password
     creates: /root/.step/config/ca.json
 
 - name: Export root CA certificate
