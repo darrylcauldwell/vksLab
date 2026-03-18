@@ -1,6 +1,6 @@
 ---
 # Phase 1 — Jumpbox configuration (DNS, NTP, CA, networking)
-# Target: jumpbox host (ansible_connection: local)
+# Target: jumpbox host via SSH (ProxyJump not needed — reached directly via vEOS NAT)
 
 - name: Install required packages
   become: true

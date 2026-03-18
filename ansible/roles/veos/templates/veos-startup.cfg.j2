@@ -32,6 +32,8 @@ ip access-list {{ veos_nat_acl_name }}
 !
 ip nat source list {{ veos_nat_acl_name }} interface {{ veos_uplink_interface }} overload
 !
+ip nat destination static tcp interface {{ veos_uplink_interface }} 22 {{ veos_ssh_destination }} 22
+!
 ip nat destination static tcp interface {{ veos_uplink_interface }} 3389 {{ veos_rdp_destination }} 3389
 !
 ip routing

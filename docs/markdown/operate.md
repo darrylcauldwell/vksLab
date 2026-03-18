@@ -245,32 +245,23 @@ SDDC Manager coordinates updates to vCenter, NSX Manager, SDDC Manager itself, a
 | 6 | Reboot if kernel update | `sudo reboot` |
 | 7 | Verify all lab services post-reboot | DNS, NTP, CA, RDP all functional |
 
-### 2.7 OpenBao Secret Store
+### 2.7 1Password Secret Store
 
-#### Seal/Unseal
-
-OpenBao automatically seals on container restart. Unseal after any Docker restart or jumpbox reboot:
-
-```bash
-export BAO_ADDR=http://127.0.0.1:8200
-bao operator unseal <unseal-key>
-```
+Lab credentials are stored in a 1Password vault ("VKS Lab") on the operator's laptop. Ansible retrieves them at runtime via the `community.general.onepassword` lookup plugin.
 
 #### Password Rotation
 
-When VCF rotates a password (e.g., ESXi root password via SDDC Manager), update OpenBao to keep secrets in sync:
+When VCF rotates a password (e.g., ESXi root password via SDDC Manager), update the corresponding 1Password item to keep secrets in sync:
 
 ```bash
-bao kv put secret/esxi/root-password value='<new-password>'
+op item edit "ESXi Root" --vault "VKS Lab" password='<new-password>'
 ```
 
-#### Backup
+#### Verify Access
 
 ```bash
-# Export all secrets (for disaster recovery)
-for path in esxi/root-password vcenter/sso-password sddc-manager/admin-password nsx/admin-password; do
-  bao kv get -format=json "secret/$path" > ~/backups/openbao/$path.json
-done
+# Confirm 1Password CLI can read lab secrets
+op item list --vault "VKS Lab"
 ```
 
 ## 3. Health Checks
@@ -385,14 +376,13 @@ done
 | DHCP lease expired | Host powered off too long | Restart dnsmasq; host will get new lease on next boot |
 | No DHCP offers | dnsmasq not listening on VLAN 10 | Verify dnsmasq is bound to ens192 (management VLAN interface); check `dhcp-range` config |
 
-#### OpenBao Issues
+#### 1Password Issues
 
 | Symptom | Possible Cause | Resolution |
 |---------|---------------|------------|
-| Cannot read secrets | Vault sealed | `bao operator unseal <key>` on jumpbox |
-| Container not running | Docker restart or OOM | `docker start openbao`; check `docker logs openbao` |
-| Authentication failed | Token expired | Re-authenticate: `bao login <root-token>` |
-| Connection refused on 8200 | Container port not mapped | Verify `docker ps` shows port 8200 mapping |
+| Cannot read secrets | Not signed in to 1Password CLI | `eval $(op signin)` |
+| Vault not found | Wrong vault name | `op vault list` to verify vault name matches `VKS Lab` |
+| Ansible lookup fails | 1Password CLI not installed | `brew install --cask 1password-cli` |
 
 #### Keycloak Issues
 
@@ -421,7 +411,7 @@ done
 | Jumpbox chrony | `/var/log/syslog` (filter: chronyd) | `journalctl -u chronyd` |
 | Jumpbox step-ca | `journalctl -u step-ca` | systemd journal |
 | vEOS | `show logging` | vEOS CLI |
-| OpenBao | Container stdout | `docker logs openbao` |
+| 1Password | Operator laptop | `op item list --vault "VKS Lab"` |
 | Keycloak | Container stdout | `docker logs keycloak` |
 
 ### 4.3 Useful Diagnostic Commands

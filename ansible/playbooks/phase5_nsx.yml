@@ -1,8 +1,9 @@
 ---
 # Phase 5 — NSX Networking
-# Edge cluster, Tier-0/1, BGP, VPC, SNAT
+# Edge cluster, Tier-0/1, BGP, VPC, SNAT (all API calls from localhost)
 - name: Phase 5 — NSX networking
-  hosts: jumpbox
+  hosts: localhost
+  connection: local
   gather_facts: false
   roles:
     - nsx_networking

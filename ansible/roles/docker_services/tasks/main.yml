@@ -1,5 +1,5 @@
 ---
-# Phase 1 — Docker services: OpenBao + Keycloak on jumpbox
+# Phase 1 — Docker services: Keycloak on jumpbox
 
 - name: Install Docker Engine
   become: true
@@ -22,45 +22,6 @@
     groups: docker
     append: true
 
-# --- OpenBao ---
-
-- name: Run OpenBao container
-  community.docker.docker_container:
-    name: "{{ openbao_container_name }}"
-    image: "{{ openbao_image }}"
-    state: started
-    restart_policy: unless-stopped
-    ports:
-      - "{{ openbao_port }}:8200"
-    env:
-      BAO_ADDR: "http://127.0.0.1:8200"
-    volumes:
-      - openbao-data:/openbao/data
-    capabilities:
-      - IPC_LOCK
-    command: server -dev
-
-- name: Wait for OpenBao to be ready
-  ansible.builtin.uri:
-    url: "http://127.0.0.1:{{ openbao_port }}/v1/sys/health"
-    status_code: [200]
-  register: bao_health
-  until: bao_health.status == 200
-  retries: 30
-  delay: 2
-
-- name: Check if KV v2 engine is enabled
-  ansible.builtin.shell: >
-    bao secrets list -format=json | grep -q '"secret/"'
-  register: kv_check
-  changed_when: false
-  failed_when: false
-
-- name: Enable KV v2 secrets engine
-  ansible.builtin.shell: bao secrets enable -path=secret kv-v2
-  when: kv_check.rc != 0
-  changed_when: true
-
 # --- Keycloak TLS certificate ---
 
 - name: Create certificate directory
@@ -82,16 +43,6 @@
 
 # --- Keycloak ---
 
-- name: Retrieve Keycloak admin password from OpenBao
-  ansible.builtin.set_fact:
-    keycloak_admin_password: >-
-      {{ lookup('community.hashi_vault.vault_kv2_get',
-         'keycloak/admin-password',
-         engine_mount_point='secret',
-         url=openbao_url,
-         token=openbao_token).secret.value }}
-  no_log: true
-
 - name: Run Keycloak container
   community.docker.docker_container:
     name: "{{ keycloak_container_name }}"
@@ -111,6 +62,7 @@
       - "{{ keycloak_key_path }}:/opt/keycloak/conf/server.key:ro"
       - keycloak-data:/opt/keycloak/data
     command: start
+  no_log: true
 
 - name: Wait for Keycloak to be ready
   ansible.builtin.uri:

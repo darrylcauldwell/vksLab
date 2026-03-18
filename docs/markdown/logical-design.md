@@ -77,7 +77,7 @@ See [Delivery Guide](deliver.md) for step-by-step deployment procedures with exa
 
 | Component | Quantity | Role |
 |-----------|----------|------|
-| Ubuntu Jumpbox | 1 | External access, CA, DNS, DHCP, NTP, secrets (OpenBao), identity (Keycloak) |
+| Ubuntu Jumpbox | 1 | External access, CA, DNS, DHCP, NTP, identity (Keycloak) |
 | Arista vEOS | 1 | Inter-VLAN routing, BGP peer |
 | Nested ESXi (Management) | 4 | VCF management domain hosts |
 | Nested ESXi (Workload) | 3 | VCF workload domain hosts |
@@ -181,26 +181,26 @@ All infrastructure services (DNS, NTP, CA, secrets, identity) run on the Ubuntu 
 | DHCP | dnsmasq | Static MAC→IP reservations for ESXi hosts on VLAN 10 |
 | NTP | chrony | Stratum 2 server, syncs to public pools externally, serves lab internally |
 | CA | step-ca | ACME-capable CA for TLS certs across VCF components |
-| Secrets | OpenBao (Docker) | KV secret store for passwords and credentials (REST API, port 8200) |
+| Secrets | 1Password (operator laptop) | Credentials retrieved via `community.general.onepassword` lookup plugin |
 | OIDC | Keycloak (Docker) | Centralised identity provider for vCenter and NSX Manager (HTTPS, port 8443) |
 
 The Arista vEOS router (10.0.10.1) also serves as a secondary NTP source. VCF validation requires two NTP servers — the jumpbox chrony (primary) and vEOS NTP (secondary) satisfy this requirement.
 
 The CA root certificate must be distributed to ESXi hosts and management appliances during deployment.
 
-### OpenBao Secret Store
+### 1Password Secret Store
 
-OpenBao (an open-source fork of HashiCorp Vault, licensed under MPL 2.0) runs as a Docker container on the jumpbox. It provides a centralised KV secret store for all lab credentials, accessible via REST API and the Python `hvac` library.
+Lab credentials are stored in a 1Password vault ("VKS Lab") on the operator's laptop. Ansible retrieves them at runtime using the `community.general.onepassword` lookup plugin, which calls the 1Password CLI (`op`).
 
-Secret paths:
+Items in the VKS Lab vault:
 
-| Path | Content |
-|------|---------|
-| `secret/esxi/root-password` | Shared root password for all ESXi hosts |
-| `secret/vcenter/sso-password` | vCenter SSO administrator password |
-| `secret/sddc-manager/admin-password` | SDDC Manager admin password |
-| `secret/nsx/admin-password` | NSX Manager admin password |
-| `secret/keycloak/admin-password` | Keycloak admin password |
+| Item Title | Content |
+|------------|---------|
+| ESXi Root | Shared root password for all ESXi hosts |
+| vCenter SSO | vCenter SSO administrator password |
+| SDDC Manager | SDDC Manager admin password |
+| NSX Manager | NSX Manager admin password |
+| Keycloak Admin | Keycloak admin password |
 
 ### Design Decisions
 
@@ -211,7 +211,7 @@ Secret paths:
 | R-003 | SVC-03 | chrony as NTP server syncing to public pools | Provides accurate time source for VCF components; stratum 2 sufficient for lab | Risk: Upstream NTP unreachable from nested environment. Mitigation: chrony maintains local time accuracy during short outages |
 | R-003 | SVC-04 | dnsmasq DHCP with static MAC→IP reservations for ESXi hosts | Eliminates manual IP configuration during ESXi deployment; hosts receive correct IP on first boot | Risk: MAC address mismatch prevents DHCP lease. Mitigation: Verify MAC assignments in vCD before first boot |
 | R-003 | SVC-05 | vEOS as secondary NTP server (10.0.10.1) alongside jumpbox chrony (10.0.10.2) | VCF validation requires two NTP sources; vEOS provides a second time source with minimal additional configuration | Risk: vEOS NTP accuracy depends on upstream sync via Ethernet2. Mitigation: vEOS syncs to public NTP pools directly |
-| R-002 | SVC-06 | OpenBao as centralised secret store for lab credentials | Provides secure, API-accessible password management; Python `hvac` library enables automation; open-source MPL 2.0 licence | Risk: Additional resource consumption (~200-500 MB RAM). Mitigation: Lightweight; jumpbox sized to accommodate |
+| R-002 | SVC-06 | 1Password as centralised secret store for lab credentials | Leverages existing 1Password subscription on operator laptop; `community.general.onepassword` Ansible lookup plugin; no in-lab infrastructure required | Risk: Requires 1Password CLI and active session on operator laptop. Mitigation: `op signin` before running playbooks |
 
 ### Identity and Access Management
 

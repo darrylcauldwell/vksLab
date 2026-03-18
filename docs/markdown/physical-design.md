@@ -110,7 +110,7 @@ See [Delivery Guide](deliver.md) for netplan configuration. Key parameters:
 | NTP | chrony | `allow 10.0.0.0/16`, servers: public NTP pools |
 | CA | step-ca | Root CA for `lab.dreamfold.dev`, ACME enabled |
 | OIDC | Keycloak (Docker) | Port 8443, centralised identity provider for vCenter and NSX |
-| Secrets | OpenBao (Docker) | Port 8200, KV secret store for lab credentials |
+| Secrets | 1Password (operator laptop) | `community.general.onepassword` lookup plugin via 1Password CLI |
 | Remote access | xrdp | Listening on port 3389 (NIC1) |
 | Web browser | Firefox | Access vCenter, NSX Manager, SDDC Manager UIs |
 

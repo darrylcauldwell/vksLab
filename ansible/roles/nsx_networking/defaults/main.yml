@@ -1,11 +1,6 @@
 nsx_manager_hostname: "nsx-mgr-wld.{{ lab_domain }}"
 nsx_username: admin
-nsx_password: >-
-  {{ lookup('community.hashi_vault.vault_kv2_get',
-     'nsx/admin-password',
-     engine_mount_point='secret',
-     url=openbao_url,
-     token=openbao_token).secret.value }}
+nsx_password: "{{ nsx_admin_password }}"
 
 # Edge cluster configuration
 nsx_edge_cluster_name: edge-cluster-01

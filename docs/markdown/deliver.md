@@ -226,54 +226,50 @@ ip route 0.0.0.0/0 10.0.10.2
 | Masquerade rule | `sudo iptables -t nat -L POSTROUTING` | MASQUERADE rule present |
 | ESXi internet access | `ssh root@esxi-01 'vmkping -I vmk0 8.8.8.8'` | Success |
 
-### 3.2c OpenBao Secret Store
+### 3.2c 1Password Secret Store
 
-Deploy OpenBao as a Docker container on the jumpbox for centralised credential management.
+Ansible runs from the operator's laptop and retrieves all lab credentials from 1Password using the `community.general.onepassword` lookup plugin. This requires the 1Password CLI (`op`) and a vault named **VKS Lab**.
 
 | Step | Action | Expected Result | Verification |
 |------|--------|-----------------|--------------|
-| 3.2c.1 | Install Docker Engine on jumpbox | Docker running | `docker --version` |
-| 3.2c.2 | Run OpenBao container (port 8200) | Container running | `docker ps` shows openbao |
-| 3.2c.3 | Initialise and unseal the vault | Vault unsealed | `bao status` shows sealed=false |
-| 3.2c.4 | Enable KV secrets engine v2 | Engine enabled | `bao secrets list` shows `secret/` |
-| 3.2c.5 | Store initial credentials | Secrets stored | `bao kv get secret/esxi/root-password` |
+| 3.2c.1 | Install 1Password CLI (`op`) on operator laptop | CLI available | `op --version` |
+| 3.2c.2 | Sign in to 1Password CLI | Authenticated | `op vault list` shows vaults |
+| 3.2c.3 | Create "VKS Lab" vault | Vault exists | `op vault get "VKS Lab"` |
+| 3.2c.4 | Create credential items in the vault | All items stored | `op item list --vault "VKS Lab"` |
 
 ```bash
-# Run OpenBao container
-docker run -d --name openbao \
-  -p 8200:8200 \
-  -e BAO_ADDR=http://127.0.0.1:8200 \
-  -v openbao-data:/openbao/data \
-  --cap-add=IPC_LOCK \
-  --restart unless-stopped \
-  quay.io/openbao/openbao:latest server -dev
+# Install 1Password CLI (macOS)
+brew install --cask 1password-cli
 
-# Initialise (production mode — not -dev)
-# export BAO_ADDR=http://127.0.0.1:8200
-# bao operator init -key-shares=1 -key-threshold=1
-# bao operator unseal <unseal-key>
-# bao login <root-token>
+# Sign in (interactive — opens 1Password desktop app or prompts for credentials)
+eval $(op signin)
 
-# Enable KV v2 secrets engine
-bao secrets enable -path=secret kv-v2
+# Create the lab vault
+op vault create "VKS Lab"
 
 # Store credentials
-bao kv put secret/esxi/root-password value='<CHANGE-ME>'
-bao kv put secret/vcenter/sso-password value='<CHANGE-ME>'
-bao kv put secret/sddc-manager/admin-password value='<CHANGE-ME>'
-bao kv put secret/nsx/admin-password value='<CHANGE-ME>'
-bao kv put secret/keycloak/admin-password value='<CHANGE-ME>'
+op item create --vault "VKS Lab" --category login --title "ESXi Root" password='<CHANGE-ME>'
+op item create --vault "VKS Lab" --category login --title "vCenter SSO" password='<CHANGE-ME>'
+op item create --vault "VKS Lab" --category login --title "SDDC Manager" password='<CHANGE-ME>'
+op item create --vault "VKS Lab" --category login --title "NSX Manager" password='<CHANGE-ME>'
+op item create --vault "VKS Lab" --category login --title "Keycloak Admin" password='<CHANGE-ME>'
+```
+
+Ansible retrieves these credentials at runtime via lookups in `group_vars/all.yml`:
+
+```yaml
+esxi_root_password: "{{ lookup('community.general.onepassword', 'ESXi Root', field='password', vault='VKS Lab') }}"
 ```
 
 ### 3.2d Keycloak Identity Provider (R-002, SVC-07, SVC-08)
 
 Deploy Keycloak as a Docker container on the jumpbox for centralised OIDC identity. Keycloak provides SSO for vCenter and NSX Manager, replacing per-component local authentication.
 
-**Prerequisites**: Docker Engine running on jumpbox (installed in step 3.2c.1). OpenBao initialised with `secret/keycloak/admin-password`.
+**Prerequisites**: Docker Engine running on jumpbox. Keycloak admin password stored in 1Password (step 3.2c.4).
 
 | Step | Action | Expected Result | Verification |
 |------|--------|-----------------|--------------|
-| 3.2d.1 | Retrieve Keycloak admin password from OpenBao | Password available | `bao kv get secret/keycloak/admin-password` |
+| 3.2d.1 | Retrieve Keycloak admin password from 1Password | Password available | `op item get "Keycloak Admin" --vault "VKS Lab" --fields password` |
 | 3.2d.2 | Run Keycloak container (port 8443, HTTPS) | Container running | `docker ps` shows keycloak |
 | 3.2d.3 | Wait for Keycloak to start (1-2 minutes) | Admin console accessible | `https://jumpbox.lab.dreamfold.dev:8443` loads |
 | 3.2d.4 | Create "lab" realm | Realm created | Realm visible in admin console |
@@ -283,8 +279,8 @@ Deploy Keycloak as a Docker container on the jumpbox for centralised OIDC identi
 | 3.2d.8 | Create OIDC client for NSX Manager | Client created | Client ID `nsx-manager` visible in realm |
 
 ```bash
-# Retrieve admin password from OpenBao
-export KC_ADMIN_PASS=$(bao kv get -field=value secret/keycloak/admin-password)
+# Retrieve admin password from 1Password
+export KC_ADMIN_PASS=$(op item get "Keycloak Admin" --vault "VKS Lab" --fields password)
 
 # Run Keycloak container with HTTPS on port 8443
 docker run -d --name keycloak \

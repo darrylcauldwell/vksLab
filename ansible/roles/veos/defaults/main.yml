@@ -18,7 +18,8 @@ veos_svi_config:
 veos_nat_acl_name: LAB-INTERNAL
 veos_nat_source_network: 10.0.0.0/16
 
-# RDP port forwarding to jumpbox
+# SSH and RDP port forwarding to jumpbox
+veos_ssh_destination: 10.0.10.2
 veos_rdp_destination: 10.0.10.2
 
 # Default route for internet via jumpbox

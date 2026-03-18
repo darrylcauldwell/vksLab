@@ -1,7 +1,3 @@
-openbao_image: quay.io/openbao/openbao:latest
-openbao_container_name: openbao
-openbao_port: 8200
-
 keycloak_image: quay.io/keycloak/keycloak:latest
 keycloak_container_name: keycloak
 keycloak_port: 8443

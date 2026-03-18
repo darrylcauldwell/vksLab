@@ -2,17 +2,13 @@
 # Phase 3 — VCF Management Domain Bringup
 # Drives Cloud Builder to deploy vCenter, SDDC Manager, and NSX Manager
 - name: Phase 3 — VCF management domain bringup
-  hosts: jumpbox
+  hosts: localhost
+  connection: local
   gather_facts: false
   vars:
     cloud_builder_hostname: vcf-installer.lab.dreamfold.dev
     cloud_builder_username: admin
-    cloud_builder_password: >-
-      {{ lookup('community.hashi_vault.vault_kv2_get',
-         'vcenter/sso-password',
-         engine_mount_point='secret',
-         url=openbao_url,
-         token=openbao_token).secret.value }}
+    cloud_builder_password: "{{ vcenter_sso_password }}"
     bringup_spec_path: "{{ playbook_dir }}/../../configs/vcf-bringup.json"
   tasks:
     - name: Validate bringup spec

@@ -2,37 +2,27 @@
 # Phase 4 — VCF Workload Domain
 # Commissions workload hosts and creates a VI workload domain
 - name: Phase 4 — VCF workload domain
-  hosts: jumpbox
+  hosts: localhost
+  connection: local
   gather_facts: false
   vars:
     sddc_hostname: sddc-manager.lab.dreamfold.dev
     sddc_username: admin@local
-    sddc_password: >-
-      {{ lookup('community.hashi_vault.vault_kv2_get',
-         'sddc-manager/admin-password',
-         engine_mount_point='secret',
-         url=openbao_url,
-         token=openbao_token).secret.value }}
-    esxi_password: >-
-      {{ lookup('community.hashi_vault.vault_kv2_get',
-         'esxi/root-password',
-         engine_mount_point='secret',
-         url=openbao_url,
-         token=openbao_token).secret.value }}
+    sddc_password: "{{ sddc_admin_password }}"
     workload_hosts:
       - fqdn: "esxi-05.{{ lab_domain }}"
         username: root
-        password: "{{ esxi_password }}"
+        password: "{{ esxi_root_password }}"
         networkPoolName: mgmt-network-pool
         storageType: VSAN
       - fqdn: "esxi-06.{{ lab_domain }}"
         username: root
-        password: "{{ esxi_password }}"
+        password: "{{ esxi_root_password }}"
         networkPoolName: mgmt-network-pool
         storageType: VSAN
       - fqdn: "esxi-07.{{ lab_domain }}"
         username: root
-        password: "{{ esxi_password }}"
+        password: "{{ esxi_root_password }}"
         networkPoolName: mgmt-network-pool
         storageType: VSAN
     workload_domain_spec:
@@ -53,12 +43,7 @@
               dnsName: "nsx-mgr-wld.{{ lab_domain }}"
               gateway: "{{ lab_gateway }}"
               subnetMask: 255.255.255.0
-        nsxManagerAdminPassword: >-
-          {{ lookup('community.hashi_vault.vault_kv2_get',
-             'nsx/admin-password',
-             engine_mount_point='secret',
-             url=openbao_url,
-             token=openbao_token).secret.value }}
+        nsxManagerAdminPassword: "{{ nsx_admin_password }}"
       computeSpec:
         clusterSpecs:
           - name: workload-cluster
