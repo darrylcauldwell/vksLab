@@ -19,9 +19,6 @@ keycloak_admin_password: "{{ lookup('community.general.onepassword', 'Keycloak A
 # CA certificate
 ca_cert_path: /tmp/lab-root-ca.crt
 
-# vSAN ESA mock VIB
-vsan_esa_vib_path: /tmp/mock-hcl.vib
-
 # Network configuration
 vlans:
   management:
