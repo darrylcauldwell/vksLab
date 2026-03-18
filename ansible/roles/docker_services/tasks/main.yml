@@ -197,8 +197,8 @@
     kc_token: "{{ kc_token_response.json.access_token }}"
   no_log: true
 
-# OIDC clients for vCenter and NSX Manager. After Phase 3/4, configure
-# each component to use these clients for SSO (see delivery guide §6.4).
+# OIDC client for VCF Identity Broker. After Phase 3, configure the
+# Identity Broker in SDDC Manager to use this client (see delivery guide §6.4).
 - name: Create Keycloak OIDC clients
   ansible.builtin.uri:
     url: "https://127.0.0.1:{{ keycloak_port }}/admin/realms/{{ keycloak_realm }}/clients"

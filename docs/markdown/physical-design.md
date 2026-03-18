@@ -115,7 +115,7 @@ See [Delivery Guide](deliver.md) for netplan configuration. Key parameters:
 | DHCP | dnsmasq | Static MAC→IP reservations for ESXi hosts on VLAN 10 |
 | NTP | chrony | `allow 10.0.0.0/16`, servers: public NTP pools |
 | CA | step-ca | Root CA for `lab.dreamfold.dev`, ACME enabled, max cert duration 8760h (1 year), listens on 127.0.0.1:443 |
-| OIDC | Keycloak (Docker) | Port 8443, centralised identity provider for vCenter and NSX |
+| OIDC | Keycloak (Docker) | Port 8443, external IdP; VCF Identity Broker federates SSO to all VCF components |
 | Secrets | 1Password (operator laptop) | `community.general.onepassword` lookup plugin via 1Password CLI |
 | Routing | FRR (zebra + bgpd) | Inter-VLAN routing, BGP peering with NSX Tier-0 (ASN 65000) |
 | Remote access | xrdp | Listening on port 3389 (NIC1) |

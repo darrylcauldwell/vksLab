@@ -13,7 +13,5 @@ keycloak_users:
     role: viewer
 
 keycloak_oidc_clients:
-  - client_id: vcenter
-    name: vCenter OIDC
-  - client_id: nsx-manager
-    name: NSX Manager OIDC
+  - client_id: vcf-identity-broker
+    name: VCF Identity Broker

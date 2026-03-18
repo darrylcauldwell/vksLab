@@ -181,7 +181,7 @@ All infrastructure services (DNS, NTP, CA, secrets, identity) run on the Ubuntu 
 | NTP | chrony | Stratum 2 server, syncs to public pools externally, serves lab internally |
 | CA | step-ca | ACME-capable CA for TLS certs across VCF components |
 | Secrets | 1Password (operator laptop) | Credentials retrieved via `community.general.onepassword` lookup plugin |
-| OIDC | Keycloak (Docker) | Centralised identity provider for vCenter and NSX Manager (HTTPS, port 8443) |
+| OIDC | Keycloak (Docker) | External identity provider; VCF Identity Broker federates SSO across all VCF components (HTTPS, port 8443) |
 
 The CA root certificate must be distributed to ESXi hosts and management appliances during deployment.
 
@@ -223,12 +223,12 @@ Keycloak runs as a Docker container on the jumpbox (port 8443, HTTPS) and provid
 
 - **Realm**: A single `lab` realm contains all user accounts. There is no external LDAP or Active Directory — the lab has no domain controller.
 - **Users**: Local Keycloak users are created for `admin` (full administrator) and `operator` (read-only / day-2 operations).
-- **Integration**: vCenter and NSX Manager are configured with Keycloak as an OIDC identity source. Users authenticate via the Keycloak login page and receive an OIDC token that vCenter and NSX validate against the Keycloak discovery endpoint (`https://jumpbox.lab.dreamfold.dev:8443/realms/lab/.well-known/openid-configuration`).
+- **Integration**: The VCF Identity Broker (embedded in SDDC Manager) is configured with Keycloak as an external OIDC identity source. The Identity Broker federates SSO across all VCF components (vCenter, NSX Manager, SDDC Manager). A single OIDC client (`vcf-identity-broker`) in the `lab` realm handles the integration. Users authenticate via the Keycloak login page and receive an OIDC token validated against the discovery endpoint (`https://jumpbox.lab.dreamfold.dev:8443/realms/lab/.well-known/openid-configuration`).
 - **Fallback**: Local administrator accounts (administrator@vsphere.local, NSX admin) remain available as a fallback if Keycloak is unavailable.
 
 | Req. | Decision ID | Design Decision | Design Justification | Risk / Mitigation |
 |------|-------------|-----------------|----------------------|-------------------|
-| R-002 | SVC-07 | Keycloak as centralised OIDC identity provider for vCenter and NSX Manager | Single sign-on reduces credential sprawl across VCF components; OIDC is natively supported by vCenter and NSX Manager | Risk: Keycloak container outage blocks SSO login. Mitigation: Local administrator accounts remain functional as fallback; Keycloak container configured with restart policy |
+| R-002 | SVC-07 | Keycloak as external OIDC identity provider, federated via VCF Identity Broker | Single sign-on reduces credential sprawl; Identity Broker (in SDDC Manager) provides a single integration point for all VCF components rather than per-component OIDC configuration | Risk: Keycloak container outage blocks SSO login. Mitigation: Local administrator accounts remain functional as fallback; Keycloak container configured with restart policy |
 | C-004 | SVC-08 | Local Keycloak realm with local users (no AD/LDAP) | Lab has no domain controller; local users in a single realm provide the simplest identity model | Risk: No directory sync — user management is manual. Mitigation: Acceptable for lab with a small number of operators |
 | R-009 | SVC-09 | step-ca max certificate duration set to 1 year (8760h) | Default step-ca provisioner limits certificates to 24 hours, which is too short for lab services like Keycloak that need stable TLS. 1-year duration avoids frequent renewal while remaining shorter than the 10-year root CA lifetime | Risk: Long-lived certificates are not rotated. Mitigation: Lab environment — acceptable; see [Operations Guide](operate.md) for renewal SOP |
 | R-009 | SVC-10 | step-ca binds to 127.0.0.1 only | Avoids dependency on VLAN sub-interface readiness during startup; all certificate operations originate from the jumpbox itself | Risk: Remote ACME clients cannot reach step-ca directly. Mitigation: All cert issuance is performed by Ansible from the jumpbox; no remote ACME clients are needed |
