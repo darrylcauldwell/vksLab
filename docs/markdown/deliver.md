@@ -44,40 +44,40 @@ The following must be in place before starting Phase 1.
 
 | Step | Action | Expected Result |
 |------|--------|-----------------|
-| 3.1.1 | Create new vApp in vCloud Director | Empty vApp created |
-| 3.1.2 | Add routed network (public) to vApp | External connectivity available |
-| 3.1.3 | Add isolated network: name `lab-trunk`, gateway CIDR `192.168.254.1/24`, tick **Allow Guest VLAN** | Trunk-capable internal network available |
+| 3.1.1 | Create new vApp in vCloud Director | An empty vApp is created in the target VDC |
+| 3.1.2 | Add routed network (public) to vApp | External connectivity is available via the public network |
+| 3.1.3 | Add isolated network: name `lab-trunk`, gateway CIDR `192.168.254.1/24`, tick **Allow Guest VLAN** | A trunk-capable internal network is available for VLAN traffic |
 
 ### 3.2 Deploy Gateway VM (Manual in vCD)
 
 | Step | Action | Expected Result | Verification |
 |------|--------|-----------------|--------------|
-| 3.2.1 | Create Ubuntu 24.04 VM from Content Hub ISO (2 vCPU, 10 GB RAM, 60 GB disk) with NIC1 on Public network, NIC2 on lab-trunk | VM created | VM visible in vApp |
-| 3.2.2 | Power on and complete Ubuntu installer via vCD console — set server name `gateway`, username `ubuntu`, password from 1Password "Lab Bootstrap" item | Ubuntu installed | Login prompt on console |
-| 3.2.3 | Run `apt update && apt upgrade -y` to bring the OS up to date | Packages updated | No pending updates |
+| 3.2.1 | Create Ubuntu 24.04 VM from Content Hub ISO (2 vCPU, 10 GB RAM, 60 GB disk) with NIC1 on Public network, NIC2 on lab-trunk | The gateway VM is created with the specified configuration | The VM is visible in the vApp inventory |
+| 3.2.2 | Power on and complete Ubuntu installer via vCD console — set server name `gateway`, username `ubuntu`, password from 1Password "Lab Bootstrap" item | Ubuntu 24.04 is installed on the gateway VM | A login prompt appears on the vCD console |
+| 3.2.3 | Run `apt update && apt upgrade -y` to bring the OS up to date | All packages are updated to the latest versions | `apt list --upgradable` shows no pending updates |
 
 ### 3.3 Stage SDDC Manager OVA on Gateway
 
 | Step | Action | Expected Result | Verification |
 |------|--------|-----------------|--------------|
-| 3.3.1 | Download `VCF-SDDC-Manager-Appliance-9.0.2.0.25151285.ova` (2.03 GB) from support.broadcom.com to operator laptop | OVA saved locally | File exists on laptop |
-| 3.3.2 | Note public IP assigned by DHCP to NIC1 (ens160): `ip addr show ens160` | IP obtained | — |
-| 3.3.3 | SCP OVA from laptop to gateway: `scp VCF-SDDC-Manager-Appliance-9.0.2.0.25151285.ova ubuntu@<gateway-ip>:~/vcf-installer.ova` | OVA on gateway | `ls -lh ~/vcf-installer.ova` shows 2.03 GB |
+| 3.3.1 | Download `VCF-SDDC-Manager-Appliance-9.0.2.0.25151285.ova` (2.03 GB) from support.broadcom.com to operator laptop | The OVA file is saved to the operator laptop | The file exists on the operator laptop |
+| 3.3.2 | Note public IP assigned by DHCP to NIC1 (ens160): `ip addr show ens160` | The public IP address is obtained | — |
+| 3.3.3 | SCP OVA from laptop to gateway: `scp VCF-SDDC-Manager-Appliance-9.0.2.0.25151285.ova ubuntu@<gateway-ip>:~/vcf-installer.ova` | The OVA file is transferred to the gateway | `ls -lh ~/vcf-installer.ova` shows 2.03 GB |
 
 ### 3.4 Clone ESXi VMs (Manual in vCD)
 
 | Step | Action | Expected Result |
 |------|--------|-----------------|
-| 3.4.1 | Clone esxi-01 through esxi-04 from vApp template `[baked]esxi-9.0.2-2514807` (48 vCPU, 128 GB RAM, 40 GB boot Non-Volatile Memory Express (NVMe) + 200 GB vSAN NVMe), both NICs on `lab-trunk` | 4 management VMs cloning |
-| 3.4.2 | Clone esxi-05 through esxi-07 (same spec), both NICs on `lab-trunk` | 3 workload VMs cloning |
+| 3.4.1 | Clone esxi-01 through esxi-04 from vApp template `[baked]esxi-9.0.2-2514807` (48 vCPU, 128 GB RAM, 40 GB boot Non-Volatile Memory Express (NVMe) + 200 GB vSAN NVMe), both NICs on `lab-trunk` | The four management ESXi VMs are cloning from the template |
+| 3.4.2 | Clone esxi-05 through esxi-07 (same spec), both NICs on `lab-trunk` | The three workload ESXi VMs are cloning from the template |
 
 ### 3.5 Power Off and Save to Catalog
 
 | Step | Action | Expected Result | Verification |
 |------|--------|-----------------|--------------|
-| 3.5.1 | Power off all 8 VMs (gateway + 7 ESXi) | All VMs stopped | vApp shows all VMs powered off |
-| 3.5.2 | In vCD, right-click vApp → Add to Catalog. Name: `[baseline]vcf-lab-8vm`, storage policy: `ProvisioningStoragePolicy-provider01` | Template created | Catalog shows template |
-| 3.5.3 | Verify template is visible in catalog and contains 8 VMs | Template valid | Open template details, confirm 8 VMs listed |
+| 3.5.1 | Power off all 8 VMs (gateway + 7 ESXi) | All 8 VMs are stopped | The vApp shows all VMs powered off |
+| 3.5.2 | In vCD, right-click vApp → Add to Catalog. Name: `[baseline]vcf-lab-8vm`, storage policy: `ProvisioningStoragePolicy-provider01` | The vApp template is created in the catalog | The catalog shows the new template |
+| 3.5.3 | Verify template is visible in catalog and contains 8 VMs | The template is valid and contains all expected VMs | Opening template details confirms 8 VMs are listed |
 
 > **Note**: The original vApp can be deleted after the template is saved — it is no longer needed. All subsequent rebuilds deploy from the catalog template.
 
@@ -139,13 +139,13 @@ ansible-galaxy collection install -r ansible/collections/requirements.yml
 
 | Step | Action | Expected Result | Verification |
 |------|--------|-----------------|--------------|
-| 4.2.1 | In vCD catalog, deploy vApp from template `[baseline]vcf-lab-8vm` | vApp created with 8 VMs | vApp visible with all VMs |
-| 4.2.2 | Read back MAC addresses from vCD for all 7 ESXi VMs (vmnic0), update `esxi_mac` in `ansible/inventory/hosts.yml` | MACs recorded | Inventory file updated |
-| 4.2.3 | Power on all 8 VMs | VMs running | Gateway gets public IP via Dynamic Host Configuration Protocol (DHCP) |
-| 4.2.4 | Note gateway public IP: `ip addr show ens160` via vCD console | IP obtained | — |
-| 4.2.5 | Store gateway IP in 1Password: `op item edit "Lab Bootstrap" ip_address=<gateway-ip>` | IP stored | `op item get "Lab Bootstrap" --fields ip_address` returns IP |
-| 4.2.6 | If no SSH key exists, generate one: `ssh-keygen -t ed25519` | Key pair created | `~/.ssh/id_ed25519.pub` exists |
-| 4.2.7 | Copy SSH key to gateway: `ssh-copy-id ubuntu@<gateway-ip>` | Key deployed | `ssh ubuntu@<gateway-ip>` connects without password |
+| 4.2.1 | In vCD catalog, deploy vApp from template `[baseline]vcf-lab-8vm` | A vApp is created containing all 8 VMs | The vApp is visible with all VMs listed |
+| 4.2.2 | Read back MAC addresses from vCD for all 7 ESXi VMs (vmnic0), update `esxi_mac` in `ansible/inventory/hosts.yml` | MAC addresses are recorded for all 7 ESXi VMs | The inventory file is updated with the new MAC addresses |
+| 4.2.3 | Power on all 8 VMs | All 8 VMs are running | The gateway obtains a public IP via Dynamic Host Configuration Protocol (DHCP) |
+| 4.2.4 | Note gateway public IP: `ip addr show ens160` via vCD console | The public IP address is obtained | — |
+| 4.2.5 | Store gateway IP in 1Password: `op item edit "Lab Bootstrap" ip_address=<gateway-ip>` | The gateway IP is stored in 1Password | `op item get "Lab Bootstrap" --fields ip_address` returns the IP |
+| 4.2.6 | If no SSH key exists, generate one: `ssh-keygen -t ed25519` | An ed25519 key pair is created | `~/.ssh/id_ed25519.pub` exists |
+| 4.2.7 | Copy SSH key to gateway: `ssh-copy-id ubuntu@<gateway-ip>` | The SSH public key is deployed to the gateway | `ssh ubuntu@<gateway-ip>` connects without a password prompt |
 
 > **Note**: vCD assigns new MAC addresses each time a vApp is deployed from a template. The MAC update in step 4.2.2 is required on every rebuild so that DHCP reservations match.
 
@@ -163,14 +163,14 @@ ansible-playbook playbooks/phase1_foundation.yml
 
 | Check | Command / Method | Expected Result |
 |-------|------------------|-----------------|
-| Gateway external access | RDP to gateway public IP | Desktop accessible |
-| Gateway DNS | `dig @10.0.10.1 gateway.lab.dreamfold.dev` | Returns 10.0.10.1 |
-| Gateway NTP | `chronyc sources` | Shows upstream servers |
-| Gateway CA | `step ca health` | Returns "ok" |
-| Management IP | `ip addr show ens192` on gateway | Shows 10.0.10.1/24 on the native (untagged) interface |
-| VLAN sub-interfaces | `ip addr show ens192.20` on gateway | Shows 10.0.20.1/24 (vMotion sub-interface) |
-| Inter-VLAN routing | `ping 10.0.20.1` from a host on VLAN 10 | Success |
-| FRR BGP | `vtysh -c 'show ip bgp summary'` on gateway | FRR running |
+| Gateway external access | RDP to gateway public IP | The XFCE desktop is accessible via RDP |
+| Gateway DNS | `dig @10.0.10.1 gateway.lab.dreamfold.dev` | The query returns 10.0.10.1 |
+| Gateway NTP | `chronyc sources` | Chrony shows upstream NTP servers synchronised |
+| Gateway CA | `step ca health` | The health check returns "ok" |
+| Management IP | `ip addr show ens192` on gateway | The interface shows 10.0.10.1/24 on the native (untagged) VLAN |
+| VLAN sub-interfaces | `ip addr show ens192.20` on gateway | The sub-interface shows 10.0.20.1/24 (vMotion) |
+| Inter-VLAN routing | `ping 10.0.20.1` from a host on VLAN 10 | The ping succeeds |
+| FRR BGP | `vtysh -c 'show ip bgp summary'` on gateway | The FRR BGP process is running and shows neighbour status |
 
 ## 5. Phase 2 — Nested ESXi
 
@@ -182,8 +182,8 @@ ESXi hosts receive their management IP via DHCP from the gateway dnsmasq (config
 
 | Step | Action | Expected Result | Verification |
 |------|--------|-----------------|--------------|
-| 5.1.1 | On each host via Direct Console User Interface (DCUI): Troubleshooting Options → Enable SSH | SSH enabled | `ssh root@<ip>` connects |
-| 5.1.2 | On each host via DCUI: set root password to match 1Password "Lab Bootstrap" item | Password set | SSH login with bootstrap password works |
+| 5.1.1 | On each host via Direct Console User Interface (DCUI): Troubleshooting Options → Enable SSH | SSH is enabled on the host | `ssh root@<ip>` connects successfully |
+| 5.1.2 | On each host via DCUI: set root password to match 1Password "Lab Bootstrap" item | The root password is set | SSH login with the bootstrap password succeeds |
 
 ### 5.2 Prepare Hosts (Automated)
 
@@ -215,13 +215,13 @@ The `prepare` command performs these steps on each host via SSH:
 
 | Check | Command / Method | Expected Result |
 |-------|------------------|-----------------|
-| All hosts reachable | `ping 10.0.10.{11..17}` from gateway | All respond |
-| DNS resolution | `nslookup esxi-01.lab.dreamfold.dev 10.0.10.1` | Returns correct IP for all hosts |
-| Reverse DNS | `nslookup 10.0.10.11 10.0.10.1` | Returns esxi-01.lab.dreamfold.dev |
-| NTP sync | `esxcli system ntp get` on each host | NTP server configured (10.0.10.1) |
-| Time sync | Compare time across all hosts | Within 1 second |
-| vSAN ESA ready | `esxcli vsan storage list` on each host | NVMe device marked as SSD |
-| Host status | `cd ansible && ansible-playbook playbooks/phase2_esxi.yml --check` | All tasks show ok |
+| All hosts reachable | `ping 10.0.10.{11..17}` from gateway | All seven hosts respond to ping |
+| DNS resolution | `nslookup esxi-01.lab.dreamfold.dev 10.0.10.1` | The query returns the correct IP for each host |
+| Reverse DNS | `nslookup 10.0.10.11 10.0.10.1` | The query returns esxi-01.lab.dreamfold.dev |
+| NTP sync | `esxcli system ntp get` on each host | NTP is configured with server 10.0.10.1 |
+| Time sync | Compare time across all hosts | Time across all hosts is within 1 second |
+| vSAN ESA ready | `esxcli vsan storage list` on each host | The NVMe device is marked as SSD |
+| Host status | `cd ansible && ansible-playbook playbooks/phase2_esxi.yml --check` | All tasks report ok with no changes required |
 
 ## 6. Phase 3 — VCF Management Domain
 
@@ -244,9 +244,9 @@ In VCF 9.0, the SDDC Manager appliance doubles as the VCF Installer (Cloud Build
 
 | Step | Action | Expected Result | Verification |
 |------|--------|-----------------|--------------|
-| 6.2.1 | Upload OVA from gateway to esxi-01 datastore: `scp ~/vcf-installer.ova root@esxi-01:…` or ESXi Host Client | OVA available on datastore | Datastore browser shows file |
-| 6.2.2 | Deploy VCF Installer OVA with IP 10.0.10.3, GW 10.0.10.1, DNS 10.0.10.1 | Appliance deployed | VM powered on |
-| 6.2.3 | Wait for installer services to start (5-10 minutes) | Services ready | `https://vcf-installer.lab.dreamfold.dev` accessible |
+| 6.2.1 | Upload OVA from gateway to esxi-01 datastore: `scp ~/vcf-installer.ova root@esxi-01:…` or ESXi Host Client | The OVA is available on the esxi-01 datastore | The datastore browser shows the OVA file |
+| 6.2.2 | Deploy VCF Installer OVA with IP 10.0.10.3, GW 10.0.10.1, DNS 10.0.10.1 | The VCF Installer appliance is deployed and powered on | The VM is powered on in the ESXi Host Client |
+| 6.2.3 | Wait for installer services to start (5-10 minutes) | All installer services are ready | `https://vcf-installer.lab.dreamfold.dev` is accessible |
 
 #### VCF Deployment Parameter Workbook
 
@@ -270,33 +270,33 @@ sudo sed -i 's/"jsonUpdatedTime":"[^"]*"/"jsonUpdatedTime":"'"$(date -u +%Y-%m-%
 
 | Step | Action | Expected Result | Verification |
 |------|--------|-----------------|--------------|
-| 6.3.1 | Access VCF Installer UI at `https://vcf-installer.lab.dreamfold.dev` | Login page | Browser loads |
-| 6.3.2 | The `vcf_bringup` Ansible role validates and submits the deployment specification to the VCF Installer API | Parameters validated | No validation errors |
-| 6.3.3 | Start bringup workflow | Deployment begins | Progress bar advancing |
-| 6.3.4 | Wait for vCenter deployment | vCenter Server deployed | `https://vcenter-mgmt.lab.dreamfold.dev` accessible |
-| 6.3.5 | Wait for VDS and vSAN configuration | Networking and storage configured | vSAN health green in vCenter |
-| 6.3.6 | Wait for SDDC Manager deployment | SDDC Manager deployed | `https://sddc-manager.lab.dreamfold.dev` accessible |
-| 6.3.7 | Wait for NSX Manager deployment | NSX Manager deployed | `https://nsx-mgr-mgmt.lab.dreamfold.dev` accessible |
-| 6.3.8 | Bringup completes | Management domain operational | SDDC Manager shows healthy domain |
+| 6.3.1 | Access VCF Installer UI at `https://vcf-installer.lab.dreamfold.dev` | The VCF Installer login page is displayed | The browser loads the login page |
+| 6.3.2 | The `vcf_bringup` Ansible role validates and submits the deployment specification to the VCF Installer API | The deployment parameters are validated without errors | No validation errors are reported |
+| 6.3.3 | Start bringup workflow | The bringup deployment begins | The progress bar is advancing |
+| 6.3.4 | Wait for vCenter deployment | The vCenter Server is deployed successfully | `https://vcenter-mgmt.lab.dreamfold.dev` is accessible |
+| 6.3.5 | Wait for VDS and vSAN configuration | Networking and storage are configured | vSAN health shows green in vCenter |
+| 6.3.6 | Wait for SDDC Manager deployment | SDDC Manager is deployed successfully | `https://sddc-manager.lab.dreamfold.dev` is accessible |
+| 6.3.7 | Wait for NSX Manager deployment | NSX Manager is deployed successfully | `https://nsx-mgr-mgmt.lab.dreamfold.dev` is accessible |
+| 6.3.8 | Bringup completes | The management domain is operational | SDDC Manager shows the management domain as healthy |
 
 ### 6.4 Post-Bringup Deployments
 
 | Step | Action | Expected Result | Verification |
 |------|--------|-----------------|--------------|
-| 6.4.1 | Deploy VCF Operations from SDDC Manager | VCF Operations deployed | `https://vcf-ops.lab.dreamfold.dev` accessible |
-| 6.4.2 | Deploy VCF Automation from SDDC Manager | VCF Automation deployed | `https://vcf-auto.lab.dreamfold.dev` accessible |
-| 6.4.3 | Remove VCF Installer VM (no longer needed) | Resources reclaimed | VM deleted |
+| 6.4.1 | Deploy VCF Operations from SDDC Manager | VCF Operations is deployed successfully | `https://vcf-ops.lab.dreamfold.dev` is accessible |
+| 6.4.2 | Deploy VCF Automation from SDDC Manager | VCF Automation is deployed successfully | `https://vcf-auto.lab.dreamfold.dev` is accessible |
+| 6.4.3 | Remove VCF Installer VM (no longer needed) | Resources are reclaimed from the VCF Installer VM | The VM is deleted from the inventory |
 
 ### 6.5 Management Domain Verification
 
 | Check | Method | Expected Result |
 |-------|--------|-----------------|
-| vCenter health | Login to `https://vcenter-mgmt.lab.dreamfold.dev` | Cluster shows 4 hosts, all connected |
-| vSAN health | vCenter → Cluster → Monitor → vSAN → Health | All health checks green |
-| SDDC Manager | Login to `https://sddc-manager.lab.dreamfold.dev` | Management domain shows Active |
-| NSX Manager | Login to `https://nsx-mgr-mgmt.lab.dreamfold.dev` | Dashboard accessible, transport nodes connected |
-| VCF Operations | Login to `https://vcf-ops.lab.dreamfold.dev` | Dashboard shows management domain |
-| VCF Automation | Login to `https://vcf-auto.lab.dreamfold.dev` | Console accessible |
+| vCenter health | Login to `https://vcenter-mgmt.lab.dreamfold.dev` | The cluster shows 4 hosts, all in a connected state |
+| vSAN health | vCenter → Cluster → Monitor → vSAN → Health | All vSAN health checks are green |
+| SDDC Manager | Login to `https://sddc-manager.lab.dreamfold.dev` | The management domain shows Active status |
+| NSX Manager | Login to `https://nsx-mgr-mgmt.lab.dreamfold.dev` | The dashboard is accessible and all transport nodes are connected |
+| VCF Operations | Login to `https://vcf-ops.lab.dreamfold.dev` | The dashboard shows the management domain |
+| VCF Automation | Login to `https://vcf-auto.lab.dreamfold.dev` | The console is accessible |
 
 ## 7. Phase 4 — VCF Workload Domain
 
@@ -306,29 +306,29 @@ sudo sed -i 's/"jsonUpdatedTime":"[^"]*"/"jsonUpdatedTime":"'"$(date -u +%Y-%m-%
 
 | Step | Action | Expected Result | Verification |
 |------|--------|-----------------|--------------|
-| 7.1.1 | In SDDC Manager, navigate to Hosts → Commission | Commission wizard opens | — |
-| 7.1.2 | Add esxi-05, esxi-06, esxi-07 to free pool | Hosts commissioning | Task progress visible |
-| 7.1.3 | Wait for host validation and commissioning | Hosts in free pool | SDDC Manager shows 3 hosts available |
+| 7.1.1 | In SDDC Manager, navigate to Hosts → Commission | The host commission wizard opens | — |
+| 7.1.2 | Add esxi-05, esxi-06, esxi-07 to free pool | The three hosts begin commissioning | Task progress is visible in the SDDC Manager UI |
+| 7.1.3 | Wait for host validation and commissioning | All three hosts are in the free pool | SDDC Manager shows 3 hosts available in the free pool |
 
 ### 7.2 Create Workload Domain
 
 | Step | Action | Expected Result | Verification |
 |------|--------|-----------------|--------------|
-| 7.2.1 | In SDDC Manager, navigate to Domains → Add Domain | Create domain wizard opens | — |
-| 7.2.2 | Configure workload domain with 3 hosts, vSAN storage | Domain configuration accepted | Validation passes |
-| 7.2.3 | Specify vcenter-wld (10.0.10.9) and nsx-mgr-wld (10.0.10.10) | Appliance config accepted | — |
-| 7.2.4 | Start domain creation | Deployment begins | Task progress visible |
-| 7.2.5 | Wait for workload domain deployment (60-90 minutes) | Domain created | SDDC Manager shows Active |
+| 7.2.1 | In SDDC Manager, navigate to Domains → Add Domain | The create domain wizard opens | — |
+| 7.2.2 | Configure workload domain with 3 hosts, vSAN storage | The domain configuration is accepted | Validation passes without errors |
+| 7.2.3 | Specify vcenter-wld (10.0.10.9) and nsx-mgr-wld (10.0.10.10) | The appliance configuration is accepted | — |
+| 7.2.4 | Start domain creation | The domain deployment begins | Task progress is visible in the SDDC Manager UI |
+| 7.2.5 | Wait for workload domain deployment (60-90 minutes) | The workload domain is created | SDDC Manager shows the domain as Active |
 
 ### 7.3 Workload Domain Verification
 
 | Check | Method | Expected Result |
 |-------|--------|-----------------|
-| Workload vCenter | Login to `https://vcenter-wld.lab.dreamfold.dev` | Cluster shows 3 hosts, all connected |
-| Workload vSAN | vCenter → Cluster → Monitor → vSAN → Health | All checks green |
-| Workload NSX | Login to `https://nsx-mgr-wld.lab.dreamfold.dev` | Dashboard accessible |
-| Transport nodes | NSX Manager → System → Fabric → Nodes | 3 host transport nodes configured |
-| SDDC Manager | Domains overview | Both domains show Active |
+| Workload vCenter | Login to `https://vcenter-wld.lab.dreamfold.dev` | The cluster shows 3 hosts, all in a connected state |
+| Workload vSAN | vCenter → Cluster → Monitor → vSAN → Health | All vSAN health checks are green |
+| Workload NSX | Login to `https://nsx-mgr-wld.lab.dreamfold.dev` | The NSX Manager dashboard is accessible |
+| Transport nodes | NSX Manager → System → Fabric → Nodes | Three host transport nodes are configured and connected |
+| SDDC Manager | Domains overview | Both management and workload domains show Active status |
 
 ### 7.4 Configure Keycloak OpenID Connect (OIDC) via VCF Identity Broker
 
@@ -336,13 +336,13 @@ Keycloak was deployed in Phase 1 by the `docker_services` role with the lab real
 
 | Step | Action | Expected Result |
 |------|--------|-----------------|
-| 7.4.1 | In SDDC Manager → Administration → Identity Providers, register Keycloak as an OIDC provider | Provider configured |
-| 7.4.2 | Set Discovery Endpoint to `https://gateway.lab.dreamfold.dev:8443/realms/lab/.well-known/openid-configuration` | Metadata fetched |
-| 7.4.3 | Set Client ID and provide client secret from Keycloak admin console | Credentials accepted |
-| 7.4.4 | Map Keycloak groups to VCF roles (admin, read-only, etc.) | Role mappings created |
-| 7.4.5 | Test SSO login with `lab-admin` user via management vCenter | vCenter dashboard loads |
-| 7.4.6 | Test SSO login with `lab-admin` user via NSX Manager | NSX dashboard loads |
-| 7.4.7 | Verify Identity Broker shows both management and workload domains federated | All products listed |
+| 7.4.1 | In SDDC Manager → Administration → Identity Providers, register Keycloak as an OIDC provider | The OIDC provider is configured in the Identity Broker |
+| 7.4.2 | Set Discovery Endpoint to `https://gateway.lab.dreamfold.dev:8443/realms/lab/.well-known/openid-configuration` | The OIDC metadata is fetched from Keycloak |
+| 7.4.3 | Set Client ID and provide client secret from Keycloak admin console | The client credentials are accepted |
+| 7.4.4 | Map Keycloak groups to VCF roles (admin, read-only, etc.) | The role mappings are created |
+| 7.4.5 | Test SSO login with `lab-admin` user via management vCenter | The vCenter dashboard loads after SSO login |
+| 7.4.6 | Test SSO login with `lab-admin` user via NSX Manager | The NSX Manager dashboard loads after SSO login |
+| 7.4.7 | Verify Identity Broker shows both management and workload domains federated | All federated products are listed in the Identity Broker |
 
 ## 8. Phase 5 — NSX Networking
 
@@ -364,29 +364,29 @@ For AMD Ryzen/Threadripper physical hosts, also add: `monitor_control.enable_ful
 
 | Step | Action | Expected Result | Verification |
 |------|--------|-----------------|--------------|
-| 8.1.1 | In workload NSX Manager, navigate to System → Fabric → Edge Clusters | Edge management page | — |
-| 8.1.2 | Deploy edge-01 (Large, 8 vCPU, 32 GB RAM) with management IP 10.0.10.20 | Edge VM deployed | `ping 10.0.10.20` |
-| 8.1.3 | Deploy edge-02 (Large) with management IP 10.0.10.21 | Edge VM deployed | `ping 10.0.10.21` |
-| 8.1.4 | Configure Edge Tunnel Endpoint (TEP) interfaces on VLAN 50 (10.0.50.20, 10.0.50.21) | TEP connectivity | Edge transport node status: Up |
-| 8.1.5 | Create Edge cluster with both Edge VMs | Edge cluster created | NSX Manager shows cluster healthy |
+| 8.1.1 | In workload NSX Manager, navigate to System → Fabric → Edge Clusters | The Edge management page is displayed | — |
+| 8.1.2 | Deploy edge-01 (Large, 8 vCPU, 32 GB RAM) with management IP 10.0.10.20 | The edge-01 VM is deployed and powered on | `ping 10.0.10.20` succeeds |
+| 8.1.3 | Deploy edge-02 (Large) with management IP 10.0.10.21 | The edge-02 VM is deployed and powered on | `ping 10.0.10.21` succeeds |
+| 8.1.4 | Configure Edge Tunnel Endpoint (TEP) interfaces on VLAN 50 (10.0.50.20, 10.0.50.21) | TEP connectivity is established between the Edge nodes | The Edge transport node status shows Up |
+| 8.1.5 | Create Edge cluster with both Edge VMs | The Edge cluster is created with both Edge VMs | NSX Manager shows the Edge cluster as healthy |
 
 ### 8.2 Configure Tier-0 Gateway
 
 | Step | Action | Expected Result | Verification |
 |------|--------|-----------------|--------------|
-| 8.2.1 | Create Tier-0 gateway (Active-Standby, linked to Edge cluster) | Tier-0 created | Gateway shows Realised |
-| 8.2.2 | Add uplink interface on VLAN 60, IP 10.0.60.2/24 | Uplink configured | Interface status: Up |
-| 8.2.3 | Configure BGP: ASN 65001, neighbor 10.0.60.1 (ASN 65000), keepalive 60s, hold 180s | BGP configured | — |
-| 8.2.4 | Enable route redistribution (connected subnets, NAT) | Routes advertised | — |
+| 8.2.1 | Create Tier-0 gateway (Active-Standby, linked to Edge cluster) | The NSX Tier-0 Gateway is created | The gateway status shows Realised in NSX Manager |
+| 8.2.2 | Add uplink interface on VLAN 60, IP 10.0.60.2/24 | The uplink interface is configured | The interface status shows Up |
+| 8.2.3 | Configure BGP: ASN 65001, neighbor 10.0.60.1 (ASN 65000), keepalive 60s, hold 180s | BGP peering is configured on the Tier-0 Gateway | — |
+| 8.2.4 | Enable route redistribution (connected subnets, NAT) | Connected and NAT routes are advertised | — |
 
 ### 8.3 Configure BGP on Gateway (FRR)
 
 | Step | Action | Expected Result | Verification |
 |------|--------|-----------------|--------------|
-| 8.3.1 | SSH to gateway | CLI access | — |
-| 8.3.2 | Verify FRR BGP configuration deployed by Ansible | BGP configured | `vtysh -c 'show ip bgp summary'` |
-| 8.3.3 | Verify BGP adjacency established | Session state: Established | `vtysh -c 'show ip bgp summary'` shows Established |
-| 8.3.4 | Verify route exchange | Routes received from NSX | `vtysh -c 'show ip bgp'` shows VPC prefixes |
+| 8.3.1 | SSH to gateway | CLI access to the gateway is established | — |
+| 8.3.2 | Verify FRR BGP configuration deployed by Ansible | The FRR BGP configuration is in place | `vtysh -c 'show ip bgp summary'` shows the configuration |
+| 8.3.3 | Verify BGP adjacency established | The BGP session state is Established | `vtysh -c 'show ip bgp summary'` shows Established |
+| 8.3.4 | Verify route exchange | Routes are received from the NSX Tier-0 Gateway | `vtysh -c 'show ip bgp'` shows VPC prefixes |
 
 #### Gateway FRR BGP configuration
 
@@ -407,17 +407,17 @@ router bgp 65000
 
 | Step | Action | Expected Result | Verification |
 |------|--------|-----------------|--------------|
-| 8.4.1 | Create Tier-1 gateway linked to Tier-0 | Tier-1 created | Gateway shows Realised |
-| 8.4.2 | Configure route advertisement (connected subnets, NAT IPs, LB VIPs) | Advertisements enabled | — |
+| 8.4.1 | Create Tier-1 gateway linked to Tier-0 | The NSX Tier-1 Gateway is created and linked to the Tier-0 | The gateway status shows Realised in NSX Manager |
+| 8.4.2 | Configure route advertisement (connected subnets, NAT IPs, LB VIPs) | Route advertisements are enabled | — |
 
 ### 8.5 Configure NSX VPC
 
 | Step | Action | Expected Result | Verification |
 |------|--------|-----------------|--------------|
-| 8.5.1 | Create VPC project in NSX Manager | Project created | — |
-| 8.5.2 | Create VPC (vks-vpc) with centralised connectivity | VPC created | VPC shows Realised |
-| 8.5.3 | Configure external connectivity via Tier-0 | Routing configured | — |
-| 8.5.4 | Configure Source Network Address Translation (SNAT) on Tier-0 for outbound VPC traffic | NAT rules active | See SNAT steps below |
+| 8.5.1 | Create VPC project in NSX Manager | The VPC project is created in NSX Manager | — |
+| 8.5.2 | Create VPC (vks-vpc) with centralised connectivity | The VPC is created with centralised connectivity | The VPC status shows Realised |
+| 8.5.3 | Configure external connectivity via Tier-0 | External routing is configured via the Tier-0 Gateway | — |
+| 8.5.4 | Configure Source Network Address Translation (SNAT) on Tier-0 for outbound VPC traffic | The SNAT rules are active | See SNAT steps below |
 
 #### Configure SNAT Rules on Tier-0
 
@@ -425,10 +425,10 @@ Two SNAT rules are required — one for the VKS pod CIDR and one for the service
 
 | Step | Action | Expected Result | Verification |
 |------|--------|-----------------|--------------|
-| 8.5.4a | In NSX Manager, navigate to Networking → NAT → tier0-gateway | NAT rules page | — |
-| 8.5.4b | Add SNAT rule: source 192.168.0.0/16 → translated IP 10.0.60.2 | Rule created | Rule shows Active |
-| 8.5.4c | Add SNAT rule: source 10.96.0.0/12 → translated IP 10.0.60.2 | Rule created | Rule shows Active |
-| 8.5.4d | Verify NAT rules are realised | Both rules Active | NSX Manager → NAT → tier0-gateway shows 2 SNAT rules |
+| 8.5.4a | In NSX Manager, navigate to Networking → NAT → tier0-gateway | The NAT rules page is displayed for the Tier-0 Gateway | — |
+| 8.5.4b | Add SNAT rule: source 192.168.0.0/16 → translated IP 10.0.60.2 | The SNAT rule for the pod CIDR is created | The rule status shows Active |
+| 8.5.4c | Add SNAT rule: source 10.96.0.0/12 → translated IP 10.0.60.2 | The SNAT rule for the service CIDR is created | The rule status shows Active |
+| 8.5.4d | Verify NAT rules are realised | Both SNAT rules show Active status | NSX Manager → NAT → tier0-gateway shows 2 SNAT rules |
 
 SNAT rule parameters:
 
@@ -446,12 +446,12 @@ SNAT rule parameters:
 
 | Check | Command / Method | Expected Result |
 |-------|------------------|-----------------|
-| BGP adjacency | `vtysh -c 'show ip bgp summary'` on gateway | Established with 10.0.60.2 |
-| Routes from NSX | `vtysh -c 'show ip bgp'` on gateway | VPC/overlay prefixes received |
-| Routes from gateway | NSX Manager → Networking → Tier-0 → Routing Table | Infrastructure subnets received |
-| Edge cluster health | NSX Manager → System → Fabric → Edge Clusters | Both Edges Up |
-| Tier-0 status | NSX Manager → Networking → Tier-0 Gateways | Realised, interfaces Up |
-| VPC status | NSX Manager → VPC overview | vks-vpc shows Realised |
+| BGP adjacency | `vtysh -c 'show ip bgp summary'` on gateway | The BGP session is Established with 10.0.60.2 |
+| Routes from NSX | `vtysh -c 'show ip bgp'` on gateway | VPC and overlay prefixes are received |
+| Routes from gateway | NSX Manager → Networking → Tier-0 → Routing Table | Infrastructure subnets are received from the gateway |
+| Edge cluster health | NSX Manager → System → Fabric → Edge Clusters | Both Edge nodes show Up status |
+| Tier-0 status | NSX Manager → Networking → Tier-0 Gateways | The Tier-0 status is Realised with all interfaces Up |
+| VPC status | NSX Manager → VPC overview | The vks-vpc status shows Realised |
 
 ## 9. Phase 6 — VKS
 
@@ -461,41 +461,41 @@ SNAT rule parameters:
 
 | Step | Action | Expected Result | Verification |
 |------|--------|-----------------|--------------|
-| 9.1.1 | In workload vCenter, navigate to Content Libraries | Library management page | — |
-| 9.1.2 | Create subscribed library pointing to VMware Kubernetes Runtime (VKr) endpoint | Library created | Sync status: Active |
-| 9.1.3 | Wait for initial sync to complete | VKr images available | At least one Kubernetes version listed |
+| 9.1.1 | In workload vCenter, navigate to Content Libraries | The content library management page is displayed | — |
+| 9.1.2 | Create subscribed library pointing to VMware Kubernetes Runtime (VKr) endpoint | The subscribed content library is created | The sync status shows Active |
+| 9.1.3 | Wait for initial sync to complete | VKr images are available in the library | At least one Kubernetes version is listed |
 
 ### 9.2 Enable Supervisor
 
 | Step | Action | Expected Result | Verification |
 |------|--------|-----------------|--------------|
-| 9.2.1 | In workload vCenter, navigate to Workload Management | Supervisor setup wizard | — |
-| 9.2.2 | Select workload domain cluster | Cluster selected | — |
-| 9.2.3 | Configure networking: NSX, management network, workload network | Networking configured | — |
-| 9.2.4 | Configure storage: vSAN Default policy | Storage configured | — |
-| 9.2.5 | Start Supervisor enablement | Deployment begins | Task progress visible |
-| 9.2.6 | Wait for Supervisor deployment (30-45 minutes) | Supervisor running | Status: Running |
+| 9.2.1 | In workload vCenter, navigate to Workload Management | The Supervisor setup wizard is displayed | — |
+| 9.2.2 | Select workload domain cluster | The workload cluster is selected | — |
+| 9.2.3 | Configure networking: NSX, management network, workload network | The networking stack is configured | — |
+| 9.2.4 | Configure storage: vSAN Default policy | The storage policy is configured | — |
+| 9.2.5 | Start Supervisor enablement | The Supervisor deployment begins | Task progress is visible in the vCenter UI |
+| 9.2.6 | Wait for Supervisor deployment (30-45 minutes) | The vSphere Supervisor is running | The Supervisor status shows Running |
 
 ### 9.3 Create vSphere Namespace
 
 | Step | Action | Expected Result | Verification |
 |------|--------|-----------------|--------------|
-| 9.3.1 | In workload vCenter, navigate to Workload Management → Namespaces | Namespace management | — |
-| 9.3.2 | Create namespace "vks-workloads" | Namespace created | Status: Active |
-| 9.3.3 | Assign VM classes: best-effort-small, best-effort-medium | VM classes assigned | Listed under namespace |
-| 9.3.4 | Assign storage policies: vSAN Default | Storage assigned | Listed under namespace |
-| 9.3.5 | Assign content library: VKS Kubernetes releases | Library assigned | Listed under namespace |
+| 9.3.1 | In workload vCenter, navigate to Workload Management → Namespaces | The namespace management page is displayed | — |
+| 9.3.2 | Create namespace "vks-workloads" | The vks-workloads namespace is created | The namespace status shows Active |
+| 9.3.3 | Assign VM classes: best-effort-small, best-effort-medium | The VM classes are assigned to the namespace | The assigned classes are listed under the namespace |
+| 9.3.4 | Assign storage policies: vSAN Default | The storage policy is assigned to the namespace | The assigned policy is listed under the namespace |
+| 9.3.5 | Assign content library: VKS Kubernetes releases | The content library is assigned to the namespace | The assigned library is listed under the namespace |
 
 ### 9.4 Deploy VKS Cluster
 
 | Step | Action | Expected Result | Verification |
 |------|--------|-----------------|--------------|
-| 9.4.1 | Connect to Supervisor API (`kubectl vsphere login`) | Authenticated | Kubeconfig obtained |
-| 9.4.2 | Switch to vks-workloads namespace | Namespace active | `kubectl get ns` |
-| 9.4.3 | Apply VKS cluster manifest (Cluster v1beta1) | Cluster creation initiated | `kubectl get cluster` shows Provisioning |
-| 9.4.4 | Wait for control plane nodes (3x) | Control plane ready | `kubectl get machines` shows 3 Running |
-| 9.4.5 | Wait for worker nodes (3x) | Workers ready | `kubectl get machines` shows 6 Running |
-| 9.4.6 | Obtain VKS cluster kubeconfig | Kubeconfig available | `kubectl get secret` |
+| 9.4.1 | Connect to Supervisor API (`kubectl vsphere login`) | Authentication to the Supervisor API succeeds | A kubeconfig file is obtained |
+| 9.4.2 | Switch to vks-workloads namespace | The vks-workloads namespace context is active | `kubectl get ns` shows the namespace |
+| 9.4.3 | Apply VKS cluster manifest (Cluster v1beta1) | VKS cluster creation is initiated | `kubectl get cluster` shows Provisioning |
+| 9.4.4 | Wait for control plane nodes (3x) | The control plane is ready with 3 nodes | `kubectl get machines` shows 3 Running |
+| 9.4.5 | Wait for worker nodes (3x) | All 3 worker nodes are ready | `kubectl get machines` shows 6 Running |
+| 9.4.6 | Obtain VKS cluster kubeconfig | The VKS cluster kubeconfig is available | `kubectl get secret` shows the kubeconfig secret |
 
 #### VKS cluster manifest
 
@@ -536,11 +536,11 @@ The vSphere Container Storage Interface (CSI) driver is automatically installed 
 
 | Step | Action | Expected Result | Verification |
 |------|--------|-----------------|--------------|
-| 9.4a.1 | Login to VKS cluster | Authenticated | `kubectl get nodes` shows 6 nodes |
-| 9.4a.2 | Verify StorageClass exists | StorageClass listed | `kubectl get storageclass` shows `vsan-default-storage-policy` |
-| 9.4a.3 | Create test PVC (1 Gi) | PVC bound | `kubectl get pvc` shows Bound |
-| 9.4a.4 | Verify PV created on vSAN | FCD visible | vCenter → Datastores → vSAN → Monitor → Virtual Objects |
-| 9.4a.5 | Delete test PVC | PVC and PV deleted | `kubectl get pv` shows no orphaned PVs |
+| 9.4a.1 | Login to VKS cluster | Authentication to the VKS cluster succeeds | `kubectl get nodes` shows 6 nodes |
+| 9.4a.2 | Verify StorageClass exists | The StorageClass is listed | `kubectl get storageclass` shows `vsan-default-storage-policy` |
+| 9.4a.3 | Create test PVC (1 Gi) | The test PVC is bound to a PersistentVolume | `kubectl get pvc` shows Bound |
+| 9.4a.4 | Verify PV created on vSAN | The First Class Disk is visible in vCenter | vCenter → Datastores → vSAN → Monitor → Virtual Objects |
+| 9.4a.5 | Delete test PVC | The test PVC and PV are deleted | `kubectl get pv` shows no orphaned PVs |
 
 ```yaml
 # Test PVC — apply, verify Bound, then delete
@@ -562,10 +562,10 @@ spec:
 
 | Step | Action | Expected Result | Verification |
 |------|--------|-----------------|--------------|
-| 9.5.1 | Login to VKS cluster using obtained kubeconfig | Authenticated | `kubectl get nodes` shows 6 nodes |
-| 9.5.2 | Deploy nginx test deployment | Pods running | `kubectl get pods` shows Running |
-| 9.5.3 | Expose via LoadBalancer service | External IP assigned | `kubectl get svc` shows EXTERNAL-IP |
-| 9.5.4 | Access nginx from gateway | Page loads | `curl http://<EXTERNAL-IP>` returns nginx welcome |
+| 9.5.1 | Login to VKS cluster using obtained kubeconfig | Authentication to the VKS cluster succeeds | `kubectl get nodes` shows 6 nodes |
+| 9.5.2 | Deploy nginx test deployment | The nginx pods are running | `kubectl get pods` shows Running |
+| 9.5.3 | Expose via LoadBalancer service | An external IP is assigned to the LoadBalancer service | `kubectl get svc` shows EXTERNAL-IP |
+| 9.5.4 | Access nginx from gateway | The nginx welcome page loads | `curl http://<EXTERNAL-IP>` returns the nginx welcome page |
 
 #### Test workload manifest
 
@@ -611,40 +611,40 @@ Final verification checklist before the lab is considered operational.
 
 | # | Check | Method | Expected Result | Pass |
 |---|-------|--------|-----------------|------|
-| 1 | External RDP access | RDP to gateway public IP | Desktop loads | ☐ |
-| 2 | DNS forward resolution | `dig @10.0.10.1 vcenter-mgmt.lab.dreamfold.dev` | Returns 10.0.10.4 | ☐ |
-| 3 | DNS reverse resolution | `dig @10.0.10.1 -x 10.0.10.4` | Returns vcenter-mgmt.lab.dreamfold.dev | ☐ |
-| 4 | NTP synchronisation | `chronyc sources` on gateway | Upstream servers reachable | ☐ |
-| 5 | CA health | `step ca health` on gateway | Returns "ok" | ☐ |
-| 6 | Inter-VLAN routing | `ping 10.0.20.1` from an ESXi host | Success | ☐ |
+| 1 | External RDP access | RDP to gateway public IP | The XFCE desktop loads via RDP | ☐ |
+| 2 | DNS forward resolution | `dig @10.0.10.1 vcenter-mgmt.lab.dreamfold.dev` | The query returns 10.0.10.4 | ☐ |
+| 3 | DNS reverse resolution | `dig @10.0.10.1 -x 10.0.10.4` | The query returns vcenter-mgmt.lab.dreamfold.dev | ☐ |
+| 4 | NTP synchronisation | `chronyc sources` on gateway | Upstream NTP servers are reachable | ☐ |
+| 5 | CA health | `step ca health` on gateway | The health check returns "ok" | ☐ |
+| 6 | Inter-VLAN routing | `ping 10.0.20.1` from an ESXi host | The ping succeeds | ☐ |
 
 ### 10.2 VCF Platform
 
 | # | Check | Method | Expected Result | Pass |
 |---|-------|--------|-----------------|------|
-| 7 | Management vCenter | Browse `https://vcenter-mgmt.lab.dreamfold.dev` | Login page loads | ☐ |
-| 8 | Workload vCenter | Browse `https://vcenter-wld.lab.dreamfold.dev` | Login page loads | ☐ |
-| 9 | SDDC Manager | Browse `https://sddc-manager.lab.dreamfold.dev` | Both domains Active | ☐ |
-| 10 | Management vSAN health | vCenter → Cluster → vSAN Health | All green | ☐ |
-| 11 | Workload vSAN health | vCenter → Cluster → vSAN Health | All green | ☐ |
-| 12 | All ESXi hosts connected | Both vCenters show hosts Connected | 4 mgmt + 3 wld | ☐ |
+| 7 | Management vCenter | Browse `https://vcenter-mgmt.lab.dreamfold.dev` | The login page loads | ☐ |
+| 8 | Workload vCenter | Browse `https://vcenter-wld.lab.dreamfold.dev` | The login page loads | ☐ |
+| 9 | SDDC Manager | Browse `https://sddc-manager.lab.dreamfold.dev` | Both domains show Active status | ☐ |
+| 10 | Management vSAN health | vCenter → Cluster → vSAN Health | All vSAN health checks are green | ☐ |
+| 11 | Workload vSAN health | vCenter → Cluster → vSAN Health | All vSAN health checks are green | ☐ |
+| 12 | All ESXi hosts connected | Both vCenters show hosts Connected | All hosts are connected (4 management + 3 workload) | ☐ |
 
 ### 10.3 NSX Networking
 
 | # | Check | Method | Expected Result | Pass |
 |---|-------|--------|-----------------|------|
-| 13 | BGP adjacency | `vtysh -c 'show ip bgp summary'` on gateway | Established | ☐ |
-| 14 | Route exchange | `vtysh -c 'show ip bgp'` on gateway | VPC prefixes received | ☐ |
-| 15 | Edge cluster health | NSX Manager → Edge Clusters | Both Edges Up | ☐ |
-| 16 | Tier-0 status | NSX Manager → Tier-0 Gateways | Realised | ☐ |
-| 17 | VPC status | NSX Manager → VPC | Realised | ☐ |
+| 13 | BGP adjacency | `vtysh -c 'show ip bgp summary'` on gateway | The BGP session is Established | ☐ |
+| 14 | Route exchange | `vtysh -c 'show ip bgp'` on gateway | VPC prefixes are received from the NSX Tier-0 | ☐ |
+| 15 | Edge cluster health | NSX Manager → Edge Clusters | Both Edge nodes show Up status | ☐ |
+| 16 | Tier-0 status | NSX Manager → Tier-0 Gateways | The Tier-0 status is Realised | ☐ |
+| 17 | VPC status | NSX Manager → VPC | The VPC status is Realised | ☐ |
 
 ### 10.4 VKS
 
 | # | Check | Method | Expected Result | Pass |
 |---|-------|--------|-----------------|------|
-| 18 | Supervisor status | vCenter → Workload Management | Running | ☐ |
-| 19 | VKS cluster health | `kubectl get cluster vks-cluster-01` | Phase: Provisioned | ☐ |
-| 20 | All nodes ready | `kubectl get nodes` on VKS cluster | 6 nodes Ready | ☐ |
-| 21 | Test workload | `curl http://<nginx-lb-ip>` | nginx welcome page | ☐ |
-| 22 | Pod-to-external | `kubectl exec` into pod, `curl google.com` | Response received | ☐ |
+| 18 | Supervisor status | vCenter → Workload Management | The Supervisor status shows Running | ☐ |
+| 19 | VKS cluster health | `kubectl get cluster vks-cluster-01` | The cluster phase shows Provisioned | ☐ |
+| 20 | All nodes ready | `kubectl get nodes` on VKS cluster | All 6 nodes show Ready status | ☐ |
+| 21 | Test workload | `curl http://<nginx-lb-ip>` | The nginx welcome page is returned | ☐ |
+| 22 | Pod-to-external | `kubectl exec` into pod, `curl google.com` | A response is received from the external site | ☐ |
