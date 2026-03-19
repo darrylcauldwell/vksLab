@@ -86,6 +86,47 @@ The document set follows TOGAF Architecture Development Method (ADM) structure:
 
 When adding new content, place it in the document that matches its TOGAF phase. Design decisions belong in logical design (with Decision ID, justification, and risk/mitigation). Physical specs belong in physical design. Procedures belong in the delivery or operations guide.
 
+### Requirements Traceability
+
+Every design decision must reference a requirement ID (e.g., R-005, C-002). Every requirement in `conceptual-design.md` must be traceable through the chain:
+
+```
+Requirement → Design Decision (logical-design.md) → Implementation (deliver.md) → Verification (deliver.md / operate.md)
+```
+
+The Requirements Traceability Matrix in `conceptual-design.md` Section 12 is the master index. When adding a new requirement, design decision, or procedure:
+- Add the requirement to the matrix
+- Assign a Decision ID (format: `XXX-NN`, e.g., `VKS-05`, `NET-06`)
+- Reference the Decision ID in the logical/physical design
+- Add implementation steps to the delivery guide
+- Add verification steps to either the delivery guide or operations guide
+
+### Diagram Consistency
+
+ASCII diagrams must match the component names and terminology used in the surrounding prose. When renaming a component or term in prose, update every diagram that references it. Diagrams are approximate — alignment does not need to be pixel-perfect — but box labels, connection lines, and component names must be accurate.
+
+### Version-Specific References
+
+When a procedure or configuration is version-dependent, specify the exact version (e.g., "VCF 9.0.1+", "ESXi 9.0"). Do not write version-generic instructions for version-specific behaviour. If a workaround applies only to certain versions, state the version range and note when it is no longer needed.
+
+### Cross-Document Link Integrity
+
+Cross-references between documents must use relative paths (e.g., `[Logical Design](logical-design.md)`) and point to real section headings. When renaming or restructuring a section, search all five documents for references to the old heading and update them. Broken cross-references silently mislead readers.
+
+### Design Decision Table Format
+
+All design decision tables must include these columns:
+
+| Column | Purpose |
+|--------|---------|
+| Req. | Requirement ID being addressed |
+| Decision ID | Unique identifier (format: `XXX-NN`) |
+| Design Decision | What was decided |
+| Design Justification | Why this approach was chosen |
+| Risk / Mitigation | What could go wrong and how to handle it |
+
+Do not omit the justification or risk columns. A decision without rationale is not traceable; a decision without risk analysis is not complete.
+
 ### Hostnames and CLI Output
 
 Hostnames (e.g., `nsx-mgr-wld`, `vcf-ops`), CLI commands, config file paths, and API endpoints are **not renamed** — they reflect what the software actually uses. Only human-readable prose and labels follow the terminology rules above.
