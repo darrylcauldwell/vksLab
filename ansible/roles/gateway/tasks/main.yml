@@ -99,6 +99,23 @@
     state: started
     enabled: true
 
+# apport crash reporter is noisy on a lab appliance — stale GNOME sessions
+# after reboots trigger "System program problem detected" dialogs on RDP login.
+- name: Disable apport crash reporter
+  become: true
+  ansible.builtin.service:
+    name: apport
+    state: stopped
+    enabled: false
+
+- name: Ensure apport stays disabled across reboots
+  become: true
+  ansible.builtin.lineinfile:
+    path: /etc/default/apport
+    regexp: '^enabled='
+    line: 'enabled=0'
+    state: present
+
 - name: Configure GDM3 auto-login for ubuntu user
   become: true
   ansible.builtin.copy:
