@@ -78,7 +78,7 @@ The following must be in place before starting Phase 1.
 | Step | Action | Expected Result | Verification |
 |------|--------|-----------------|--------------|
 | 3.5.1 | Power off all 8 VMs (gateway + 7 ESXi) | All 8 VMs are stopped | The vApp shows all VMs powered off |
-| 3.5.2 | In vCD, right-click vApp → Add to Catalog. Name: `[baseline]vcf-lab-8vm`, storage policy: `ProvisioningStoragePolicy-provider01` | The vApp template is created in the catalog | The catalog shows the new template |
+| 3.5.2 | In vCD, right-click vApp → **Add to Catalog**. Select **Make identical copy**. Name: `[baseline]vcf-9.0.2-lab-8vm`, description: "VCF 9.0.2 nested lab baseline — 1 Ubuntu 24.04 gateway (OVA pre-staged) + 7 ESXi 9.0.2 hosts (4 mgmt, 3 workload)", storage policy: `ProvisioningStoragePolicy-provider01` | The vApp template is created in the catalog | The catalog shows the new template |
 | 3.5.3 | Verify template is visible in catalog and contains 8 VMs | The template is valid and contains all expected VMs | Opening template details confirms 8 VMs are listed |
 
 > **Note**: The original vApp can be deleted after the template is saved — it is no longer needed. All subsequent rebuilds deploy from the catalog template.
@@ -141,7 +141,7 @@ ansible-galaxy collection install -r ansible/collections/requirements.yml
 
 | Step | Action | Expected Result | Verification |
 |------|--------|-----------------|--------------|
-| 4.2.1 | In vCD catalog, deploy vApp from template `[baseline]vcf-lab-8vm` | A vApp is created containing all 8 VMs | The vApp is visible with all VMs listed |
+| 4.2.1 | In vCD catalog, deploy vApp from template `[baseline]vcf-9.0.2-lab-8vm` | A vApp is created containing all 8 VMs | The vApp is visible with all VMs listed |
 | 4.2.2 | For each ESXi VM in vCD, navigate to the VM > **Hardware** > **NICs** and note the MAC address of NIC 1 (vmnic0). Update the corresponding `esxi_mac` field in `ansible/inventory/hosts.yml` | MAC addresses are recorded for all 7 ESXi VMs | The inventory file is updated with the new MAC addresses |
 | 4.2.3 | Power on all 8 VMs (allow 5–10 minutes for all VMs to complete POST) | All 8 VMs are running | The gateway obtains a public IP via Dynamic Host Configuration Protocol (DHCP) |
 | 4.2.4 | Note gateway public IP: `ip addr show ens160` via vCD console | The public IP address is obtained | — |
