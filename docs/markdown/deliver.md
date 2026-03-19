@@ -20,8 +20,9 @@ The lab is built in two tiers. **Phase 0** is a one-time operation that creates 
 | 4 | VCF Workload Domain | Each rebuild |
 | 5 | NSX Networking | Each rebuild |
 | 6 | VKS | Each rebuild |
+| 7 | Platform Services | Each rebuild |
 
-**Phase 0** creates the baseline vApp with a gateway VM (Ubuntu, Open Virtual Appliance (OVA) pre-staged) and 7 ESXi VMs, then saves it as a catalog template. **Phase 1** deploys the template, configures the gateway (Domain Name System (DNS), Network Time Protocol (NTP), Certificate Authority (CA), inter-Virtual LAN (VLAN) routing, Free Range Routing (FRR) Border Gateway Protocol (BGP)). **Phase 2** configures all seven nested ESXi hosts. **Phase 3** runs the VMware Cloud Foundation (VCF) Installer to bring up the management domain (vCenter, Software-Defined Data Center (SDDC) Manager, VCF Networking (NSX) Manager, VCF Operations, VCF Automation). **Phase 4** commissions workload hosts and creates the workload domain. **Phase 5** deploys the NSX Edge cluster, configures NSX Tier-0 Gateway / NSX Tier-1 Gateway, establishes BGP peering, and creates the NSX Virtual Private Cloud (VPC). **Phase 6** enables the vSphere Supervisor, creates a vSphere Namespace, and deploys a vSphere Kubernetes Services (VKS) cluster with a test workload.
+**Phase 0** creates the baseline vApp with a gateway VM (Ubuntu, Open Virtual Appliance (OVA) pre-staged) and 7 ESXi VMs, then saves it as a catalog template. **Phase 1** deploys the template, configures the gateway (Domain Name System (DNS), Network Time Protocol (NTP), Certificate Authority (CA), inter-Virtual LAN (VLAN) routing, Free Range Routing (FRR) Border Gateway Protocol (BGP)). **Phase 2** configures all seven nested ESXi hosts. **Phase 3** runs the VMware Cloud Foundation (VCF) Installer to bring up the management domain (vCenter, Software-Defined Data Center (SDDC) Manager, VCF Networking (NSX) Manager, VCF Operations, VCF Automation). **Phase 4** commissions workload hosts and creates the workload domain. **Phase 5** deploys the NSX Edge cluster, configures NSX Tier-0 Gateway / NSX Tier-1 Gateway, establishes BGP peering, and creates the NSX Virtual Private Cloud (VPC). **Phase 6** enables the vSphere Supervisor, creates a vSphere Namespace, and deploys a vSphere Kubernetes Services (VKS) cluster with a test workload. **Phase 7** deploys a shared-services VKS cluster and installs platform services: Contour (L7 ingress), Harbor (container registry proxy cache), MinIO + Velero (Kubernetes backup), and ArgoCD (GitOps deployment).
 
 ## 2. Prerequisites
 
@@ -612,11 +613,141 @@ spec:
       targetPort: 80
 ```
 
-## 10. Ready for Operations Testing
+## 10. Phase 7 — Platform Services
+
+> Phase 7 implements R-012 through R-016 via VKS-09 through VKS-14. A shared-services VKS cluster is deployed, then platform services are installed in dependency order.
+
+### 10.1 Deploy Shared-Services VKS Cluster
+
+Create a new vSphere Namespace and VKS cluster for platform services, following the same process as Phase 6.
+
+| Step | Action | Expected Result | Verification |
+|------|--------|-----------------|--------------|
+| 10.1.1 | In workload vCenter → Workload Management → Namespaces, create namespace `vks-services` | The vks-services namespace is created | Namespace status shows Active |
+| 10.1.2 | Assign VM classes (best-effort-small, best-effort-medium), storage policy (vSAN Default), and content library (`vkr-content-library`) to the namespace | Resources are assigned | Classes and policies listed under namespace |
+| 10.1.3 | Connect to Supervisor API: `kubectl vsphere login --server=<supervisor-ip> --vsphere-username administrator@vsphere.local --insecure-skip-tls-verify` | Authentication succeeds | kubeconfig obtained |
+| 10.1.4 | Switch context: `kubectl config use-context vks-services` | Context active | `kubectl get ns` shows namespace |
+| 10.1.5 | Apply VKS cluster manifest for `vks-services-01` (same spec as `vks-cluster-01` but with name `vks-services-01` and namespace `vks-services`) | Cluster creation initiated | `kubectl get cluster` shows Provisioning |
+| 10.1.6 | Wait for control plane (3 nodes) and workers (3 nodes) | All 6 nodes Ready | `kubectl get nodes` on vks-services-01 shows 6 Ready |
+
+#### Shared-services cluster manifest
+
+```yaml
+apiVersion: cluster.x-k8s.io/v1beta1
+kind: Cluster
+metadata:
+  name: vks-services-01
+  namespace: vks-services
+spec:
+  clusterNetwork:
+    pods:
+      cidrBlocks: ["192.168.0.0/16"]
+    services:
+      cidrBlocks: ["10.96.0.0/12"]
+  topology:
+    class: tanzukubernetescluster
+    version: # Latest available VKr
+    controlPlane:
+      replicas: 3
+      metadata: {}
+    workers:
+      machineDeployments:
+        - class: node-pool
+          name: worker-pool
+          replicas: 3
+          metadata: {}
+    variables:
+      - name: vmClass
+        value: best-effort-medium
+      - name: storageClass
+        value: vsan-default-storage-policy
+```
+
+### 10.2 Install cert-manager (VKS Standard Package)
+
+cert-manager is a prerequisite for Contour TLS certificate management.
+
+| Step | Action | Expected Result | Verification |
+|------|--------|-----------------|--------------|
+| 10.2.1 | Login to VKS shared-services cluster | Authentication succeeds | `kubectl get nodes` shows 6 Ready |
+| 10.2.2 | Install cert-manager: `vcf package install cert-manager` | cert-manager pods are deployed | `kubectl get pods -n cert-manager` shows all Running |
+| 10.2.3 | Verify cert-manager webhook is ready | Webhook is operational | `kubectl get apiservice v1.cert-manager.io` shows Available=True |
+
+### 10.3 Install Contour (VKS Standard Package)
+
+Contour provides L7 ingress routing. The Envoy DaemonSet receives an NSX LB VIP for its Service type LoadBalancer.
+
+| Step | Action | Expected Result | Verification |
+|------|--------|-----------------|--------------|
+| 10.3.1 | Install Contour: `vcf package install contour` | Contour and Envoy pods are deployed | `kubectl get pods -n projectcontour` shows all Running |
+| 10.3.2 | Verify Envoy LoadBalancer service has an external IP | NSX LB provisions a VIP | `kubectl get svc -n projectcontour envoy` shows EXTERNAL-IP |
+| 10.3.3 | Add DNS record for the Envoy VIP | Wildcard or per-service records resolve to the VIP | `dig @10.0.10.1 *.services.lab.dreamfold.dev` returns the VIP |
+
+> **Note**: The Envoy VIP is the single L4 entry point for all L7 services (Harbor, ArgoCD). Contour routes traffic by hostname/path using HTTPProxy CRDs.
+
+### 10.4 Install Harbor (VKS Standard Package)
+
+Harbor provides a container registry proxy cache for GHCR.
+
+| Step | Action | Expected Result | Verification |
+|------|--------|-----------------|--------------|
+| 10.4.1 | Install Harbor: `vcf package install harbor` with configuration values specifying Contour HTTPProxy ingress and the `harbor.lab.dreamfold.dev` hostname | Harbor pods are deployed | `kubectl get pods -n harbor` shows all Running |
+| 10.4.2 | Verify Harbor health endpoint | Harbor API is accessible | `curl https://harbor.lab.dreamfold.dev/api/v2.0/health` returns `{"status":"healthy"}` |
+| 10.4.3 | Login to Harbor web UI and create a proxy cache project named `ghcr-proxy` with endpoint `https://ghcr.io` | The proxy cache project is created | The `ghcr-proxy` project is listed in Harbor |
+| 10.4.4 | Test image pull through proxy cache: `docker pull harbor.lab.dreamfold.dev/ghcr-proxy/library/nginx:latest` | The image is cached locally in Harbor | Harbor UI shows the image in the `ghcr-proxy` project |
+
+### 10.5 Install MinIO (Helm)
+
+MinIO provides S3-compatible storage for Velero backups.
+
+| Step | Action | Expected Result | Verification |
+|------|--------|-----------------|--------------|
+| 10.5.1 | Add MinIO Helm repo: `helm repo add minio https://charts.min.io/` | Repo added | `helm repo list` shows minio |
+| 10.5.2 | Install MinIO with a 100 Gi PVC: `helm install minio minio/minio --namespace velero --create-namespace --set persistence.size=100Gi --set resources.requests.memory=1Gi` | MinIO pod is deployed | `kubectl get pods -n velero` shows minio Running |
+| 10.5.3 | Create a `velero` bucket in MinIO | The bucket is available | `mc alias set minio http://minio.velero.svc:9000 <access-key> <secret-key> && mc mb minio/velero` succeeds |
+
+### 10.6 Install Velero (VKS Standard Package)
+
+Velero provides Kubernetes resource and PersistentVolume backup.
+
+| Step | Action | Expected Result | Verification |
+|------|--------|-----------------|--------------|
+| 10.6.1 | Install Velero: `vcf package install velero` with BackupStorageLocation pointing to MinIO (`http://minio.velero.svc:9000`, bucket `velero`) | Velero server and node-agent pods are deployed | `kubectl get pods -n velero` shows velero and node-agent Running |
+| 10.6.2 | Enable CSI snapshot support | VolumeSnapshot CRDs are available | `kubectl get crd volumesnapshots.snapshot.storage.k8s.io` exists |
+| 10.6.3 | Create a test backup: `velero backup create test-backup --include-namespaces default` | The backup completes | `velero backup get test-backup` shows Completed |
+| 10.6.4 | Create a daily backup schedule: `velero schedule create daily-backup --schedule="0 2 * * *" --include-namespaces default,harbor` | The schedule is created | `velero schedule get` shows daily-backup |
+
+### 10.7 Install ArgoCD (Helm)
+
+ArgoCD provides GitOps-based deployment across both VKS clusters.
+
+| Step | Action | Expected Result | Verification |
+|------|--------|-----------------|--------------|
+| 10.7.1 | Add ArgoCD Helm repo: `helm repo add argo https://argoproj.github.io/argo-helm` | Repo added | `helm repo list` shows argo |
+| 10.7.2 | Install ArgoCD: `helm install argocd argo/argo-cd --namespace argocd --create-namespace` | ArgoCD pods are deployed | `kubectl get pods -n argocd` shows all Running |
+| 10.7.3 | Configure Contour HTTPProxy for ArgoCD UI: create HTTPProxy resource for `argocd.lab.dreamfold.dev` pointing to `argocd-server` service | ArgoCD UI is accessible via Contour | `curl https://argocd.lab.dreamfold.dev` loads the login page |
+| 10.7.4 | Retrieve initial admin password: `kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' \| base64 -d` | The admin password is obtained | Login to ArgoCD UI succeeds |
+| 10.7.5 | Register workload cluster as a spoke: `argocd cluster add vks-cluster-01 --name workload` | The workload cluster is registered | `argocd cluster list` shows both clusters |
+
+### 10.8 Platform Services Verification
+
+| Check | Command / Method | Expected Result |
+|-------|------------------|-----------------|
+| Shared-services cluster health | `kubectl get nodes` on vks-services-01 | All 6 nodes Ready |
+| Contour | `kubectl get pods -n projectcontour` | All Running |
+| Envoy LB VIP | `kubectl get svc -n projectcontour envoy` | EXTERNAL-IP assigned |
+| Harbor health | `curl https://harbor.lab.dreamfold.dev/api/v2.0/health` | `{"status":"healthy"}` |
+| Harbor proxy cache | Pull image via `harbor.lab.dreamfold.dev/ghcr-proxy/...` | Image cached successfully |
+| MinIO | `mc admin info minio` | Connected, bucket `velero` exists |
+| Velero | `velero backup get` | Recent backup shows Completed |
+| ArgoCD UI | Browse `https://argocd.lab.dreamfold.dev` | Login page loads |
+| ArgoCD clusters | `argocd cluster list` | Both clusters listed, healthy |
+
+## 11. Ready for Operations Testing
 
 Final verification checklist before the lab is considered operational.
 
-### 10.1 Infrastructure Services
+### 11.1 Infrastructure Services
 
 | # | Check | Method | Expected Result | Pass |
 |---|-------|--------|-----------------|------|
@@ -627,7 +758,7 @@ Final verification checklist before the lab is considered operational.
 | 5 | CA health | `step ca health` on gateway | The health check returns "ok" | ☐ |
 | 6 | Inter-VLAN routing | `ping 10.0.20.1` from an ESXi host | The ping succeeds | ☐ |
 
-### 10.2 VCF Platform
+### 11.2 VCF Platform
 
 | # | Check | Method | Expected Result | Pass |
 |---|-------|--------|-----------------|------|
@@ -638,7 +769,7 @@ Final verification checklist before the lab is considered operational.
 | 11 | Workload vSAN health | vCenter → Cluster → vSAN Health | All vSAN health checks are green | ☐ |
 | 12 | All ESXi hosts connected | Both vCenters show hosts Connected | All hosts are connected (4 management + 3 workload) | ☐ |
 
-### 10.3 NSX Networking
+### 11.3 NSX Networking
 
 | # | Check | Method | Expected Result | Pass |
 |---|-------|--------|-----------------|------|
@@ -648,7 +779,7 @@ Final verification checklist before the lab is considered operational.
 | 16 | Tier-0 status | NSX Manager → Tier-0 Gateways | The Tier-0 status is Realised | ☐ |
 | 17 | VPC status | NSX Manager → VPC | The VPC status is Realised | ☐ |
 
-### 10.4 VKS
+### 11.4 VKS
 
 | # | Check | Method | Expected Result | Pass |
 |---|-------|--------|-----------------|------|
@@ -659,11 +790,23 @@ Final verification checklist before the lab is considered operational.
 | 22 | Pod-to-external | `kubectl exec` into pod, `curl google.com` | A response is received from the external site | ☐ |
 | 23 | AppArmor enforcement | `kubectl get pod -o jsonpath='{.items[0].spec.containers[0].securityContext.appArmorProfile.type}'` on VKS cluster | RuntimeDefault is reported | ☐ |
 
-## 11. Per-Phase Troubleshooting
+### 11.5 Platform Services
+
+| # | Check | Method | Expected Result | Pass |
+|---|-------|--------|-----------------|------|
+| 24 | Shared-services cluster | `kubectl get nodes` on vks-services-01 | All 6 nodes show Ready status | ☐ |
+| 25 | Contour ingress | `kubectl get pods -n projectcontour` on vks-services-01 | All pods Running | ☐ |
+| 26 | Harbor health | `curl https://harbor.lab.dreamfold.dev/api/v2.0/health` | Returns `{"status":"healthy"}` | ☐ |
+| 27 | Harbor proxy cache | Pull image via `harbor.lab.dreamfold.dev/ghcr-proxy/...` | Image cached successfully | ☐ |
+| 28 | Velero backup | `velero backup get` | Recent backup shows Completed | ☐ |
+| 29 | ArgoCD UI | Browse `https://argocd.lab.dreamfold.dev` | Login page loads | ☐ |
+| 30 | ArgoCD clusters | `argocd cluster list` | Both clusters listed and healthy | ☐ |
+
+## 12. Per-Phase Troubleshooting
 
 This section covers the most common failures encountered during each deployment phase. For ongoing operational troubleshooting procedures, see [Operations Guide](operate.md) Section 4.
 
-### 11.1 Phase 0 — vApp Template
+### 12.1 Phase 0 — vApp Template
 
 | Symptom | Cause | Resolution |
 |---------|-------|------------|
@@ -673,7 +816,7 @@ This section covers the most common failures encountered during each deployment 
 
 For additional troubleshooting, see [Operations Guide](operate.md) Section 4.
 
-### 11.2 Phase 1 — Foundation
+### 12.2 Phase 1 — Foundation
 
 | Symptom | Cause | Resolution |
 |---------|-------|------------|
@@ -684,7 +827,7 @@ For additional troubleshooting, see [Operations Guide](operate.md) Section 4.
 
 For additional troubleshooting, see [Operations Guide](operate.md) Section 4.
 
-### 11.3 Phase 2 — Nested ESXi
+### 12.3 Phase 2 — Nested ESXi
 
 | Symptom | Cause | Resolution |
 |---------|-------|------------|
@@ -695,7 +838,7 @@ For additional troubleshooting, see [Operations Guide](operate.md) Section 4.
 
 For additional troubleshooting, see [Operations Guide](operate.md) Section 4.
 
-### 11.4 Phase 3 — VCF Management Domain
+### 12.4 Phase 3 — VCF Management Domain
 
 | Symptom | Cause | Resolution |
 |---------|-------|------------|
@@ -707,7 +850,7 @@ For additional troubleshooting, see [Operations Guide](operate.md) Section 4.
 
 For additional troubleshooting, see [Operations Guide](operate.md) Section 4.
 
-### 11.5 Phase 4 — VCF Workload Domain
+### 12.5 Phase 4 — VCF Workload Domain
 
 | Symptom | Cause | Resolution |
 |---------|-------|------------|
@@ -717,7 +860,7 @@ For additional troubleshooting, see [Operations Guide](operate.md) Section 4.
 
 For additional troubleshooting, see [Operations Guide](operate.md) Section 4.
 
-### 11.6 Phase 5 — NSX Networking
+### 12.6 Phase 5 — NSX Networking
 
 | Symptom | Cause | Resolution |
 |---------|-------|------------|
@@ -729,7 +872,7 @@ For additional troubleshooting, see [Operations Guide](operate.md) Section 4.
 
 For additional troubleshooting, see [Operations Guide](operate.md) Section 4.
 
-### 11.7 Phase 6 — VKS
+### 12.7 Phase 6 — VKS
 
 | Symptom | Cause | Resolution |
 |---------|-------|------------|
@@ -738,5 +881,18 @@ For additional troubleshooting, see [Operations Guide](operate.md) Section 4.
 | VKS cluster is stuck in "Provisioning" state | The VM class is not assigned to the namespace, or the content library does not contain a compatible Kubernetes version | Verify VM classes (best-effort-small, best-effort-medium) and the content library (`vkr-content-library`) are assigned to the `vks-workloads` namespace. Check `kubectl describe cluster vks-cluster-01` for event details |
 | LoadBalancer service has no EXTERNAL-IP (shows `<pending>`) | The NSX VPC load balancer is not provisioned, or SNAT rules prevent return traffic | Verify the VPC has an active load balancer. Check SNAT rules on the Tier-0 Gateway. Review `kubectl describe svc nginx-test` for events indicating the failure reason |
 | Pods are running but cannot reach external networks | SNAT rules are missing or the BGP route exchange is not working | Verify SNAT rules are Active in NSX Manager. Check BGP adjacency on the gateway (`vtysh -c 'show ip bgp summary'`). Test from inside a pod: `kubectl exec -it <pod> -- curl -v http://10.0.10.1` to confirm gateway reachability |
+
+For additional troubleshooting, see [Operations Guide](operate.md) Section 4.
+
+### 12.8 Phase 7 — Platform Services
+
+| Symptom | Cause | Resolution |
+|---------|-------|------------|
+| `vcf package install` fails — "package not found" | The VKS Standard Package repository is not synced or the cluster does not have internet access | Verify content library sync is current; confirm pods can reach external registries via SNAT |
+| Contour Envoy service stuck at `<pending>` EXTERNAL-IP | The NSX VPC load balancer is not provisioning a VIP for the Envoy service | Check NSX Manager → VPC → Load Balancer status; verify the Tier-1 gateway is healthy and LB VIP pool has available IPs |
+| Harbor pods in CrashLoopBackOff | PVC not bound or insufficient storage | Check `kubectl get pvc -n harbor` — all PVCs should be Bound. Verify vSAN capacity in vCenter → vSAN → Capacity |
+| Harbor proxy cache returns 502 for GHCR images | The proxy cache endpoint is misconfigured or GHCR is unreachable from Harbor | Verify the `ghcr-proxy` project endpoint is `https://ghcr.io` in Harbor UI; test outbound connectivity from a Harbor pod |
+| Velero backup fails with "BackupStorageLocation unavailable" | MinIO is not running or the bucket does not exist | Check `kubectl get pods -n velero` for MinIO status; verify bucket with `mc ls minio/velero` |
+| ArgoCD cannot register workload cluster | kubeconfig or RBAC issue on the target cluster | Verify the kubeconfig for vks-cluster-01 is valid; ensure the ArgoCD service account has cluster-admin on the target |
 
 For additional troubleshooting, see [Operations Guide](operate.md) Section 4.

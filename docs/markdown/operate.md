@@ -23,7 +23,8 @@ The VMware Cloud Foundation (VCF) lab must be powered on in a specific order to 
 | 6 | Wait for workload vSAN | Automatic | vSAN health green |
 | 7 | Workload appliances auto-start | Automatic | Workload vCenter, NSX Manager accessible |
 | 8 | NSX Edge VMs | Verify running | Border Gateway Protocol (BGP) adjacency re-established |
-| 9 | vSphere Supervisor & vSphere Kubernetes Services (VKS) | Verify running | `kubectl get nodes` shows Ready |
+| 9 | vSphere Supervisor & vSphere Kubernetes Services (VKS) | Verify running | `kubectl get nodes` shows Ready on both clusters |
+| 10 | Platform services (vks-services-01) | Verify pods running | Contour, Harbor, Velero, ArgoCD pods all Running |
 
 ### 1.2 Lab Power Off Sequence (Safe Shutdown)
 
@@ -31,13 +32,14 @@ The VMware Cloud Foundation (VCF) lab must be powered on in a specific order to 
 
 | Order | Component | Action | Verification |
 |-------|-----------|--------|-------------|
-| 1 | VKS workloads | Scale deployments to 0 or cordon/drain nodes | `kubectl get pods` shows no running pods |
-| 2 | VKS cluster | (Optional) Delete VKS cluster or leave powered off | Cluster nodes powered off |
-| 3 | Workload appliances | Shut down workload vCenter and NSX Manager | VMs powered off |
-| 4 | Workload ESXi hosts | Put in maintenance mode (evacuate VMs first), then shut down | Hosts in maintenance, then powered off |
-| 5 | Management appliances | Shut down VCF Operations, VCF Automation, NSX Manager, SDDC Manager, then vCenter (last) | All management VMs powered off |
-| 6 | Management ESXi hosts | Put in maintenance mode, then shut down | Hosts powered off |
-| 7 | Gateway | Power off (last) | VM stopped |
+| 1 | Platform services (vks-services-01) | Scale down ArgoCD, Velero schedule, Harbor | Platform service pods terminated |
+| 2 | VKS workloads (vks-cluster-01) | Scale deployments to 0 or cordon/drain nodes | `kubectl get pods` shows no running pods |
+| 3 | VKS clusters | (Optional) Delete VKS clusters or leave powered off | Cluster nodes powered off |
+| 4 | Workload appliances | Shut down workload vCenter and NSX Manager | VMs powered off |
+| 5 | Workload ESXi hosts | Put in maintenance mode (evacuate VMs first), then shut down | Hosts in maintenance, then powered off |
+| 6 | Management appliances | Shut down VCF Operations, VCF Automation, NSX Manager, SDDC Manager, then vCenter (last) | All management VMs powered off |
+| 7 | Management ESXi hosts | Put in maintenance mode, then shut down | Hosts powered off |
+| 8 | Gateway | Power off (last) | VM stopped |
 
 **vCenter must be the last management appliance shut down and the first to start up.**
 
@@ -251,6 +253,48 @@ op item edit "ESXi Root" --vault "VKS Lab" password='<new-password>'
 op item list --vault "VKS Lab"
 ```
 
+### 2.7 Platform Services Lifecycle
+
+#### Harbor Garbage Collection
+
+Harbor accumulates unused image layers over time. Run garbage collection periodically to reclaim storage.
+
+| Step | Action | Verification |
+|------|--------|-------------|
+| 1 | Login to Harbor UI at `https://harbor.lab.dreamfold.dev` | Dashboard loads |
+| 2 | Navigate to **Administration** > **Garbage Collection** > **GC Now** | GC job starts |
+| 3 | Wait for completion | Job status shows Success; freed space reported |
+
+#### Velero Backup Schedule and Restore Testing
+
+| Step | Action | Verification |
+|------|--------|-------------|
+| 1 | Verify schedule is active: `velero schedule get` | `daily-backup` shows next run time |
+| 2 | Check recent backups: `velero backup get` | At least one Completed backup within 24h |
+| 3 | Test restore (dry run): `velero restore create test-restore --from-backup <latest> --dry-run` | Restore plan is generated without errors |
+| 4 | Clean up: `velero restore delete test-restore` | Restore removed |
+
+#### ArgoCD Cluster Registration
+
+To register an additional VKS cluster with ArgoCD:
+
+| Step | Action | Verification |
+|------|--------|-------------|
+| 1 | Obtain kubeconfig for the target cluster | `kubectl get nodes` works against target |
+| 2 | Register cluster: `argocd cluster add <context-name> --name <display-name>` | `argocd cluster list` shows the new cluster |
+| 3 | Verify connectivity: `argocd cluster get <display-name>` | Status shows Successful |
+
+#### VKS Standard Package Updates
+
+VKS Standard Packages (cert-manager, Contour, Harbor, Velero) are updated via the `vcf package` CLI when new versions are available in the VMware Kubernetes Runtime (VKr) content library.
+
+| Step | Action | Verification |
+|------|--------|-------------|
+| 1 | Check available package versions: `vcf package available list` | New versions listed |
+| 2 | Take a vApp snapshot (Section 1.3) | Rollback point |
+| 3 | Update package: `vcf package install <package> --version <new-version>` | Package pods restart with new version |
+| 4 | Verify service health after update | Service-specific health check passes |
+
 ## 3. Health Checks
 
 ### 3.1 Daily Checks
@@ -263,6 +307,9 @@ op item list --vault "VKS Lab"
 | 4 | VKS cluster status | `kubectl get nodes` | All nodes Ready |
 | 5 | VKS system pods | `kubectl get pods -n kube-system` | All pods Running |
 | 6 | SDDC Manager alerts | SDDC Manager → Dashboard | No critical alerts |
+| 7 | Shared-services cluster status | `kubectl get nodes` on vks-services-01 | All nodes Ready |
+| 8 | Contour pods | `kubectl get pods -n projectcontour` on vks-services-01 | All Running |
+| 9 | Harbor health | `curl https://harbor.lab.dreamfold.dev/api/v2.0/health` | `{"status":"healthy"}` |
 
 ### 3.2 Weekly Checks
 
@@ -275,6 +322,9 @@ op item list --vault "VKS Lab"
 | 5 | ESXi NTP sync | `esxcli system ntp get` on each host | Server reachable |
 | 6 | Certificate expiry (R-009) | `step ca certificate list` or check expiry dates | No certs expiring within 30 days |
 | 7 | NSX Edge status | NSX Manager → Edge Clusters | Both Edges Up |
+| 8 | Velero backup | `velero backup get` on vks-services-01 | Recent backup shows Completed |
+| 9 | ArgoCD sync status | `argocd app list` | All apps Synced/Healthy |
+| 10 | MinIO health | `mc admin info minio` | Connected, no errors |
 
 ### 3.3 Monthly Checks
 
@@ -288,6 +338,8 @@ op item list --vault "VKS Lab"
 | 6 | SDDC Manager lifecycle updates | SDDC Manager → Lifecycle Management | Review available updates |
 | 7 | VKr image updates | Sync content library, `kubectl get tkr` | Check for new Kubernetes versions |
 | 8 | Snapshot cleanup | vCloud Director → vApp snapshots | Remove old snapshots to reclaim space |
+| 9 | Harbor storage usage | Harbor UI → Projects → ghcr-proxy → Storage | Below 80% of PVC capacity |
+| 10 | Velero backup retention | `velero backup get` | Old backups pruned per retention policy |
 
 ## 4. Troubleshooting
 
@@ -401,6 +453,12 @@ op item list --vault "VKS Lab"
 | Free Range Routing (FRR) | `/var/log/frr/zebra.log`, `/var/log/frr/bgpd.log` | `journalctl` or file |
 | 1Password | Operator laptop | `op item list --vault Employee` |
 | Keycloak | Container stdout | `docker logs keycloak` |
+| Contour | `kubectl logs -n projectcontour` | kubectl on vks-services-01 |
+| Envoy | `kubectl logs -n projectcontour -l app=envoy` | kubectl on vks-services-01 |
+| Harbor | `kubectl logs -n harbor` | kubectl on vks-services-01 |
+| Velero | `kubectl logs -n velero -l app.kubernetes.io/name=velero` | kubectl on vks-services-01 |
+| MinIO | `kubectl logs -n velero -l app=minio` | kubectl on vks-services-01 |
+| ArgoCD | `kubectl logs -n argocd` | kubectl on vks-services-01 |
 
 ### 4.3 Useful Diagnostic Commands
 

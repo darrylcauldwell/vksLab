@@ -390,6 +390,45 @@ GET https://nsx-mgr-wld.lab.dreamfold.dev/policy/api/v1/infra/tier-0s/tier0-gate
 
 A subscribed content library provides VKr images. The library syncs from VMware's public endpoint. Internet access from the nested environment is required (routed via gateway → vCD public network).
 
+### Shared-Services VKS Cluster Settings
+
+> Implements VKS-09 (separate shared-services cluster), VKS-14 (VKS Standard Packages delivery). See [Logical Design](logical-design.md) Section 8, Platform Services.
+
+| Setting | Value |
+|---------|-------|
+| Cluster Name | vks-services-01 |
+| Kubernetes Version | Latest available VMware Kubernetes Runtime (VKr) |
+| Control Plane Nodes | 3 |
+| Worker Nodes | 3 |
+| VM Class | best-effort-medium (2 vCPU, 8 GB RAM) |
+| Storage Class | vSAN Default |
+| Network | NSX VPC subnet |
+
+#### vSphere Namespace (Shared Services)
+
+| Setting | Value |
+|---------|-------|
+| Namespace | vks-services |
+| VM Classes | best-effort-small, best-effort-medium |
+| Storage Policies | vSAN Default |
+| Content Library | VKS Kubernetes releases |
+
+#### Platform Services Resource Budget
+
+| Service | Delivery | CPU Request | Memory Request | Storage (PVC) |
+|---------|----------|-------------|----------------|---------------|
+| cert-manager | VKS Std Pkg | 100m | 128 Mi | — |
+| Contour | VKS Std Pkg | 200m | 256 Mi | — |
+| Envoy (3 pods) | VKS Std Pkg | 300m | 384 Mi | — |
+| Harbor (all components) | VKS Std Pkg | ~1.1 CPU | ~1.8 Gi | ~62 Gi |
+| MinIO | Helm | 250m | 1 Gi | 100 Gi |
+| Velero server | VKS Std Pkg | 500m | 128 Mi | — |
+| Velero node-agent (3 pods) | VKS Std Pkg | 1.5 CPU | 1.5 Gi | — |
+| ArgoCD (all components) | Helm | ~1.9 CPU | ~2.4 Gi | 10 Gi |
+| **Platform total** | | **~5.85 CPU** | **~7.6 Gi** | **~172 Gi** |
+
+> **Note**: Platform services PVCs add ~172 Gi to vSAN consumption on the workload domain. This is within the vSAN capacity but makes storage the tighter constraint. Monitor vSAN capacity utilisation closely — see [Operations Guide](operate.md) Section 5.
+
 ## 10. Resource Summary Tables
 
 ### vCD Resource Requirements
@@ -452,12 +491,14 @@ The workload domain hosts run the workload vCenter, NSX Manager, NSX Edge cluste
 | NSX Manager (workload) | 6 | 24 |
 | NSX Edge cluster (2x Large) | 16 | 64 |
 | Supervisor control plane (3 CP VMs) | ~6 | ~24 |
-| VKS workers (3x best-effort-medium) | 6 | 24 |
-| **Consumed subtotal** | **~38** | **~157** |
-| **Remaining** | **~106** | **~227** |
-| **Utilisation** | **~26%** | **~41%** |
+| VKS workload cluster workers (3x best-effort-medium) | 6 | 24 |
+| VKS shared-services cluster CP (3 VMs) | ~6 | ~24 |
+| VKS shared-services cluster workers (3x best-effort-medium) | 6 | 24 |
+| **Consumed subtotal** | **~50** | **~205** |
+| **Remaining** | **~94** | **~179** |
+| **Utilisation** | **~35%** | **~53%** |
 
-> **Note**: The workload domain has comfortable headroom for VKS workloads and scaling. The surplus allows adding more VKS worker nodes or scaling existing ones to larger VM classes without resource pressure.
+> **Note**: The workload domain has adequate headroom after deploying both VKS clusters. RAM utilisation (~53%) is the tighter compute constraint. Platform services PVCs (~172 Gi) add to vSAN consumption, making storage capacity the overall tightest constraint — monitor via vCenter → vSAN → Capacity.
 
 #### Scaling Thresholds
 
