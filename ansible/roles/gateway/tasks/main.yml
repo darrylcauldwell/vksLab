@@ -157,6 +157,15 @@
   delay: 5
   changed_when: false
 
+# Skip all D-Bus-dependent tasks (gsettings, grdctl) if RDP is already
+# configured and listening — these hang on re-runs when the GNOME session
+# has stale D-Bus state (#63).
+- name: Check if GRD RDP is already listening
+  become: true
+  ansible.builtin.command: ss -tlnp sport = :3389
+  register: grd_listening
+  changed_when: false
+
 - name: Set GNOME keyboard input source
   become: true
   become_user: ubuntu
@@ -166,14 +175,7 @@
     XDG_RUNTIME_DIR: /run/user/1000
     DBUS_SESSION_BUS_ADDRESS: unix:path=/run/user/1000/bus
   changed_when: true
-
-# Skip grdctl tasks if RDP is already configured and listening — grdctl
-# hangs on re-runs when the GNOME session has stale D-Bus state (#63).
-- name: Check if GRD RDP is already listening
-  become: true
-  ansible.builtin.command: ss -tlnp sport = :3389
-  register: grd_listening
-  changed_when: false
+  when: "'3389' not in grd_listening.stdout"
 
 - name: Enable GRD RDP
   become: true
