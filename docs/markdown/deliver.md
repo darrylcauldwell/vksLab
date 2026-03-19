@@ -174,7 +174,8 @@ ansible-playbook playbooks/phase1_foundation.yml
 | Management IP | `ip addr show ens34` on gateway | The interface shows 10.0.10.1/24 on the native (untagged) VLAN |
 | VLAN sub-interfaces | `ip addr show ens34.20` on gateway | The sub-interface shows 10.0.20.1/24 (vMotion) |
 | Inter-VLAN routing | `ping 10.0.20.1` from a host on VLAN 10 | The ping succeeds |
-| FRR BGP | `sudo vtysh -c 'show ip bgp summary'` on gateway | The FRR BGP process is running and shows neighbour status |
+| FRR service | `sudo systemctl status frr` on gateway | FRR is active (running) |
+| FRR BGP config | `sudo vtysh -c 'show running-config'` on gateway | The `router bgp 65000` block is present with neighbor 10.0.60.2 (BGP adjacency establishes in Phase 5 when the NSX Tier-0 is configured) |
 
 ## 5. Phase 2 — Nested ESXi
 
