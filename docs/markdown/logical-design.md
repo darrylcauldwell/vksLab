@@ -679,6 +679,20 @@ Worker Node → Pod mount
 
 > **Note**: PersistentVolumes inherit vSAN data protection (FTT=1) but have **no backup or snapshot mechanism** beyond vApp snapshots. Deleting a PVC permanently removes the data. See [Data Protection Boundary](#data-protection-boundary) in Section 5.
 
+### Workload Security (AppArmor)
+
+VKS worker nodes run Ubuntu with AppArmor enabled by default. AppArmor confines container processes to a mandatory access control profile that restricts file access, mount operations, network capabilities, and signal handling.
+
+The lab enforces the **RuntimeDefault** AppArmor profile — the containerd default profile that:
+
+- Blocks writing to `/proc` and `/sys` (except allowed paths)
+- Prevents raw network socket creation
+- Denies mount operations inside containers
+- Restricts `ptrace` to same-container processes
+- Allows normal file I/O, network connections, and process execution
+
+This is set via the Kubernetes `securityContext.appArmorProfile` field (Kubernetes 1.30+, GA). VKS clusters on Ubuntu nodes inherit AppArmor support from the host OS — no additional installation is required.
+
 ### Design Decisions
 
 | Req. | Decision ID | Design Decision | Design Justification | Risk / Mitigation |
@@ -687,3 +701,4 @@ Worker Node → Pod mount
 | R-005 | VKS-02 | 3 control plane + 3 worker nodes for VKS cluster | HA control plane with 3 workers provides realistic cluster topology | Risk: 6 VMs consume significant workload domain resources. Mitigation: Use best-effort-medium VM class (2 vCPU, 8 GB) |
 | R-005 | VKS-03 | Subscribed content library for VKr images | Automatic sync of Kubernetes release images from VMware | Risk: Requires internet access from nested environment. Mitigation: Route via gateway → vCD public network |
 | C-004 | VKS-04 | best-effort-medium VM class for VKS nodes | Balances resource use against lab constraints | Risk: Insufficient resources for complex workloads. Mitigation: Scale VM class up if needed; monitor resource utilisation |
+| R-011 | VKS-05 | AppArmor RuntimeDefault profile enforced on all VKS workloads | Ubuntu VKS nodes ship with AppArmor enabled; RuntimeDefault provides baseline container confinement without custom profile management | Risk: RuntimeDefault may block workloads that require elevated privileges (e.g., privileged containers, raw sockets). Mitigation: Lab workloads are standard (nginx); privileged workloads can use `Unconfined` with explicit annotation |

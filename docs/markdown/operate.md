@@ -95,6 +95,7 @@ The VMware Cloud Foundation (VCF) lab must be powered on in a specific order to 
 | 5 | Wait for control plane (3 nodes) | `kubectl get machines` shows 3 Running |
 | 6 | Wait for workers (3 nodes) | `kubectl get machines` shows 6 Running |
 | 7 | Obtain new kubeconfig and verify | `kubectl get nodes` shows 6 Ready |
+| 8 | Deploy test workload with AppArmor | `kubectl apply -f` test manifest | Pods running with RuntimeDefault profile |
 
 ### 1.7 NSX Edge Failover Verification (NSX-01, NSX-02)
 

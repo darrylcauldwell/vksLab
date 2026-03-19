@@ -571,6 +571,7 @@ spec:
 | 9.5.2 | Deploy nginx test deployment | The nginx pods are running | `kubectl get pods` shows Running |
 | 9.5.3 | Expose via LoadBalancer service | An external IP is assigned to the LoadBalancer service | `kubectl get svc` shows EXTERNAL-IP |
 | 9.5.4 | Access nginx from gateway | The nginx welcome page loads | `curl http://<EXTERNAL-IP>` returns the nginx welcome page |
+| 9.5.5 | Verify AppArmor enforcement | AppArmor profile is active on the nginx pods | `kubectl get pod -l app=nginx-test -o jsonpath='{.items[0].spec.containers[0].securityContext.appArmorProfile.type}'` returns `RuntimeDefault` |
 
 #### Test workload manifest
 
@@ -594,6 +595,9 @@ spec:
           image: nginx:latest
           ports:
             - containerPort: 80
+          securityContext:
+            appArmorProfile:
+              type: RuntimeDefault
 ---
 apiVersion: v1
 kind: Service
@@ -653,6 +657,7 @@ Final verification checklist before the lab is considered operational.
 | 20 | All nodes ready | `kubectl get nodes` on VKS cluster | All 6 nodes show Ready status | ☐ |
 | 21 | Test workload | `curl http://<nginx-lb-ip>` | The nginx welcome page is returned | ☐ |
 | 22 | Pod-to-external | `kubectl exec` into pod, `curl google.com` | A response is received from the external site | ☐ |
+| 23 | AppArmor enforcement | `kubectl get pod -o jsonpath='{.items[0].spec.containers[0].securityContext.appArmorProfile.type}'` on VKS cluster | RuntimeDefault is reported | ☐ |
 
 ## 11. Per-Phase Troubleshooting
 

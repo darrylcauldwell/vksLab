@@ -39,6 +39,7 @@ Demonstrate vSphere Kubernetes Services (VKS) on VMware Cloud Foundation (VCF) 9
 | R-008 | Lab SHOULD use NSX VPC with centralised Edge connectivity |
 | R-009 | All TLS certificates SHOULD be issued by the internal step-ca CA |
 | R-010 | Lab MAY be powered off, snapshot, and redeployed as a single vApp |
+| R-011 | VKS workloads SHOULD enforce AppArmor RuntimeDefault profile for container security hardening |
 
 ## 5. Service Level Objectives
 
@@ -169,12 +170,13 @@ See [Logical Design](logical-design.md) for phase details and [Delivery Guide](d
 | R-002 | Remote access via RDP gateway | NET-01, SVC-06 | Phase 1 — gateway deploy (§3.2) | RDP connection on port 3389 |
 | R-003 | DNS, NTP, CA on gateway | NET-05, SVC-01, SVC-03, SVC-04, SVC-05 | Phase 1 — gateway services (§3.2.5–3.2.7) | `dig`, `chronyc sources`, `step ca health` |
 | R-004 | Two VCF domains (mgmt + wld) | NET-03, NET-04, ESX-02, VCF-01, VCF-02, VCF-03, VCF-04 | Phase 3 (§5) + Phase 4 (§6) | SDDC Manager shows both domains Active |
-| R-005 | VKS cluster via Supervisor with NSX VPC | VKS-01, VKS-02, VKS-03, VKS-04 | Phase 6 — Supervisor + VKS (§8) | `kubectl get nodes` shows 6 Ready |
+| R-005 | VKS cluster via Supervisor with NSX VPC | VKS-01, VKS-02, VKS-03, VKS-04, VKS-05 | Phase 6 — Supervisor + VKS (§8) | `kubectl get nodes` shows 6 Ready |
 | R-006 | BGP peering between NSX and gateway | NET-02, NSX-01, NSX-02 | Phase 5 — BGP config (§7.2–7.3) | `vtysh -c 'show ip bgp summary'` — Established |
 | R-007 | vSAN ESA with FTT=1 | ESX-03 | Phase 2 — ESXi prep (§4.3) | `esxcli vsan health cluster list` green |
 | R-008 | NSX VPC centralised Edge | NSX-03, NSX-04 | Phase 5 — VPC config (§7.5) | VPC shows Realised in NSX Manager |
 | R-009 | TLS certs from internal step-ca | SVC-02 | Phase 1 — CA setup (§3.2.7) + cert distribution (§3.2a) | `step ca health`; certs valid on components |
 | R-010 | vApp snapshot/redeploy | VCD-03 | Operate Guide — snapshot SOP (§1.3) | Snapshot restore + power-on completes successfully |
+| R-011 | AppArmor RuntimeDefault for VKS pods | VKS-05 | Phase 6 — AppArmor verification (§9.5) | `kubectl get pod -o jsonpath` confirms RuntimeDefault |
 
 ### Constraint Traceability
 

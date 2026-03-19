@@ -384,6 +384,7 @@ GET https://nsx-mgr-wld.lab.dreamfold.dev/policy/api/v1/infra/tier-0s/tier0-gate
 | VM Class | best-effort-medium (2 vCPU, 8 GB RAM) |
 | Storage Class | vSAN Default |
 | Network | NSX VPC subnet |
+| AppArmor Profile | RuntimeDefault (containerd default) |
 
 ### Content Library
 
