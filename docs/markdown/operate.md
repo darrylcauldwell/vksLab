@@ -106,11 +106,11 @@ Use this procedure to verify Active-Standby failover behaviour or to test resili
 | Step | Action | Verification |
 |------|--------|-------------|
 | 1 | Identify active Edge | NSX Manager → System → Fabric → Edge Clusters → click cluster → note which Edge shows "Active" for NSX Tier-0 Gateway |
-| 2 | Verify BGP adjacency before test | `vtysh -c 'show ip bgp summary'` on gateway → Established with 10.0.60.2 |
+| 2 | Verify BGP adjacency before test | `sudo vtysh -c 'show ip bgp summary'` on gateway → Established with 10.0.60.2 |
 | 3 | Start continuous ping from gateway | `ping -i 1 <VKS-LB-VIP>` (or any pod-reachable IP via Source Network Address Translation (SNAT)) |
 | 4 | Power off the active Edge VM | vCenter → right-click active Edge VM → Power Off |
 | 5 | Observe failover | NSX Manager → Edge Clusters → standby Edge promotes to Active (expect 2-4s) |
-| 6 | Monitor BGP re-establishment | `vtysh -c 'show ip bgp summary'` on gateway → watch for Established (expect 30-60s) |
+| 6 | Monitor BGP re-establishment | `sudo vtysh -c 'show ip bgp summary'` on gateway → watch for Established (expect 30-60s) |
 | 7 | Verify traffic restoration | Continuous ping resumes; count lost packets (expect 30-60 lost at 1/sec) |
 | 8 | Power on the failed Edge VM | vCenter → Power On; Edge rejoins cluster as Standby |
 | 9 | Verify cluster health | NSX Manager → Edge Clusters → both Edges show Up |
@@ -207,7 +207,7 @@ SDDC Manager coordinates updates to vCenter, NSX Manager, SDDC Manager itself, a
 | 5 | Upgrade NSX Manager cluster | Coordinator handles rolling upgrade |
 | 6 | Upgrade host transport nodes | Rolling upgrade, one host at a time |
 | 7 | Upgrade Edge cluster | Rolling upgrade, one Edge at a time |
-| 8 | Verify BGP adjacency after Edge upgrade | `vtysh -c 'show ip bgp summary'` on gateway |
+| 8 | Verify BGP adjacency after Edge upgrade | `sudo vtysh -c 'show ip bgp summary'` on gateway |
 | 9 | Verify Virtual Private Cloud (VPC) and VKS connectivity | Test workload accessible |
 
 ### 2.4 VKS Kubernetes Version Upgrades
@@ -315,8 +315,8 @@ VKS Standard Packages (cert-manager, Contour, Harbor, Velero) are updated via th
 
 | # | Check | Method | Expected Result |
 |---|-------|--------|-----------------|
-| 1 | BGP adjacency | `vtysh -c 'show ip bgp summary'` on gateway | Established |
-| 2 | BGP routes received | `vtysh -c 'show ip bgp'` on gateway | VPC prefixes present |
+| 1 | BGP adjacency | `sudo vtysh -c 'show ip bgp summary'` on gateway | Established |
+| 2 | BGP routes received | `sudo vtysh -c 'show ip bgp'` on gateway | VPC prefixes present |
 | 3 | DNS resolution | `dig @10.0.10.1 vcenter-mgmt.lab.dreamfold.dev` | Correct response |
 | 4 | NTP synchronisation | `chronyc tracking` on gateway | System clock synchronised |
 | 5 | ESXi NTP sync | `esxcli system ntp get` on each host | Server reachable |
@@ -681,4 +681,4 @@ Refer to [Physical Design](physical-design.md) Section 10 for the canonical vCD 
 | VKS node resources | `kubectl top nodes` | CPU and memory usage per node |
 | VKS pod resources | `kubectl top pods` | Per-pod resource consumption |
 | NSX Edge throughput | NSX Manager → Edge dashboard | Data plane throughput |
-| BGP route count | `vtysh -c 'show ip bgp summary'` on gateway | Prefixes received/advertised |
+| BGP route count | `sudo vtysh -c 'show ip bgp summary'` on gateway | Prefixes received/advertised |

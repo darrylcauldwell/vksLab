@@ -174,7 +174,7 @@ ansible-playbook playbooks/phase1_foundation.yml
 | Management IP | `ip addr show ens34` on gateway | The interface shows 10.0.10.1/24 on the native (untagged) VLAN |
 | VLAN sub-interfaces | `ip addr show ens34.20` on gateway | The sub-interface shows 10.0.20.1/24 (vMotion) |
 | Inter-VLAN routing | `ping 10.0.20.1` from a host on VLAN 10 | The ping succeeds |
-| FRR BGP | `vtysh -c 'show ip bgp summary'` on gateway | The FRR BGP process is running and shows neighbour status |
+| FRR BGP | `sudo vtysh -c 'show ip bgp summary'` on gateway | The FRR BGP process is running and shows neighbour status |
 
 ## 5. Phase 2 — Nested ESXi
 
@@ -390,9 +390,9 @@ For AMD Ryzen/Threadripper physical hosts, also add: `monitor_control.enable_ful
 | Step | Action | Expected Result | Verification |
 |------|--------|-----------------|--------------|
 | 8.3.1 | SSH to gateway | CLI access to the gateway is established | — |
-| 8.3.2 | Verify FRR BGP configuration deployed by Ansible | The FRR BGP configuration is in place | `vtysh -c 'show ip bgp summary'` shows the configuration |
-| 8.3.3 | Verify BGP adjacency established | The BGP session state is Established | `vtysh -c 'show ip bgp summary'` shows Established |
-| 8.3.4 | Verify route exchange | Routes are received from the NSX Tier-0 Gateway | `vtysh -c 'show ip bgp'` shows VPC prefixes |
+| 8.3.2 | Verify FRR BGP configuration deployed by Ansible | The FRR BGP configuration is in place | `sudo vtysh -c 'show ip bgp summary'` shows the configuration |
+| 8.3.3 | Verify BGP adjacency established | The BGP session state is Established | `sudo vtysh -c 'show ip bgp summary'` shows Established |
+| 8.3.4 | Verify route exchange | Routes are received from the NSX Tier-0 Gateway | `sudo vtysh -c 'show ip bgp'` shows VPC prefixes |
 
 #### Gateway FRR BGP configuration
 
@@ -452,8 +452,8 @@ SNAT rule parameters:
 
 | Check | Command / Method | Expected Result |
 |-------|------------------|-----------------|
-| BGP adjacency | `vtysh -c 'show ip bgp summary'` on gateway | The BGP session is Established with 10.0.60.2 |
-| Routes from NSX | `vtysh -c 'show ip bgp'` on gateway | VPC and overlay prefixes are received |
+| BGP adjacency | `sudo vtysh -c 'show ip bgp summary'` on gateway | The BGP session is Established with 10.0.60.2 |
+| Routes from NSX | `sudo vtysh -c 'show ip bgp'` on gateway | VPC and overlay prefixes are received |
 | Routes from gateway | NSX Manager → Networking → Tier-0 → Routing Table | Infrastructure subnets are received from the gateway |
 | Edge cluster health | NSX Manager → System → Fabric → Edge Clusters | Both Edge nodes show Up status |
 | Tier-0 status | NSX Manager → Networking → Tier-0 Gateways | The Tier-0 status is Realised with all interfaces Up |
@@ -773,8 +773,8 @@ Final verification checklist before the lab is considered operational.
 
 | # | Check | Method | Expected Result | Pass |
 |---|-------|--------|-----------------|------|
-| 13 | BGP adjacency | `vtysh -c 'show ip bgp summary'` on gateway | The BGP session is Established | ☐ |
-| 14 | Route exchange | `vtysh -c 'show ip bgp'` on gateway | VPC prefixes are received from the NSX Tier-0 | ☐ |
+| 13 | BGP adjacency | `sudo vtysh -c 'show ip bgp summary'` on gateway | The BGP session is Established | ☐ |
+| 14 | Route exchange | `sudo vtysh -c 'show ip bgp'` on gateway | VPC prefixes are received from the NSX Tier-0 | ☐ |
 | 15 | Edge cluster health | NSX Manager → Edge Clusters | Both Edge nodes show Up status | ☐ |
 | 16 | Tier-0 status | NSX Manager → Tier-0 Gateways | The Tier-0 status is Realised | ☐ |
 | 17 | VPC status | NSX Manager → VPC | The VPC status is Realised | ☐ |
@@ -866,7 +866,7 @@ For additional troubleshooting, see [Operations Guide](operate.md) Section 4.
 |---------|-------|------------|
 | Edge VM deployment fails with "PDPE1GB CPU instruction not available" | The nested ESXi host VM does not expose 1GB hugepage support | Add the VM Advanced Setting `featMask.vm.cpuid.PDPE1GB = Val:1` to each ESXi host VM in vCD, then power-cycle the host |
 | Edge OVF deployment fails with `VALIDATION_ERROR: CERTIFICATE_EXPIRED` | The NSX Edge OVF certificate has expired | Follow VMware KB 424034 to replace the expired OVF certificate, then retry Edge deployment |
-| BGP session is stuck in Active state (not Established) | Timer mismatch between FRR and NSX Tier-0, or the uplink VLAN segment is misconfigured | Verify both sides use keepalive `60` / hold `180`. Check that the Tier-0 uplink interface IP (`10.0.60.2`) and the FRR neighbor IP (`10.0.60.1`) are on the same VLAN 60 segment. Confirm with `vtysh -c 'show ip bgp summary'` on the gateway |
+| BGP session is stuck in Active state (not Established) | Timer mismatch between FRR and NSX Tier-0, or the uplink VLAN segment is misconfigured | Verify both sides use keepalive `60` / hold `180`. Check that the Tier-0 uplink interface IP (`10.0.60.2`) and the FRR neighbor IP (`10.0.60.1`) are on the same VLAN 60 segment. Confirm with `sudo vtysh -c 'show ip bgp summary'` on the gateway |
 | SNAT rules are not working — pods cannot reach external networks | The SNAT rules are not applied to the correct Tier-0 uplink interface, or the source CIDR does not match the VKS cluster CIDRs | Verify the SNAT rules in NSX Manager > **Networking** > **NAT** > `tier0-gateway`. Ensure the source CIDRs match `192.168.0.0/16` (pods) and `10.96.0.0/12` (services), and "Applied To" is set to the Tier-0 uplink interface |
 | Edge transport node status shows "Degraded" | TEP connectivity issue — the Edge TEP VLAN or IP is misconfigured | Verify Edge TEP IPs (`10.0.50.20`/`10.0.50.21`) are on VLAN 50, and that the gateway can ping both TEP addresses |
 
@@ -880,7 +880,7 @@ For additional troubleshooting, see [Operations Guide](operate.md) Section 4.
 | Supervisor enablement stalls at "Configuring" for more than 45 minutes | The NSX VPC or Edge cluster is unhealthy, preventing the Supervisor from creating its networking stack | Check NSX Manager for VPC and Edge cluster health. Verify the Tier-0 and Tier-1 gateways show Realised status. Review vCenter > **Workload Management** > **Supervisor** > **Events** for specific errors |
 | VKS cluster is stuck in "Provisioning" state | The VM class is not assigned to the namespace, or the content library does not contain a compatible Kubernetes version | Verify VM classes (best-effort-small, best-effort-medium) and the content library (`vkr-content-library`) are assigned to the `vks-workloads` namespace. Check `kubectl describe cluster vks-cluster-01` for event details |
 | LoadBalancer service has no EXTERNAL-IP (shows `<pending>`) | The NSX VPC load balancer is not provisioned, or SNAT rules prevent return traffic | Verify the VPC has an active load balancer. Check SNAT rules on the Tier-0 Gateway. Review `kubectl describe svc nginx-test` for events indicating the failure reason |
-| Pods are running but cannot reach external networks | SNAT rules are missing or the BGP route exchange is not working | Verify SNAT rules are Active in NSX Manager. Check BGP adjacency on the gateway (`vtysh -c 'show ip bgp summary'`). Test from inside a pod: `kubectl exec -it <pod> -- curl -v http://10.0.10.1` to confirm gateway reachability |
+| Pods are running but cannot reach external networks | SNAT rules are missing or the BGP route exchange is not working | Verify SNAT rules are Active in NSX Manager. Check BGP adjacency on the gateway (`sudo vtysh -c 'show ip bgp summary'`). Test from inside a pod: `kubectl exec -it <pod> -- curl -v http://10.0.10.1` to confirm gateway reachability |
 
 For additional troubleshooting, see [Operations Guide](operate.md) Section 4.
 

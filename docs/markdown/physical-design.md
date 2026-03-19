@@ -309,7 +309,7 @@ Edge VMs are sized as **Large** (8 vCPU, 32 GB RAM) to support VKS workloads.
 
 After NSX networking is configured and BGP is established, the following routes should be present.
 
-#### Gateway Route Table (`ip route` / `vtysh -c 'show ip bgp'`)
+#### Gateway Route Table (`ip route` / `sudo vtysh -c 'show ip bgp'`)
 
 ```text
 default via <public-gw> dev ens33              ← internet via public NIC
@@ -321,7 +321,7 @@ default via <public-gw> dev ens33              ← internet via public NIC
 10.0.50.0/24 dev ens34.50 scope link           ← Edge Overlay
 10.0.60.0/24 dev ens34.60 scope link           ← Edge Uplink / BGP
 
-# BGP routes (vtysh -c 'show ip bgp'):
+# BGP routes (sudo vtysh -c 'show ip bgp'):
 B>   192.168.0.0/16 [20/0] via 10.0.60.2           ← VKS pod CIDR (from NSX Tier-0)
 B>   10.96.0.0/12 [20/0] via 10.0.60.2             ← VKS service CIDR (from NSX Tier-0)
 ```
