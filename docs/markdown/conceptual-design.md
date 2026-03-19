@@ -170,7 +170,7 @@ See [Logical Design](logical-design.md) for phase details and [Delivery Guide](d
 | R-002 | Remote access via RDP gateway | NET-01, SVC-06 | Phase 1 — gateway deploy (§3.2) | RDP connection on port 3389 |
 | R-003 | DNS, NTP, CA on gateway | NET-05, SVC-01, SVC-03, SVC-04, SVC-05 | Phase 1 — gateway services (§3.2.5–3.2.7) | `dig`, `chronyc sources`, `step ca health` |
 | R-004 | Two VCF domains (mgmt + wld) | NET-03, NET-04, ESX-02, VCF-01, VCF-02, VCF-03, VCF-04 | Phase 3 (§5) + Phase 4 (§6) | SDDC Manager shows both domains Active |
-| R-005 | VKS cluster via Supervisor with NSX VPC | VKS-01, VKS-02, VKS-03, VKS-04, VKS-05 | Phase 6 — Supervisor + VKS (§8) | `kubectl get nodes` shows 6 Ready |
+| R-005 | VKS cluster via Supervisor with NSX VPC | VKS-01, VKS-02, VKS-03, VKS-04, VKS-05, VKS-06, VKS-07, VKS-08 | Phase 6 — Supervisor + VKS (§8) | `kubectl get nodes` shows 6 Ready |
 | R-006 | BGP peering between NSX and gateway | NET-02, NSX-01, NSX-02 | Phase 5 — BGP config (§7.2–7.3) | `vtysh -c 'show ip bgp summary'` — Established |
 | R-007 | vSAN ESA with FTT=1 | ESX-03 | Phase 2 — ESXi prep (§4.3) | `esxcli vsan health cluster list` green |
 | R-008 | NSX VPC centralised Edge | NSX-03, NSX-04 | Phase 5 — VPC config (§7.5) | VPC shows Realised in NSX Manager |

@@ -620,6 +620,63 @@ Infrastructure VLANs (10.0.10–60.0/24)
 
 The vSphere Supervisor is enabled on the workload domain cluster via vCenter. It uses NSX for networking and vSAN for storage.
 
+#### Supervisor Networking Stack
+
+VCF 9 supports three networking stacks for the vSphere Supervisor. The choice determines available features, load balancer options, and network isolation capabilities.
+
+| Capability | NSX with VPC | NSX (legacy) | vSphere Distributed Switch |
+|------------|-------------|--------------|---------------------------|
+| VKS cluster support | Yes | Yes | Yes |
+| vSphere Pods | Yes | Yes | No |
+| Network isolation model | VPC per project | Segment-based | VLAN / port group |
+| Microsegmentation (DFW) | Yes | Yes | No |
+| Routable pods | Yes | Yes | No |
+| Multi-tenancy | VPC self-service | Manual | None |
+| Load balancer options | NSX embedded, Avi | NSX embedded, Avi | Foundation, Avi |
+| Edge cluster required | Yes | Yes | No |
+| VCF Automation integration | Full | Limited | None |
+
+The lab uses **NSX with VPC** — the recommended default for VCF 9. This provides VPC-based network isolation, microsegmentation via Distributed Firewall (DFW), and the NSX embedded load balancer for Kubernetes services. The NSX Edge cluster and Tier-0/Tier-1 gateways deployed in Phase 5 are prerequisites.
+
+VDS was not selected because it lacks vSphere Pods support, microsegmentation, and requires a separate load balancer appliance. NSX (legacy) was not selected because NSX with VPC is the recommended architecture for new VCF 9 deployments and provides superior multi-tenancy and VCF Automation integration.
+
+#### Load Balancer
+
+The Supervisor networking stack determines which load balancers are available for Kubernetes Service type LoadBalancer. The choice is made at the Supervisor level and applies to all VKS clusters in the Supervisor.
+
+| Capability | NSX Embedded | Avi (NSX Advanced LB) | Foundation LB |
+|------------|-------------|----------------------|---------------|
+| Networking stacks | NSX VPC, NSX | NSX VPC, NSX, VDS | VDS |
+| Layer | L4 | L4 + L7 | L4 |
+| Deployment model | Embedded in Tier-1 | Separate controller + SEs | 1–2 VMs on Supervisor |
+| HA | Active-Standby (Tier-1) | Controller cluster (3-node) | Active-Passive (2 VMs) |
+| Additional infrastructure | None (uses existing Edge) | Avi Controller VMs | Foundation LB VMs |
+| Analytics | Basic (NSX Manager) | Advanced (Avi dashboard) | None |
+| VCF entitlement | Included | Separate licence | Included |
+| WAF / L7 policies | No | Yes | No |
+
+The lab uses the **NSX embedded load balancer** — it is included with the VCF entitlement, requires no additional infrastructure beyond the existing NSX Edge cluster, and provides the L4 load balancing needed for Kubernetes services. Avi was not selected because it requires separate controller VMs and a licence — unnecessary overhead for a lab. Foundation LB is not available with the NSX VPC networking stack.
+
+HAProxy is deprecated and not considered.
+
+#### VKS Guest Cluster CNI
+
+VKS clusters support three CNI options for pod networking inside guest clusters. The CNI operates independently of the Supervisor networking stack — all three options work with NSX VPC.
+
+| Capability | Antrea | Calico | Antrea NSX Routed CNI |
+|------------|--------|--------|----------------------|
+| Data plane | Open vSwitch (OVS) | Linux iptables / eBPF | Open vSwitch (OVS) |
+| Kubernetes NetworkPolicy | Yes | Yes | Yes |
+| Cluster-wide policy (ACNP) | Yes | No | Yes |
+| Tiered security policies | Yes | No | Yes |
+| NSX Manager integration | Via Antrea-NSX Adapter | No | Via Antrea-NSX Adapter |
+| Routable pod IPs | No (overlay) | No (overlay) | Yes (pods get IPs from NSX) |
+| Windows node pools | Yes | No | No |
+| Default | Yes (system-defined) | No (must specify) | No (must specify) |
+| vDefend integration | Yes (with adapter) | No | Yes (with adapter) |
+
+The lab uses **Antrea** — the system-defined default CNI. It provides Kubernetes NetworkPolicy support, advanced cluster-wide policies (ACNP), and optional NSX Manager integration via the Antrea-NSX Adapter. Calico was not selected because it lacks NSX integration and advanced policy tiers. The Antrea NSX Routed CNI was not selected because routable pod IPs are unnecessary for this lab — SNAT on the Tier-0 provides adequate outbound connectivity, and the LoadBalancer VIP provides inbound access.
+
 ### vSphere Namespace
 
 A vSphere Namespace provides the tenancy boundary for VKS. It defines the allowed VM classes, storage policies, and content library for Kubernetes clusters within that namespace.
@@ -697,8 +754,11 @@ This is set via the Kubernetes `securityContext.appArmorProfile` field (Kubernet
 
 | Req. | Decision ID | Design Decision | Design Justification | Risk / Mitigation |
 |------|-------------|-----------------|----------------------|-------------------|
-| R-005 | VKS-01 | Supervisor enabled on workload domain cluster with NSX networking | Required for VKS; NSX provides pod networking via VPC | Risk: Supervisor enablement requires stable NSX and vSAN. Mitigation: Validate both before enabling Supervisor |
+| R-005 | VKS-01 | Supervisor enabled on workload domain cluster with NSX networking | Required for VKS; Supervisor uses NSX VPC for namespace networking and load balancing (VKS-06, VKS-07); guest cluster pod networking uses Antrea CNI (VKS-08) | Risk: Supervisor enablement requires stable NSX and vSAN. Mitigation: Validate both before enabling Supervisor |
 | R-005 | VKS-02 | 3 control plane + 3 worker nodes for VKS cluster | HA control plane with 3 workers provides realistic cluster topology | Risk: 6 VMs consume significant workload domain resources. Mitigation: Use best-effort-medium VM class (2 vCPU, 8 GB) |
 | R-005 | VKS-03 | Subscribed content library for VKr images | Automatic sync of Kubernetes release images from VMware | Risk: Requires internet access from nested environment. Mitigation: Route via gateway → vCD public network |
 | C-004 | VKS-04 | best-effort-medium VM class for VKS nodes | Balances resource use against lab constraints | Risk: Insufficient resources for complex workloads. Mitigation: Scale VM class up if needed; monitor resource utilisation |
 | R-011 | VKS-05 | AppArmor RuntimeDefault profile enforced on all VKS workloads | Ubuntu VKS nodes ship with AppArmor enabled; RuntimeDefault provides baseline container confinement without custom profile management | Risk: RuntimeDefault may block workloads that require elevated privileges (e.g., privileged containers, raw sockets). Mitigation: Lab workloads are standard (nginx); privileged workloads can use `Unconfined` with explicit annotation |
+| R-005 | VKS-06 | Supervisor networking stack: NSX with VPC | NSX VPC is the recommended default for VCF 9; provides VPC-based isolation, DFW microsegmentation, and NSX embedded LB without additional appliances | Risk: NSX VPC adds complexity vs. VDS. Mitigation: Lab already deploys NSX for Edge/Tier-0/Tier-1; VPC adds minimal incremental complexity |
+| R-005 | VKS-07 | Load balancer: NSX embedded LB via Tier-1 | Included in VCF entitlement; no additional infrastructure beyond existing Edge cluster; L4 sufficient for lab Kubernetes services | Risk: NSX embedded LB is L4 only — no L7 routing, WAF, or advanced traffic management. Mitigation: Lab workloads require only L4; ingress controller can be added later if L7 is needed |
+| R-005 | VKS-08 | VKS guest cluster CNI: Antrea (default) | System-defined default; provides NetworkPolicy, cluster-wide policies (ACNP), and optional NSX Manager integration via Antrea-NSX Adapter | Risk: Antrea is the only CNI choice if Windows node pools are needed later. Mitigation: Lab uses Linux only; Antrea is the most feature-rich option regardless |
