@@ -55,7 +55,7 @@ The following must be in place before starting Phase 1.
 | Step | Action | Expected Result | Verification |
 |------|--------|-----------------|--------------|
 | 3.2.1 | In the vApp, click **Add VM** > **New**. Select Ubuntu 24.04 ISO from Content Hub (2 vCPU, 10 GB RAM, 60 GB disk). Assign NIC1 to the Public network and NIC2 to `lab-trunk` | The gateway VM is created with the specified configuration | The VM is visible in the vApp inventory |
-| 3.2.2 | Power on and complete Ubuntu installer via vCD console — set server name `gateway`, username `ubuntu`, password from 1Password "Lab Bootstrap" item | Ubuntu 24.04 is installed on the gateway VM | A login prompt appears on the vCD console |
+| 3.2.2 | Power on and complete Ubuntu installer via vCD console — set server name `gateway`, username `ubuntu`, set a simple temporary password (e.g. `VMware1!`). This password is saved to 1Password as the "Lab Bootstrap" item in step 4.1.1 | Ubuntu 24.04 is installed on the gateway VM | A login prompt appears on the vCD console |
 | 3.2.3 | Run `apt update && apt upgrade -y` to bring the OS up to date | All packages are updated to the latest versions | `apt list --upgradable` shows no pending updates |
 
 ### 3.3 Stage SDDC Manager OVA on Gateway
@@ -104,7 +104,7 @@ brew install --cask 1password-cli
 
 # Bootstrap password — simple, typed manually into vCD console and ESXi DCUI
 op item create --vault Employee --category login --title "Lab Bootstrap" \
-  password='VMware1!VMware1!'
+  password='VMware1!'
 
 # Runtime passwords — complex, injected by Ansible (never typed manually)
 op item create --vault Employee --category login --title "ESXi Root" \
