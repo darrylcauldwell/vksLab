@@ -85,7 +85,7 @@ date: "March 2026"
 | Resource | Value |
 |----------|-------|
 | OS | Ubuntu 24.04 LTS |
-| Desktop | XFCE + xrdp (remote desktop access) |
+| Desktop | GNOME + gnome-remote-desktop (Wayland-native RDP) |
 | vCPU | 2 |
 | RAM | 10 GB |
 | Disk | 60 GB |
@@ -118,7 +118,7 @@ See [Delivery Guide](deliver.md) for netplan configuration. Key parameters:
 | OpenID Connect (OIDC) | Keycloak (Docker) | Port 8443, external IdP; VCF Identity Broker federates SSO to all VCF components |
 | Secrets | 1Password (operator laptop) | `community.general.onepassword` lookup plugin via 1Password CLI |
 | Routing | Free Range Routing (FRR) (zebra + bgpd) | Inter-VLAN routing, BGP peering with NSX Tier-0 (ASN 65000) |
-| Remote access | xrdp | Listening on port 3389 (NIC1) |
+| Remote access | gnome-remote-desktop | Wayland-native RDP on port 3389; GDM3 auto-login |
 | Web browser | Firefox | Access vCenter, NSX Manager, SDDC Manager UIs |
 
 All VCF components point to 10.0.10.1 for DNS and NTP. systemd-resolved is disabled on the gateway to free port 53 for dnsmasq.

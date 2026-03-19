@@ -154,7 +154,7 @@ ansible-galaxy collection install -r ansible/collections/requirements.yml
 
 ### 4.3 Configure Gateway (Automated)
 
-All gateway configuration (VLAN sub-interfaces, dnsmasq DNS/DHCP, chrony NTP, step-ca, XFCE/xrdp, IP masquerading, FRR BGP, Firefox, Keycloak) is automated by the `gateway` and `docker_services` Ansible roles. The playbook takes approximately **10–15 minutes** to complete:
+All gateway configuration (VLAN sub-interfaces, dnsmasq DNS/DHCP, chrony NTP, step-ca, GNOME/gnome-remote-desktop, IP masquerading, FRR BGP, Firefox, Keycloak) is automated by the `gateway` and `docker_services` Ansible roles. The playbook takes approximately **10–15 minutes** to complete:
 
 ```bash
 source .venv/bin/activate
@@ -166,7 +166,7 @@ ansible-playbook playbooks/phase1_foundation.yml
 
 | Check | Command / Method | Expected Result |
 |-------|------------------|-----------------|
-| Gateway external access | RDP to gateway public IP | The XFCE desktop is accessible via RDP |
+| Gateway external access | RDP to gateway public IP | The GNOME desktop is accessible via RDP |
 | Gateway DNS | `dig @10.0.10.1 gateway.lab.dreamfold.dev` | The query returns 10.0.10.1 |
 | Gateway NTP | `chronyc sources` | Chrony shows upstream NTP servers synchronised |
 | Gateway CA | `step ca health` | The health check returns "ok" |
@@ -616,7 +616,7 @@ Final verification checklist before the lab is considered operational.
 
 | # | Check | Method | Expected Result | Pass |
 |---|-------|--------|-----------------|------|
-| 1 | External RDP access | RDP to gateway public IP | The XFCE desktop loads via RDP | ☐ |
+| 1 | External RDP access | RDP to gateway public IP | The GNOME desktop loads via RDP | ☐ |
 | 2 | DNS forward resolution | `dig @10.0.10.1 vcenter-mgmt.lab.dreamfold.dev` | The query returns 10.0.10.4 | ☐ |
 | 3 | DNS reverse resolution | `dig @10.0.10.1 -x 10.0.10.4` | The query returns vcenter-mgmt.lab.dreamfold.dev | ☐ |
 | 4 | NTP synchronisation | `chronyc sources` on gateway | Upstream NTP servers are reachable | ☐ |
