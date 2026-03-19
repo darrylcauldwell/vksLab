@@ -40,6 +40,11 @@ Demonstrate vSphere Kubernetes Services (VKS) on VMware Cloud Foundation (VCF) 9
 | R-009 | All TLS certificates SHOULD be issued by the internal step-ca CA |
 | R-010 | Lab MAY be powered off, snapshot, and redeployed as a single vApp |
 | R-011 | VKS workloads SHOULD enforce AppArmor RuntimeDefault profile for container security hardening |
+| R-012 | Lab SHOULD deploy a shared-services VKS cluster for platform infrastructure |
+| R-013 | Lab SHOULD provide a container registry proxy cache for external container registries |
+| R-014 | Lab SHOULD provide L7 ingress routing for Kubernetes services |
+| R-015 | Lab SHOULD provide Kubernetes backup and restore for persistent workloads |
+| R-016 | Lab SHOULD provide GitOps-based application deployment across VKS clusters |
 
 ## 5. Service Level Objectives
 
@@ -138,7 +143,7 @@ Functional blocks and relationships — no network details. See [Logical Design]
 
 ## 10. Deployment Approach
 
-Deployment proceeds in six phases, each building on the previous:
+Deployment proceeds in seven phases, each building on the previous:
 
 1. **Foundation** — vApp creation, gateway, virtual router, infrastructure services
 2. **Nested Compute** — ESXi host deployment and network preparation
@@ -146,6 +151,7 @@ Deployment proceeds in six phases, each building on the previous:
 4. **VCF Workload Domain** — host commissioning and workload domain creation
 5. **NSX Networking** — Edge cluster, NSX Tier-0/Tier-1 gateways, BGP, VPC
 6. **VKS** — Supervisor enablement, namespace creation, VKS cluster deployment
+7. **Platform Services** — Shared-services VKS cluster, Contour ingress, Harbor registry, Velero backup, ArgoCD GitOps
 
 See [Logical Design](logical-design.md) for phase details and [Delivery Guide](deliver.md) for step-by-step procedures.
 
@@ -177,6 +183,11 @@ See [Logical Design](logical-design.md) for phase details and [Delivery Guide](d
 | R-009 | TLS certs from internal step-ca | SVC-02 | Phase 1 — CA setup (§3.2.7) + cert distribution (§3.2a) | `step ca health`; certs valid on components |
 | R-010 | vApp snapshot/redeploy | VCD-03 | Operate Guide — snapshot SOP (§1.3) | Snapshot restore + power-on completes successfully |
 | R-011 | AppArmor RuntimeDefault for VKS pods | VKS-05 | Phase 6 — AppArmor verification (§9.5) | `kubectl get pod -o jsonpath` confirms RuntimeDefault |
+| R-012 | Shared-services VKS cluster for platform infrastructure | VKS-09, VKS-14 | Phase 7 — shared-services cluster deployment (§10.1) | `kubectl get nodes` on vks-services-01 shows 6 Ready |
+| R-013 | Container registry proxy cache | VKS-11 | Phase 7 — Harbor installation (§10.4) | `curl https://harbor.lab.dreamfold.dev/api/v2.0/health` returns healthy |
+| R-014 | L7 ingress routing for Kubernetes services | VKS-10 | Phase 7 — Contour installation (§10.3) | `kubectl get pods -n projectcontour` all Running |
+| R-015 | Kubernetes backup and restore | VKS-12 | Phase 7 — Velero installation (§10.6) | `velero backup get` shows recent Completed backup |
+| R-016 | GitOps-based application deployment | VKS-13 | Phase 7 — ArgoCD installation (§10.7) | `argocd app list` shows Synced/Healthy |
 
 ### Constraint Traceability
 

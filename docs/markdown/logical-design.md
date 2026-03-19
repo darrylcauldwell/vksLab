@@ -355,10 +355,10 @@ The lab's data protection model is deliberately simple:
 |-----------------|--------|-------|------------|
 | Entire lab state | vApp snapshot (VCD-03, R-010) | All VM disks + memory across entire vApp | All-or-nothing; cannot restore individual VMs or PVs |
 | vSAN object level | FTT=1 RAID-1 mirroring | Protects against single host failure | Does not protect against vSAN cluster-wide failure or logical corruption |
-| VKS PersistentVolume level | None | — | No PV-level backup, snapshot, or replication |
-| Application data level | None | — | No file-level backup for data within VKS pods |
+| VKS PersistentVolume level | Velero + MinIO (VKS-12) | Namespace / label selector | CSI snapshot data movement; requires Velero schedule configuration |
+| Application data level | Velero (application-consistent) | Per-namespace | Backs up Kubernetes resources + PV data; restore to same or different cluster |
 
-**There is no NFS server, no file-level backup infrastructure, and no PersistentVolume backup solution.** The lab is designed to be disposable (C-004). If future workloads require persistent data protection beyond vApp snapshots, consider adding Velero (Kubernetes backup) or an NFS server on the gateway for shared storage — but these are out of scope for the current design.
+**There is no NFS server or file-level backup infrastructure.** Kubernetes PersistentVolume backup is provided by Velero on the shared-services cluster (VKS-12) — see [Platform Services](#platform-services) in Section 8. The lab is designed to be disposable (C-004), but Velero provides namespace-level backup and restore for workloads with persistent data.
 
 ### Host Networking Model
 
@@ -762,3 +762,104 @@ This is set via the Kubernetes `securityContext.appArmorProfile` field (Kubernet
 | R-005 | VKS-06 | Supervisor networking stack: NSX with VPC | NSX VPC is the recommended default for VCF 9; provides VPC-based isolation, DFW microsegmentation, and NSX embedded LB without additional appliances | Risk: NSX VPC adds complexity vs. VDS. Mitigation: Lab already deploys NSX for Edge/Tier-0/Tier-1; VPC adds minimal incremental complexity |
 | R-005 | VKS-07 | Load balancer: NSX embedded LB via Tier-1 | Included in VCF entitlement; no additional infrastructure beyond existing Edge cluster; L4 sufficient for lab Kubernetes services | Risk: NSX embedded LB is L4 only — no L7 routing, WAF, or advanced traffic management. Mitigation: Lab workloads require only L4; ingress controller can be added later if L7 is needed |
 | R-005 | VKS-08 | VKS guest cluster CNI: Antrea (default) | System-defined default; provides NetworkPolicy, cluster-wide policies (ACNP), and optional NSX Manager integration via Antrea-NSX Adapter | Risk: Antrea is the only CNI choice if Windows node pools are needed later. Mitigation: Lab uses Linux only; Antrea is the most feature-rich option regardless |
+
+### Platform Services
+
+The lab deploys a set of platform services to support production-style workloads. These services run on a dedicated shared-services VKS cluster, separate from the application workload cluster.
+
+#### Two-Cluster Topology
+
+| Cluster | Purpose | Workloads |
+|---------|---------|-----------|
+| `vks-cluster-01` | Application workloads | planespotter, test deployments |
+| `vks-services-01` | Platform infrastructure | Contour, Harbor, MinIO, Velero, ArgoCD |
+
+Separating platform services from application workloads provides independent lifecycle management — platform services can be upgraded without disrupting applications. ArgoCD runs on the shared-services cluster as a hub and manages both clusters in a hub-and-spoke model.
+
+#### Delivery Mechanism
+
+Platform services are installed using two mechanisms:
+
+| Mechanism | Services | Rationale |
+|-----------|----------|-----------|
+| VKS Standard Packages (`vcf package install`) | cert-manager, Contour, Harbor, Velero | VMware-supported, versioned, integrated with VKS lifecycle |
+| Upstream Helm charts | ArgoCD, MinIO | Not available as VKS Standard Packages |
+
+This keeps the lab aligned with VMware's supported ecosystem while using community charts only where necessary.
+
+#### Ingress Controller
+
+VKS clusters use the NSX embedded load balancer for L4 (Service type LoadBalancer). For L7 routing (host/path-based), an ingress controller is required. Contour sits **behind** the NSX embedded load balancer — NSX provisions an L4 VIP for the Envoy DaemonSet, and Envoy then routes L7 traffic by hostname/path. They complement each other.
+
+| Capability | Contour + Envoy | Istio Gateway | NSX LB only (no ingress) |
+|------------|----------------|---------------|--------------------------|
+| L7 routing (host/path) | Yes (HTTPProxy CRD) | Yes (Gateway API) | No (L4 only) |
+| TLS termination | Yes | Yes | Yes |
+| Multi-service single VIP | Yes (hostname routing) | Yes | No (1 VIP per service) |
+| gRPC support | Yes (h2c protocol) | Yes | No |
+| VKS Standard Package | Yes (v1.33.1) | Yes (v1.28.2) | N/A (built-in) |
+| Resource footprint | Light (~0.2 CPU, 0.3 Gi) | Heavy (~2 CPU, 2 Gi) | None |
+| Complexity | Low | High (full service mesh) | None |
+
+**Selection**: Contour (VKS Standard Package v1.33.1). L7 ingress with minimal footprint; HTTPProxy CRD enables multi-service routing through a single NSX LB VIP. Istio is overkill for a lab; NSX LB alone cannot do L7 routing.
+
+#### Container Registry
+
+Pulling container images directly from external registries (GHCR, Docker Hub) over the internet adds latency and is subject to rate limits. A local proxy cache accelerates pulls and provides vulnerability scanning.
+
+| Capability | Harbor (proxy cache) | Direct pull from GHCR | Docker Registry (mirror) |
+|------------|---------------------|----------------------|--------------------------|
+| Local image cache | Yes | No | Yes |
+| Vulnerability scanning | Yes (Trivy) | No | No |
+| GHCR proxy cache | Yes (native provider) | N/A | Manual mirror config |
+| Web UI | Yes (Portal) | N/A | No |
+| Multi-registry support | Yes (Docker Hub, GHCR, Quay, etc.) | N/A | Single upstream |
+| VKS Standard Package | Yes (v2.14.2) | N/A | No |
+| Storage requirement | ~62 Gi PVC | None | ~50 Gi PVC |
+
+**Selection**: Harbor (VKS Standard Package v2.14.2) with a `ghcr-proxy` project configured as a proxy cache for `ghcr.io`. Provides local caching, vulnerability scanning, and a single pull-through endpoint for all workload images (`harbor.lab.dreamfold.dev/ghcr-proxy/...`). Exposed via Contour HTTPProxy (shares the Envoy LB VIP).
+
+#### Kubernetes Backup
+
+The lab's data protection model (VCD-03) uses vApp snapshots for the entire lab state, but provides no PersistentVolume-level backup. Velero fills this gap for Kubernetes workloads by backing up both Kubernetes resources and PersistentVolume data.
+
+| Capability | Velero + MinIO | vSAN snapshots only | VKSM Data Protection |
+|------------|---------------|--------------------|--------------------|
+| Kubernetes resource backup | Yes | No | Yes (wraps Velero) |
+| PersistentVolume backup | Yes (CSI snapshot data movement) | Yes (vSAN object level) | Yes |
+| Cross-cluster restore | Yes | No | Yes |
+| S3-compatible storage | MinIO (in-cluster) | N/A | Required |
+| Scheduled backups | Yes (cron) | Manual | Yes (policy-based) |
+| VKS Standard Package | Yes (Velero v1.17.2) | N/A | Requires VCF Automation |
+| Granularity | Namespace / label selector | Entire VM | Namespace |
+
+**Selection**: Velero (VKS Standard Package v1.17.2) with MinIO (Helm chart) as in-cluster S3-compatible backup target. Container Storage Interface (CSI) snapshot support is pre-installed in VKS clusters. Velero backs up both Kubernetes resources and PV data. VKSM Data Protection wraps Velero but requires VCF Automation — unnecessary indirection for a lab.
+
+MinIO runs as a single-pod deployment with a vSAN-backed PVC (~100 Gi). Velero's node-agent DaemonSet runs on each worker node (3 pods).
+
+#### GitOps Deployment
+
+Manual `kubectl apply` and Helm installs do not provide drift detection, audit trails, or multi-cluster management. A GitOps controller provides declarative, version-controlled application deployment.
+
+| Capability | ArgoCD | Flux | Manual (kubectl/Helm) |
+|------------|--------|------|-----------------------|
+| Multi-cluster management | Yes (hub-and-spoke) | Yes (per-cluster) | Manual context switching |
+| Web UI | Yes (dashboard) | No (CLI only) | No |
+| Application CRD | Yes (Application, ApplicationSet) | Yes (Kustomization, HelmRelease) | No |
+| Drift detection | Yes (real-time sync) | Yes (reconciliation loop) | No |
+| OpenID Connect (OIDC) integration | Yes (Dex) | No | N/A |
+| VKS ecosystem support | Broadcom operator available | No official VMware support | N/A |
+| Community adoption | Largest CNCF GitOps project | Strong but smaller | N/A |
+
+**Selection**: ArgoCD (upstream Helm chart v3.3.x). Installed on the shared-services cluster as a hub; manages both the shared-services and workload clusters. Web UI exposed via Contour HTTPProxy (shares the Envoy LB VIP). The Broadcom Supervisor Service operator bundles EOL v2.14.13 — the upstream Helm chart provides current v3.3.x.
+
+#### Platform Services Design Decisions
+
+| Req. | Decision ID | Design Decision | Design Justification | Risk / Mitigation |
+|------|-------------|-----------------|----------------------|-------------------|
+| R-012 | VKS-09 | Separate shared-services VKS cluster (`vks-services-01`) for platform infrastructure | Isolates platform services from application workloads; independent upgrade lifecycle; ArgoCD hub manages both clusters from a single control point | Risk: Second cluster doubles control plane resource consumption (+6 vCPU, +24 GB RAM). Mitigation: Workload domain headroom is sufficient (~35% CPU, ~53% RAM after second cluster) |
+| R-014 | VKS-10 | Contour as L7 ingress controller (VKS Standard Package v1.33.1) | L7 host/path routing with minimal footprint; HTTPProxy CRD enables multi-service routing through a single NSX LB VIP; complements NSX embedded L4 LB | Risk: Contour is L7 only — does not replace NSX LB for L4 services. Mitigation: NSX LB remains the L4 default; Contour adds L7 on top |
+| R-013 | VKS-11 | Harbor as container registry proxy cache (VKS Standard Package v2.14.2) | Local image caching reduces external pull latency and rate-limit exposure; Trivy vulnerability scanning provides image security; native GHCR proxy cache support | Risk: Harbor requires ~62 Gi persistent storage on vSAN. Mitigation: Workload domain vSAN has sufficient capacity; monitor via vSAN Capacity dashboard |
+| R-015 | VKS-12 | Velero with MinIO for Kubernetes backup (VKS Standard Package v1.17.2 + Helm) | Backs up Kubernetes resources and PersistentVolume data; CSI snapshot integration with vSphere CSI driver; MinIO provides in-cluster S3-compatible storage without external dependencies | Risk: MinIO is a single-pod deployment — not HA. Mitigation: Lab-grade availability acceptable; vSAN FTT=1 protects the MinIO PVC data; backup metadata is recoverable from the PVC |
+| R-016 | VKS-13 | ArgoCD for GitOps deployment (upstream Helm chart v3.3.x) | Hub-and-spoke multi-cluster management; web UI for visibility; OIDC integration via Dex for Keycloak SSO; largest CNCF GitOps community | Risk: Upstream Helm chart requires manual lifecycle management (not a VKS Standard Package). Mitigation: Helm upgrade is straightforward; ArgoCD can manage its own upgrades via self-management pattern |
+| R-012 | VKS-14 | VKS Standard Packages as primary delivery mechanism | cert-manager, Contour, Harbor, and Velero installed via `vcf package install`; ArgoCD and MinIO via upstream Helm charts; aligns with VMware's supported ecosystem | Risk: Helm-installed components (ArgoCD, MinIO) are outside VMware support. Mitigation: Community-supported; lab-grade availability acceptable |
