@@ -13,7 +13,7 @@ date: "March 2026"
 
 | VLAN ID | Name | Subnet | Purpose | Maximum Transmission Unit (MTU) |
 |---------|------|--------|---------|-----|
-| 10 | Management | 10.0.10.0/24 | ESXi management, vCenter, Software-Defined Data Center (SDDC) Manager, VCF Networking (NSX) Manager | 1500 |
+| 10 | Management | 10.0.10.0/24 | ESXi management, vCenter, Software-Defined Data Center (SDDC) Manager, VMware Cloud Foundation (VCF) Networking (NSX) Manager | 1500 |
 | 20 | vMotion | 10.0.20.0/24 | vMotion traffic | 9000 |
 | 30 | vSAN | 10.0.30.0/24 | vSAN storage traffic | 9000 |
 | 40 | Host Overlay (TEP) | 10.0.40.0/24 | NSX host Tunnel Endpoint (TEP) tunnels | 9000 |
@@ -89,7 +89,7 @@ date: "March 2026"
 | vCPU | 2 |
 | RAM | 10 GB |
 | Disk | 60 GB |
-| NIC1 | vCD public network (DHCP or static from vCD) |
+| NIC1 | vCD public network (Dynamic Host Configuration Protocol (DHCP) or static from vCD) |
 | NIC2 | vCD private network — 802.1Q trunk (MTU 9000), VLAN sub-interfaces |
 
 ### Network Configuration
@@ -264,7 +264,7 @@ See [Delivery Guide](deliver.md) Phase 4 for the host commissioning and domain c
 
 ## 8. NSX Edge Cluster
 
-> Implements NSX-01 (two-node Large Edge cluster), NSX-02 (Active-Standby Tier-0 with BGP), NSX-03 (centralised VPC), NSX-04 (source NAT). See [Logical Design](logical-design.md) Section 7.
+> Implements NSX-01 (two-node Large Edge cluster), NSX-02 (Active-Standby Tier-0 with BGP), NSX-03 (centralised Virtual Private Cloud (VPC)), NSX-04 (source NAT). See [Logical Design](logical-design.md) Section 7.
 
 ### Edge VM Specifications
 
@@ -286,7 +286,7 @@ Edge VMs are sized as **Large** (8 vCPU, 32 GB RAM) to support VKS workloads.
 | BGP ASN | 65001 |
 | BGP Neighbor | 10.0.60.1 (Gateway FRR, ASN 65000) |
 
-### Tier-1 Gateway Settings
+### NSX Tier-1 Gateway Settings
 
 | Setting | Value |
 |---------|-------|

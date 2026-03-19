@@ -141,7 +141,7 @@ ansible-galaxy collection install -r ansible/collections/requirements.yml
 |------|--------|-----------------|--------------|
 | 4.2.1 | In vCD catalog, deploy vApp from template `[baseline]vcf-lab-8vm` | vApp created with 8 VMs | vApp visible with all VMs |
 | 4.2.2 | Read back MAC addresses from vCD for all 7 ESXi VMs (vmnic0), update `esxi_mac` in `ansible/inventory/hosts.yml` | MACs recorded | Inventory file updated |
-| 4.2.3 | Power on all 8 VMs | VMs running | Gateway gets public IP via DHCP |
+| 4.2.3 | Power on all 8 VMs | VMs running | Gateway gets public IP via Dynamic Host Configuration Protocol (DHCP) |
 | 4.2.4 | Note gateway public IP: `ip addr show ens160` via vCD console | IP obtained | — |
 | 4.2.5 | Store gateway IP in 1Password: `op item edit "Lab Bootstrap" ip_address=<gateway-ip>` | IP stored | `op item get "Lab Bootstrap" --fields ip_address` returns IP |
 | 4.2.6 | If no SSH key exists, generate one: `ssh-keygen -t ed25519` | Key pair created | `~/.ssh/id_ed25519.pub` exists |

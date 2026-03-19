@@ -323,7 +323,7 @@ op item list --vault "VKS Lab"
 |---------|---------------|------------|
 | Transport node disconnected | Host Tunnel Endpoint (TEP) interface down | Check vmk3 (VLAN 40) on ESXi host; verify Maximum Transmission Unit (MTU) 9000 end-to-end |
 | Transport node config not realised | NSX Manager communication failure | Restart nsx-proxy on ESXi host: `/etc/init.d/nsx-proxy restart` |
-| VPC subnet not reachable | Tier-1 route advertisement disabled | NSX Manager → Tier-1 → Route Advertisement: enable connected subnets |
+| VPC subnet not reachable | NSX Tier-1 Gateway route advertisement disabled | NSX Manager → Tier-1 → Route Advertisement: enable connected subnets |
 | VPC to external connectivity broken | Tier-0 uplink down or NAT rule missing | Check Tier-0 uplink interface status; verify SNAT rule exists |
 | Distributed Firewall (DFW) blocking traffic | Default DFW rule set to deny | NSX Manager → Security → Distributed Firewall: check default rule |
 

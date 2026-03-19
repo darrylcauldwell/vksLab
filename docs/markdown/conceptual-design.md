@@ -9,7 +9,7 @@ date: "March 2026"
 
 ## 1. Purpose & Objectives
 
-Demonstrate vSphere Kubernetes Services (VKS) on VMware Cloud Foundation (VCF) 9 with VCF Networking (NSX) VPC in a fully nested lab environment hosted on vCloud Director. The lab provides a self-contained platform for exploring vSphere Supervisor clusters, VKS cluster lifecycle, and NSX VPC networking — all within a single vApp.
+Demonstrate vSphere Kubernetes Services (VKS) on VMware Cloud Foundation (VCF) 9 with VCF Networking (NSX) Virtual Private Cloud (VPC) in a fully nested lab environment hosted on vCloud Director. The lab provides a self-contained platform for exploring vSphere Supervisor clusters, VKS cluster lifecycle, and NSX VPC networking — all within a single vApp.
 
 ## 2. Target Audience
 
@@ -143,7 +143,7 @@ Deployment proceeds in six phases, each building on the previous:
 2. **Nested Compute** — ESXi host deployment and network preparation
 3. **VCF Management Domain** — VCF Installer bringup of management components
 4. **VCF Workload Domain** — host commissioning and workload domain creation
-5. **NSX Networking** — Edge cluster, Tier-0/Tier-1 gateways, BGP, VPC
+5. **NSX Networking** — Edge cluster, NSX Tier-0/Tier-1 gateways, BGP, VPC
 6. **VKS** — Supervisor enablement, namespace creation, VKS cluster deployment
 
 See [Logical Design](logical-design.md) for phase details and [Delivery Guide](deliver.md) for step-by-step procedures.

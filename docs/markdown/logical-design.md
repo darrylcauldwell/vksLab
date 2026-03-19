@@ -267,8 +267,8 @@ Each host is sized to accommodate VCF management appliances:
 
 Three nested ESXi hosts form the workload domain cluster. This is the minimum for vSAN with FTT=1. These hosts run:
 
-- NSX Edge cluster (2x Edge VMs, large-sized for VKS)
-- Supervisor control plane VMs
+- NSX Edge cluster (2x Edge VMs, large-sized for vSphere Kubernetes Services (VKS))
+- vSphere Supervisor control plane VMs
 - VKS worker nodes
 
 ### vSAN Design
