@@ -1,90 +1,28 @@
 # VKS Lab — Project Instructions
 
+This project is a nested VMware Cloud Foundation (VCF) 9 lab demonstrating vSphere Kubernetes Services (VKS) with NSX VPC networking, hosted entirely within a vCloud Director vApp.
+
 ## Documentation Set
 
 The five design documents in `docs/markdown/` form a cohesive set. Each document stands alone (a reader may open any single document), but they must remain consistent with each other.
 
-| Document | Purpose |
-|----------|---------|
-| `conceptual-design.md` | Requirements, constraints, conceptual architecture |
-| `logical-design.md` | Detailed logical architecture and design decisions |
-| `physical-design.md` | IP addressing, host specs, resource tables |
-| `deliver.md` | Step-by-step deployment procedures |
-| `operate.md` | SOPs, health checks, troubleshooting, lifecycle |
+| Document | TOGAF ADM Phase | Content |
+|----------|----------------|---------|
+| `conceptual-design.md` | Phase A — Architecture Vision | Requirements, constraints, assumptions, conceptual architecture, traceability matrix |
+| `logical-design.md` | Phases B/C — Business & Information Systems Architecture | Logical components, design decisions with rationale, traceability to requirements |
+| `physical-design.md` | Phase D — Technology Architecture | IP addressing, host specs, resource sizing, technology selections |
+| `deliver.md` | Phases E/F — Opportunities, Solutions & Migration Planning | Phased deployment procedures, verification steps |
+| `operate.md` | Phase H — Architecture Change Management | SOPs, lifecycle management, health checks, capacity management |
 
-### Cross-Document Consistency Rule
+When adding new content, place it in the document that matches its TOGAF ADM phase. Design decisions belong in logical design (with Decision ID, justification, and risk/mitigation). Physical specs belong in physical design. Procedures belong in the delivery or operations guide.
+
+### Cross-Document Consistency
 
 When modifying any document in the set:
 
-1. **Check if the change affects design requirements or decisions.** If it does, trace the impact across all five documents using the Requirements Traceability Matrix in `conceptual-design.md`.
+1. **Check if the change affects design requirements or decisions.** If it does, trace the impact across all five documents using the Requirements Traceability Matrix in `conceptual-design.md` Section 12.
 2. **If the change is terminology, naming, or formatting** (not a design change), apply it consistently across all five documents in the same commit or commit series.
 3. **Never leave documents out of sync.** A terminology change in one document without the corresponding change in others creates confusion for readers who cross-reference.
-
-### VCF 9.0 Terminology Rules
-
-Every acronym is expanded on **first use per document** (each document stands alone). After the first expansion, use the short form.
-
-| Term | First Use Form | Subsequent |
-|------|---------------|------------|
-| VCF | VMware Cloud Foundation (VCF) | VCF |
-| NSX | VCF Networking (NSX) | NSX |
-| VKS | vSphere Kubernetes Services (VKS) | VKS |
-| VKr | VMware Kubernetes Runtime (VKr) | VKr |
-| Supervisor | vSphere Supervisor | Supervisor |
-| Tier-0 | NSX Tier-0 Gateway | Tier-0 |
-| Tier-1 | NSX Tier-1 Gateway | Tier-1 |
-| Identity Broker | VCF Identity Broker | Identity Broker |
-| Cloud Builder | VCF Installer | VCF Installer |
-| VCF Operations | VCF Operations | VCF Operations |
-| VCF Automation | VCF Automation | VCF Automation |
-| SDDC | Software-Defined Data Center (SDDC) | SDDC |
-| VPC | Virtual Private Cloud (VPC) | VPC |
-| BGP | Border Gateway Protocol (BGP) | BGP |
-| FRR | Free Range Routing (FRR) | FRR |
-| TEP | Tunnel Endpoint (TEP) | TEP |
-| VLAN | Virtual LAN (VLAN) | VLAN |
-| MTU | Maximum Transmission Unit (MTU) | MTU |
-| NVMe | Non-Volatile Memory Express (NVMe) | NVMe |
-| HCL | Hardware Compatibility List (HCL) | HCL |
-| VIB | vSphere Installation Bundle (VIB) | VIB |
-| OVA | Open Virtual Appliance (OVA) | OVA |
-| DCUI | Direct Console User Interface (DCUI) | DCUI |
-| OIDC | OpenID Connect (OIDC) | OIDC |
-| SNAT | Source Network Address Translation (SNAT) | SNAT |
-| CSI | Container Storage Interface (CSI) | CSI |
-| FCD | First Class Disk (FCD) | FCD |
-| FTT | Failures to Tolerate (FTT) | FTT |
-| DFW | Distributed Firewall (DFW) | DFW |
-| VDS | vSphere Distributed Switch (VDS) | VDS |
-| ESA | Express Storage Architecture (ESA) | ESA |
-| NTP | Network Time Protocol (NTP) | NTP |
-| CA | Certificate Authority (CA) | CA |
-| DNS | Domain Name System (DNS) | DNS |
-| DHCP | Dynamic Host Configuration Protocol (DHCP) | DHCP |
-
-**Prohibited short forms:**
-- Never use "VCF Ops" — always "VCF Operations"
-- Never use "VCF Auto" — always "VCF Automation"
-- Never use "Cloud Builder" except in historical context (e.g., "formerly Cloud Builder")
-- Never use "VMware Kubernetes releases" — the correct name is "VMware Kubernetes Runtime"
-
-### Vendor Terminology Verification
-
-When introducing or changing VMware/Broadcom product terminology, verify against the official VCF documentation at `https://docs.vmware.com/en/VMware-Cloud-Foundation/`. Product names, feature names, and acronym expansions change between VCF releases — always check the docs for the version this lab targets (VCF 9.0). Do not rely on memory or older documentation.
-
-### TOGAF Architecture Framework Alignment
-
-The document set follows TOGAF Architecture Development Method (ADM) structure:
-
-| TOGAF Phase | Lab Document | Content |
-|-------------|-------------|---------|
-| Preliminary / Architecture Vision | `conceptual-design.md` | Purpose, requirements, constraints, stakeholders, conceptual architecture |
-| Architecture Definition (B/C/D) | `logical-design.md` | Logical components, design decisions with rationale, traceability to requirements |
-| Technology Architecture | `physical-design.md` | Physical specs, IP addressing, resource sizing, technology selections |
-| Migration Planning / Implementation | `deliver.md` | Phased deployment procedures, verification steps |
-| Architecture Change Management | `operate.md` | SOPs, lifecycle management, health checks, capacity management |
-
-When adding new content, place it in the document that matches its TOGAF phase. Design decisions belong in logical design (with Decision ID, justification, and risk/mitigation). Physical specs belong in physical design. Procedures belong in the delivery or operations guide.
 
 ### Requirements Traceability
 
@@ -101,18 +39,6 @@ The Requirements Traceability Matrix in `conceptual-design.md` Section 12 is the
 - Add implementation steps to the delivery guide
 - Add verification steps to either the delivery guide or operations guide
 
-### Diagram Consistency
-
-ASCII diagrams must match the component names and terminology used in the surrounding prose. When renaming a component or term in prose, update every diagram that references it. Diagrams are approximate — alignment does not need to be pixel-perfect — but box labels, connection lines, and component names must be accurate.
-
-### Version-Specific References
-
-When a procedure or configuration is version-dependent, specify the exact version (e.g., "VCF 9.0.1+", "ESXi 9.0"). Do not write version-generic instructions for version-specific behaviour. If a workaround applies only to certain versions, state the version range and note when it is no longer needed.
-
-### Cross-Document Link Integrity
-
-Cross-references between documents must use relative paths (e.g., `[Logical Design](logical-design.md)`) and point to real section headings. When renaming or restructuring a section, search all five documents for references to the old heading and update them. Broken cross-references silently mislead readers.
-
 ### Design Decision Table Format
 
 All design decision tables must include these columns:
@@ -127,6 +53,81 @@ All design decision tables must include these columns:
 
 Do not omit the justification or risk columns. A decision without rationale is not traceable; a decision without risk analysis is not complete.
 
-### Hostnames and CLI Output
+### Diagram Consistency
 
-Hostnames (e.g., `nsx-mgr-wld`, `vcf-ops`), CLI commands, config file paths, and API endpoints are **not renamed** — they reflect what the software actually uses. Only human-readable prose and labels follow the terminology rules above.
+ASCII diagrams must match the component names and terminology used in the surrounding prose. When renaming a component or term in prose, update every diagram that references it. Diagrams are approximate — alignment does not need to be pixel-perfect — but box labels, connection lines, and component names must be accurate.
+
+### Cross-Document Link Integrity
+
+Cross-references between documents must use relative paths (e.g., `[Logical Design](logical-design.md)`) and point to real section headings. When renaming or restructuring a section, search all five documents for references to the old heading and update them.
+
+### Version-Specific References
+
+When a procedure or configuration is version-dependent, specify the exact version (e.g., "VCF 9.0.1+", "ESXi 9.0"). Do not write version-generic instructions for version-specific behaviour. If a workaround applies only to certain versions, state the version range and note when it is no longer needed.
+
+## Terminology
+
+### VCF 9.0 Product Names
+
+These terms have specific official names that must always be used in prose. Hostnames, CLI commands, config paths, and API endpoints are excluded — they reflect what the software actually uses.
+
+| Short Form | Always Write | Notes |
+|------------|-------------|-------|
+| Cloud Builder | VCF Installer | Say "formerly Cloud Builder" only in historical context |
+| VCF Ops | VCF Operations | Never abbreviate |
+| VCF Auto | VCF Automation | Never abbreviate |
+| VMware Kubernetes releases | VMware Kubernetes Runtime (VKr) | The old name is incorrect |
+
+### Acronym Expansion Rules
+
+Every acronym is expanded on **first use per document** (each document stands alone). After the first expansion, use the short form.
+
+| Acronym | First Use Expansion |
+|---------|-------------------|
+| VCF | VMware Cloud Foundation (VCF) |
+| NSX | VCF Networking (NSX) |
+| VKS | vSphere Kubernetes Services (VKS) |
+| VKr | VMware Kubernetes Runtime (VKr) |
+| SDDC | Software-Defined Data Center (SDDC) |
+| VPC | Virtual Private Cloud (VPC) |
+| BGP | Border Gateway Protocol (BGP) |
+| FRR | Free Range Routing (FRR) |
+| TEP | Tunnel Endpoint (TEP) |
+| VLAN | Virtual LAN (VLAN) |
+| MTU | Maximum Transmission Unit (MTU) |
+| NVMe | Non-Volatile Memory Express (NVMe) |
+| HCL | Hardware Compatibility List (HCL) |
+| VIB | vSphere Installation Bundle (VIB) |
+| OVA | Open Virtual Appliance (OVA) |
+| DCUI | Direct Console User Interface (DCUI) |
+| OIDC | OpenID Connect (OIDC) |
+| SNAT | Source Network Address Translation (SNAT) |
+| CSI | Container Storage Interface (CSI) |
+| FCD | First Class Disk (FCD) |
+| FTT | Failures to Tolerate (FTT) |
+| DFW | Distributed Firewall (DFW) |
+| VDS | vSphere Distributed Switch (VDS) |
+| ESA | Express Storage Architecture (ESA) |
+| NTP | Network Time Protocol (NTP) |
+| CA | Certificate Authority (CA) |
+| DNS | Domain Name System (DNS) |
+| DHCP | Dynamic Host Configuration Protocol (DHCP) |
+
+### Qualified Names on First Use
+
+These component names require qualification on first use per document:
+
+| Component | First Use | Subsequent |
+|-----------|----------|------------|
+| Supervisor | vSphere Supervisor | Supervisor |
+| Tier-0 | NSX Tier-0 Gateway | Tier-0 |
+| Tier-1 | NSX Tier-1 Gateway | Tier-1 |
+| Identity Broker | VCF Identity Broker | Identity Broker |
+
+### Vendor Terminology Verification
+
+When introducing or changing VMware/Broadcom product terminology, verify against the official VCF documentation using the `localexpert` MCP tool (`query_knowledge`). Product names, feature names, and acronym expansions change between VCF releases — always check the ingested docs for the version this lab targets (VCF 9.0). If the localexpert Docker Compose stack is not running, start it first:
+
+```bash
+cd /Users/darrylcauldwell/Development/localExpert && docker compose up -d
+```
