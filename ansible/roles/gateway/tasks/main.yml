@@ -140,6 +140,16 @@
   delay: 5
   changed_when: false
 
+- name: Set GNOME keyboard input source
+  become: true
+  become_user: ubuntu
+  ansible.builtin.command: >
+    gsettings set org.gnome.desktop.input-sources sources "[('xkb', '{{ gateway_keyboard_layout }}')]"
+  environment:
+    XDG_RUNTIME_DIR: /run/user/1000
+    DBUS_SESSION_BUS_ADDRESS: unix:path=/run/user/1000/bus
+  changed_when: true
+
 - name: Enable GRD RDP
   become: true
   become_user: ubuntu
@@ -430,6 +440,7 @@
           "Certificates": {
             "ImportEnterpriseRoots": true
           },
+          "DisplayBookmarksToolbar": "always",
           "ManagedBookmarks": [
             { "toplevel_name": "VCF Lab" },
             { "name": "vCenter (mgmt)", "url": "https://vcenter-mgmt.{{ lab_domain }}/ui" },
