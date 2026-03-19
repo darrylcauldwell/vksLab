@@ -55,16 +55,17 @@ Do not omit the justification or risk columns. A decision without rationale is n
 
 ### Diagrams
 
-Diagrams use draw.io. Source files and SVG exports are stored in `docs/diagrams/`:
+Diagrams use draw.io with the `.drawio.svg` dual-purpose format. Files are stored in `docs/diagrams/`:
 
 | File type | Purpose |
 |-----------|---------|
-| `*.drawio` | Editable source (commit to git) |
-| `*.svg` | Export for markdown embedding and Pandoc/LaTeX PDF generation (commit to git) |
+| `*.drawio.svg` | Single file — editable by draw.io AND renderable by GitHub/browsers as SVG |
+
+**Export command**: `drawio --export --format svg --embed-diagram -o output.drawio.svg input.drawio`
 
 **Rules**:
-- When editing a `.drawio` file, always re-export the corresponding `.svg` in the same commit
-- Embed in markdown using relative paths: `![Description](diagrams/filename.svg)`
+- Always use `.drawio.svg` format (not separate `.drawio` + `.svg` files)
+- Embed in markdown using relative paths: `![Description](diagrams/filename.drawio.svg)`
 - Diagram labels and component names must match the terminology used in the surrounding prose — when renaming a component or term, update every diagram that references it
 - When replacing an ASCII diagram with a draw.io equivalent, remove the ASCII version in the same commit
 
