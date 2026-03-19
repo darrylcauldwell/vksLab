@@ -39,9 +39,9 @@ date: "March 2026"
                     │              │  │  ESXi-01  ESXi-02      │  │   │       │       │
                     │              │  │  ESXi-03  ESXi-04      │  │   │       │       │
                     │              │  │                         │  │   │       │       │
-                    │              │  │  vCenter  SDDC Mgr      │  │   │       │       │
-                    │              │  │  NSX Mgr  VCF Ops       │  │   │       │       │
-                    │              │  │  VCF Automation          │  │   │       │       │
+                    │              │  │  vCenter  SDDC Mgr       │  │   │       │       │
+                    │              │  │  NSX Mgr  VCF Operations │  │   │       │       │
+                    │              │  │  VCF Automation           │  │   │       │       │
                     │              │  └─────────────────────────┘  │   │       │       │
                     │              │                                │   │       │       │
                     │              │  ┌─────────────────────────┐  │   │       │       │
@@ -77,14 +77,14 @@ See [Delivery Guide](deliver.md) for step-by-step deployment procedures with exa
 
 | Component | Quantity | Role |
 |-----------|----------|------|
-| Ubuntu Gateway | 1 | External access, inter-VLAN routing, BGP (FRR), CA, DNS, DHCP, NTP, identity (Keycloak) |
-| Nested ESXi (Management) | 4 | VCF management domain hosts |
+| Ubuntu Gateway | 1 | External access, inter-Virtual LAN (VLAN) routing, Border Gateway Protocol (BGP) via Free Range Routing (FRR), Certificate Authority (CA), Domain Name System (DNS), Dynamic Host Configuration Protocol (DHCP), Network Time Protocol (NTP), identity (Keycloak) |
+| Nested ESXi (Management) | 4 | VMware Cloud Foundation (VCF) management domain hosts |
 | Nested ESXi (Workload) | 3 | VCF workload domain hosts |
-| VCF Installer | 1 | Drives VCF bringup (temporary) |
+| VCF Installer | 1 | Drives VCF bringup (temporary; formerly Cloud Builder) |
 | vCenter Server | 2 | Management + workload domain |
-| SDDC Manager | 1 | VCF lifecycle management |
-| NSX Manager | 2 | Management + workload domain |
-| NSX Edge VMs | 2 | North-south routing, VPC |
+| Software-Defined Data Center (SDDC) Manager | 1 | VCF lifecycle management |
+| VCF Networking (NSX) Manager | 2 | Management + workload domain |
+| NSX Edge VMs | 2 | North-south routing, Virtual Private Cloud (VPC) |
 | VCF Operations | 1 | Monitoring and analytics |
 | VCF Automation | 1 | Infrastructure automation |
 
@@ -128,7 +128,7 @@ All other lab VMs have a single NIC on the vCD private network. The gateway perf
 
 ### Gateway Routing (FRR)
 
-The gateway has a trunk interface (ens192, MTU 9000) on the vCD private network carrying all VCF VLANs via 802.1Q sub-interfaces. It provides:
+The gateway has a trunk interface (ens192, Maximum Transmission Unit (MTU) 9000) on the vCD private network carrying all VCF VLANs via 802.1Q sub-interfaces. It provides:
 
 - **Inter-VLAN routing** between management, vMotion, and other VCF networks via VLAN sub-interfaces
 - **BGP peering** with the NSX Tier-0 gateway for north-south routing from VPC workloads (via FRR)
@@ -144,7 +144,7 @@ Six VLANs segment traffic by function, each on its own /24 subnet:
 | 10 | Management | ESXi management, vCenter, SDDC Manager, NSX Manager | Standard |
 | 20 | vMotion | vMotion traffic | Jumbo |
 | 30 | vSAN | vSAN storage traffic | Jumbo |
-| 40 | Host Overlay | NSX host transport endpoint tunnels | Jumbo |
+| 40 | Host Overlay | NSX host Tunnel Endpoint (TEP) tunnels | Jumbo |
 | 50 | Edge Overlay | NSX Edge TEP tunnels | Jumbo |
 | 60 | Edge Uplink | NSX Tier-0 ↔ Gateway BGP peering | Standard |
 
@@ -181,7 +181,7 @@ All infrastructure services (DNS, NTP, CA, secrets, identity) run on the Ubuntu 
 | NTP | chrony | Stratum 2 server, syncs to public pools externally, serves lab internally |
 | CA | step-ca | ACME-capable CA for TLS certs across VCF components |
 | Secrets | 1Password (operator laptop) | Credentials retrieved via `community.general.onepassword` lookup plugin |
-| OIDC | Keycloak (Docker) | External identity provider; VCF Identity Broker federates SSO across all VCF components (HTTPS, port 8443) |
+| OpenID Connect (OIDC) | Keycloak (Docker) | External identity provider; VCF Identity Broker federates SSO across all VCF components (HTTPS, port 8443) |
 
 The CA root certificate must be distributed to ESXi hosts and management appliances during deployment.
 
@@ -189,7 +189,7 @@ The CA root certificate must be distributed to ESXi hosts and management applian
 
 Lab credentials follow a two-tier model: **bootstrap** (simple, typed manually) and **runtime** (complex, injected by Ansible).
 
-- **Bootstrap password**: A single, simple password stored in 1Password as "Lab Bootstrap". The operator types this into the vCD console during Ubuntu gateway install and into the ESXi DCUI to set the initial root password. Ansible connects to hosts using this password.
+- **Bootstrap password**: A single, simple password stored in 1Password as "Lab Bootstrap". The operator types this into the vCD console during Ubuntu gateway install and into the ESXi Direct Console User Interface (DCUI) to set the initial root password. Ansible connects to hosts using this password.
 - **Runtime passwords**: Complex, auto-generated passwords stored as separate 1Password items. Ansible injects these into VCF components during deployment. The `esxi_prepare` role (Phase 2) changes ESXi root passwords from bootstrap to runtime credentials so that VCF bringup specs reference the correct values.
 - **Derived credentials**: Service passwords that do not need to be stored in 1Password are derived deterministically from the bootstrap password via salted SHA-256 hash (e.g., `(bootstrap_password + 'step-ca') | hash('sha256')`). This ensures playbook idempotency — reruns produce the same password rather than generating a new random value that would desynchronise with previously initialised services.
 
@@ -253,7 +253,7 @@ All ESXi hosts run as VMs on vCloud Director. This enables the entire VCF stack 
 
 ### Management Domain (4 Hosts)
 
-Four nested ESXi hosts form the management domain cluster. This is the minimum for vSAN with FTT=1 (RAID-1) while leaving headroom for management appliances.
+Four nested ESXi hosts form the management domain cluster. This is the minimum for vSAN with Failures to Tolerate (FTT)=1 (RAID-1) while leaving headroom for management appliances.
 
 Each host is sized to accommodate VCF management appliances:
 
@@ -273,10 +273,10 @@ Three nested ESXi hosts form the workload domain cluster. This is the minimum fo
 
 ### vSAN Design
 
-- **Mode**: vSAN ESA (Express Storage Architecture) — single storage pool, NVMe-based, simplified management
+- **Mode**: vSAN Express Storage Architecture (ESA) — single storage pool, NVMe-based, simplified management
 - **Storage policy**: Failures to Tolerate = 1 (RAID-1 mirroring)
-- Each host contributes one NVMe storage device to a single storage pool (no separate cache/capacity tiers)
-- Nested environments require a mock HCL VIB and NVMe devices marked as SSD
+- Each host contributes one Non-Volatile Memory Express (NVMe) storage device to a single storage pool (no separate cache/capacity tiers)
+- Nested environments require a mock Hardware Compatibility List (HCL) vSphere Installation Bundle (VIB) and NVMe devices marked as SSD
 
 #### Storage Policy: "vSAN Default"
 
@@ -368,7 +368,7 @@ Each nested ESXi host has two virtual NICs:
 | vmnic0 | vCD private network (access mode) | Management traffic only |
 | vmnic1 | vCD private network (trunk mode) | vMotion, vSAN, TEP, Edge VLANs |
 
-Inside each ESXi host, a VDS (created during VCF bringup) maps VLANs to VMkernel ports:
+Inside each ESXi host, a vSphere Distributed Switch (VDS), created during VCF bringup, maps VLANs to VMkernel ports:
 
 | VMkernel | VLAN | Service |
 |----------|------|---------|
@@ -393,7 +393,7 @@ Inside each ESXi host, a VDS (created during VCF bringup) maps VLANs to VMkernel
 VCF best practice separates management infrastructure from tenant workloads:
 
 - **Management domain**: lifecycle management components. Created by the VCF Installer during initial bringup.
-- **Workload domain**: application workloads, NSX Edges, Supervisor, and VKS. Created via SDDC Manager after the management domain is operational.
+- **Workload domain**: application workloads, NSX Edges, vSphere Supervisor, and vSphere Kubernetes Services (VKS). Created via SDDC Manager after the management domain is operational.
 
 ### Management Domain Components
 
@@ -436,7 +436,7 @@ Two NSX Edge VMs deployed on the workload domain cluster provide north-south rou
 
 ### Edge HA Failover Behaviour
 
-The Tier-0 gateway operates in **Active-Standby** mode across the two Edge VMs. Only the active Edge processes north-south traffic; the standby monitors and takes over on failure.
+The NSX Tier-0 Gateway operates in **Active-Standby** mode across the two Edge VMs. Only the active Edge processes north-south traffic; the standby monitors and takes over on failure.
 
 **Detection mechanism**: The NSX data plane uses BFD (Bidirectional Forwarding Detection) between the Active and Standby Edge VMs to detect failures. BFD operates at sub-second intervals (default: 500ms detect time). When BFD detects the active Edge is unreachable, the standby promotes itself to active.
 
@@ -497,7 +497,7 @@ NSX VPC provides project-level network isolation for VKS workloads:
 - **NAT**: Source NAT on Tier-0 for outbound traffic
 - **Load balancing**: NSX LB via Tier-1 for Kubernetes services
 
-### Source NAT (SNAT) Design
+### Source Network Address Translation (SNAT) Design
 
 SNAT on the Tier-0 gateway translates outbound VPC traffic so that external networks (infrastructure VLANs, gateway, internet) see a single routable source IP — the Tier-0 uplink address.
 
@@ -615,9 +615,9 @@ Infrastructure VLANs (10.0.10–60.0/24)
 
 ## 8. VKS Architecture
 
-### Supervisor
+### vSphere Supervisor
 
-The Supervisor is enabled on the workload domain cluster via vCenter. It uses NSX for networking and vSAN for storage.
+The vSphere Supervisor is enabled on the workload domain cluster via vCenter. It uses NSX for networking and vSAN for storage.
 
 ### vSphere Namespace
 
@@ -625,7 +625,7 @@ A vSphere Namespace provides the tenancy boundary for VKS. It defines the allowe
 
 ### Content Library
 
-A subscribed content library provides Kubernetes release images (VKr — VMware Kubernetes releases). The library syncs from VMware's public endpoint. Internet access from the nested environment is required (routed via gateway → vCD public network).
+A subscribed content library provides Kubernetes release images — VMware Kubernetes Runtime (VKr). The library syncs from VMware's public endpoint. Internet access from the nested environment is required (routed via gateway → vCD public network).
 
 ### VKS Cluster Topology
 
