@@ -9,16 +9,16 @@ date: "March 2026"
 
 ## 1. VLAN & Subnet Table
 
-> Implements NET-03 (six-VLAN segmentation) and NET-04 (jumbo frames for overlay/storage). See [Logical Design](logical-design.md) Section 3.
+> Implements NET-03 (six-Virtual LAN (VLAN) segmentation) and NET-04 (jumbo frames for overlay/storage). See [Logical Design](logical-design.md) Section 3.
 
-| VLAN ID | Name | Subnet | Purpose | MTU |
+| VLAN ID | Name | Subnet | Purpose | Maximum Transmission Unit (MTU) |
 |---------|------|--------|---------|-----|
-| 10 | Management | 10.0.10.0/24 | ESXi management, vCenter, SDDC Manager, NSX Manager | 1500 |
+| 10 | Management | 10.0.10.0/24 | ESXi management, vCenter, Software-Defined Data Center (SDDC) Manager, VCF Networking (NSX) Manager | 1500 |
 | 20 | vMotion | 10.0.20.0/24 | vMotion traffic | 9000 |
 | 30 | vSAN | 10.0.30.0/24 | vSAN storage traffic | 9000 |
-| 40 | Host Overlay (TEP) | 10.0.40.0/24 | NSX host transport endpoint tunnels | 9000 |
+| 40 | Host Overlay (TEP) | 10.0.40.0/24 | NSX host Tunnel Endpoint (TEP) tunnels | 9000 |
 | 50 | Edge Overlay | 10.0.50.0/24 | NSX Edge TEP tunnels | 9000 |
-| 60 | Edge Uplink | 10.0.60.0/24 | NSX Tier-0 ↔ Gateway BGP peering | 1500 |
+| 60 | Edge Uplink | 10.0.60.0/24 | NSX Tier-0 Gateway ↔ Gateway Border Gateway Protocol (BGP) peering | 1500 |
 
 ## 2. IP Addressing Scheme
 
@@ -27,7 +27,7 @@ date: "March 2026"
 | IP Address | Hostname | Role |
 |------------|----------|------|
 | 10.0.10.1 | gateway | Gateway VLAN 10 sub-interface (default gateway) |
-| 10.0.10.3 | vcf-installer | VCF Installer appliance |
+| 10.0.10.3 | vcf-installer | VMware Cloud Foundation (VCF) Installer appliance |
 | 10.0.10.4 | vcenter-mgmt | vCenter Server (management) |
 | 10.0.10.5 | sddc-manager | SDDC Manager |
 | 10.0.10.6 | nsx-mgr-mgmt | NSX Manager (management) |
@@ -111,13 +111,13 @@ See [Delivery Guide](deliver.md) for netplan configuration. Key parameters:
 
 | Service | Package | Config |
 |---------|---------|--------|
-| DNS | dnsmasq | Zone: `lab.dreamfold.dev`, upstream forwarder via NIC1 |
+| Domain Name System (DNS) | dnsmasq | Zone: `lab.dreamfold.dev`, upstream forwarder via NIC1 |
 | DHCP | dnsmasq | Static MAC→IP reservations for ESXi hosts on VLAN 10 |
-| NTP | chrony | `allow 10.0.0.0/16`, servers: public NTP pools |
-| CA | step-ca | Root CA for `lab.dreamfold.dev`, ACME enabled, max cert duration 8760h (1 year), listens on 127.0.0.1:443 |
-| OIDC | Keycloak (Docker) | Port 8443, external IdP; VCF Identity Broker federates SSO to all VCF components |
+| Network Time Protocol (NTP) | chrony | `allow 10.0.0.0/16`, servers: public NTP pools |
+| Certificate Authority (CA) | step-ca | Root CA for `lab.dreamfold.dev`, ACME enabled, max cert duration 8760h (1 year), listens on 127.0.0.1:443 |
+| OpenID Connect (OIDC) | Keycloak (Docker) | Port 8443, external IdP; VCF Identity Broker federates SSO to all VCF components |
 | Secrets | 1Password (operator laptop) | `community.general.onepassword` lookup plugin via 1Password CLI |
-| Routing | FRR (zebra + bgpd) | Inter-VLAN routing, BGP peering with NSX Tier-0 (ASN 65000) |
+| Routing | Free Range Routing (FRR) (zebra + bgpd) | Inter-VLAN routing, BGP peering with NSX Tier-0 (ASN 65000) |
 | Remote access | xrdp | Listening on port 3389 (NIC1) |
 | Web browser | Firefox | Access vCenter, NSX Manager, SDDC Manager UIs |
 
@@ -127,7 +127,7 @@ All VCF components point to 10.0.10.1 for DNS and NTP. systemd-resolved is disab
 
 **DNS configuration**: dnsmasq listens on the VLAN 10 sub-interface (ens192.10) for lab DNS/DHCP. The gateway's own `/etc/resolv.conf` points to upstream DNS (192.19.189.20) — not through its own dnsmasq — so that package installation and external resolution work independently of dnsmasq state.
 
-### DHCP Reservations (VLAN 10)
+### Dynamic Host Configuration Protocol (DHCP) Reservations (VLAN 10)
 
 ESXi hosts receive their management IP via DHCP with static MAC→IP reservations. MAC addresses are assigned when creating the ESXi VMs in vCloud Director.
 
@@ -153,7 +153,7 @@ ESXi hosts receive their management IP via DHCP with static MAC→IP reservation
 |----------|----------|-----------------|
 | vCPU | 48 | 192 |
 | RAM | 128 GB | 512 GB |
-| Disk (vSAN NVMe) | 200 GB | 800 GB |
+| Disk (vSAN Non-Volatile Memory Express (NVMe)) | 200 GB | 800 GB |
 | NICs | 2 (management + trunk) | — |
 | ESXi Version | 9.0 | — |
 
@@ -185,10 +185,10 @@ ESXi hosts receive their management IP via DHCP with static MAC→IP reservation
 
 ### vSAN Disk Layout
 
-- **Mode**: vSAN ESA (Express Storage Architecture)
-- **Storage policy**: Failures to Tolerate = 1 (RAID-1 mirroring)
+- **Mode**: vSAN Express Storage Architecture (ESA)
+- **Storage policy**: Failures to Tolerate (FTT) = 1 (RAID-1 mirroring)
 - Each host: 1x 200 GB NVMe storage device in a single storage pool (no separate cache tier)
-- Nested ESXi preparation: NVMe devices marked as SSD, mock HCL VIB installed, FakeSCSIReservations enabled
+- Nested ESXi preparation: NVMe devices marked as SSD, mock Hardware Compatibility List (HCL) vSphere Installation Bundle (VIB) installed, FakeSCSIReservations enabled
 
 ### vSAN Usable Capacity
 
@@ -218,14 +218,14 @@ With FTT=1 RAID-1, each object is mirrored — raw capacity is halved for data p
 | Usable after RAID | ~300 GB | 600 GB ÷ 2 |
 | Operational reserve (25%) | ~75 GB | Rebalancing, rebuilds |
 | Available for VM data | ~225 GB | After reserve |
-| Infrastructure allocation | ~800 GB (thin) | vCenter + NSX Mgr + 2× Edge + Supervisor CPs (thin-provisioned) |
-| Available for VKS PVs | ~50-100 GB | Depends on actual consumption after thin + dedup |
+| Infrastructure allocation | ~800 GB (thin) | vCenter + NSX Mgr + 2× Edge + vSphere Supervisor CPs (thin-provisioned) |
+| Available for vSphere Kubernetes Services (VKS) PVs | ~50-100 GB | Depends on actual consumption after thin + dedup |
 
 > The workload domain is the tighter storage constraint. VKS PersistentVolumes compete with NSX Edge VMs and the Supervisor control plane for vSAN capacity. Monitor vSAN capacity utilisation closely — see [Operations Guide](operate.md) Section 5.
 
 ## 6. VCF Management Domain
 
-> Implements VCF-01 (domain separation), VCF-03 (VCF Ops/Auto in mgmt domain), VCF-04 (installer-driven bringup). See [Logical Design](logical-design.md) Section 6.
+> Implements VCF-01 (domain separation), VCF-03 (VCF Operations/Automation in mgmt domain), VCF-04 (installer-driven bringup). See [Logical Design](logical-design.md) Section 6.
 
 ### Component Table
 
@@ -378,7 +378,7 @@ GET https://nsx-mgr-wld.lab.dreamfold.dev/policy/api/v1/infra/tier-0s/tier0-gate
 | Setting | Value |
 |---------|-------|
 | Cluster Name | vks-cluster-01 |
-| Kubernetes Version | Latest available VKr |
+| Kubernetes Version | Latest available VMware Kubernetes Runtime (VKr) |
 | Control Plane Nodes | 3 |
 | Worker Nodes | 3 |
 | VM Class | best-effort-medium (2 vCPU, 8 GB RAM) |
@@ -387,7 +387,7 @@ GET https://nsx-mgr-wld.lab.dreamfold.dev/policy/api/v1/infra/tier-0s/tier0-gate
 
 ### Content Library
 
-A subscribed content library provides Kubernetes release images (VKr). The library syncs from VMware's public endpoint. Internet access from the nested environment is required (routed via gateway → vCD public network).
+A subscribed content library provides VKr images. The library syncs from VMware's public endpoint. Internet access from the nested environment is required (routed via gateway → vCD public network).
 
 ## 10. Resource Summary Tables
 
