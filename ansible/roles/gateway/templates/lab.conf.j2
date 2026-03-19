@@ -3,24 +3,24 @@ domain={{ lab_domain }}
 local=/{{ lab_domain }}/
 
 # --- Upstream DNS forwarders ---
-{% for server in jumpbox_upstream_dns %}
+{% for server in gateway_upstream_dns %}
 server={{ server }}
 {% endfor %}
 
 # --- DNS Records ---
-{% for record in jumpbox_dns_records %}
+{% for record in gateway_dns_records %}
 address=/{{ record.hostname }}.{{ lab_domain }}/{{ record.ip }}
 {% endfor %}
 
 # --- DHCP on management network (native/untagged on trunk) ---
-interface={{ jumpbox_vlan_trunk_nic }}
+interface={{ gateway_vlan_trunk_nic }}
 dhcp-range={{ lab_mgmt_prefix }}.100,{{ lab_mgmt_prefix }}.199,255.255.255.0,12h
 dhcp-option=option:router,{{ lab_gateway }}
 dhcp-option=option:dns-server,{{ lab_dns_server }}
 dhcp-option=option:ntp-server,{{ lab_ntp_servers | join(',') }}
 
 # Static MAC→IP reservations (skips placeholder MACs until real ones are set)
-{% for res in jumpbox_dhcp_reservations %}
+{% for res in gateway_dhcp_reservations %}
 {% if 'xx' not in res.mac %}
 dhcp-host={{ res.mac }},{{ res.hostname }},{{ res.ip }}
 {% endif %}

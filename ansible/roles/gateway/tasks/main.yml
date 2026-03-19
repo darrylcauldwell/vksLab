@@ -1,9 +1,9 @@
 ---
-# Phase 1 — Jumpbox configuration
-# The jumpbox is the single gateway for the entire nested lab. It provides:
+# Phase 1 — Gateway configuration
+# The gateway is the single entry point for the entire nested lab. It provides:
 #   - Inter-VLAN routing via VLAN sub-interfaces on ens192
 #   - DNS (dnsmasq) for lab.dreamfold.dev with DHCP reservations for ESXi hosts
-#   - NTP (chrony) — all VCF components sync time from the jumpbox
+#   - NTP (chrony) — all VCF components sync time from the gateway
 #   - CA (step-ca) — internal TLS certificates for all lab components
 #   - NAT/masquerade — outbound internet for nested hosts via the public NIC
 #   - BGP (FRR) — peers with NSX Tier-0 for VKS pod/service route exchange
@@ -22,18 +22,23 @@
   become: true
   ansible.builtin.copy:
     content: |
-      nameserver {{ jumpbox_upstream_dns[0] }}
+      nameserver {{ gateway_upstream_dns[0] }}
     dest: /etc/resolv.conf
     owner: root
     group: root
     mode: "0644"
 
+- name: Upgrade all packages to latest versions
+  become: true
+  ansible.builtin.apt:
+    upgrade: dist
+    update_cache: true
+
 - name: Install required packages
   become: true
   ansible.builtin.apt:
-    name: "{{ jumpbox_packages }}"
+    name: "{{ gateway_packages }}"
     state: present
-    update_cache: true
 
 # Netplan configures the public NIC (ens160, DHCP) and six VLAN sub-interfaces
 # on ens192 for management, vMotion, vSAN, host overlay, edge overlay, and
@@ -190,7 +195,7 @@
     mode: "0644"
 
 # IP masquerading allows nested hosts (10.0.0.0/16) to reach the internet
-# via the jumpbox's public NIC. Required for VCF depot sync, content library
+# via the gateway's public NIC. Required for VCF depot sync, content library
 # updates, and VKS image pulls.
 - name: Enable IP forwarding
   become: true
@@ -206,14 +211,14 @@
   ansible.builtin.iptables:
     table: nat
     chain: POSTROUTING
-    source: "{{ jumpbox_lab_network }}"
-    out_interface: "{{ jumpbox_public_nic }}"
+    source: "{{ gateway_lab_network }}"
+    out_interface: "{{ gateway_public_nic }}"
     jump: MASQUERADE
     state: present
   notify: save iptables
 
 # FRR BGP peers with the NSX Tier-0 gateway on the edge uplink VLAN (60).
-# The jumpbox advertises infrastructure routes; NSX advertises VKS pod/service
+# The gateway advertises infrastructure routes; NSX advertises VKS pod/service
 # CIDRs back. This enables pod-to-external and external-to-pod connectivity.
 - name: Deploy FRR daemons configuration
   become: true
@@ -277,7 +282,7 @@
 - name: Install Smallstep packages
   become: true
   ansible.builtin.apt:
-    name: "{{ jumpbox_step_packages }}"
+    name: "{{ gateway_step_packages }}"
     state: present
     update_cache: true
 
@@ -368,7 +373,7 @@
             { "name": "NSX Manager (mgmt)", "url": "https://nsx-mgr-mgmt.{{ lab_domain }}" },
             { "name": "vCenter (wld)", "url": "https://vcenter-wld.{{ lab_domain }}/ui" },
             { "name": "NSX Manager (wld)", "url": "https://nsx-mgr-wld.{{ lab_domain }}" },
-            { "name": "Keycloak", "url": "https://jumpbox.{{ lab_domain }}:8443/admin/lab/console" }
+            { "name": "Keycloak", "url": "https://gateway.{{ lab_domain }}:8443/admin/lab/console" }
           ]
         }
       }

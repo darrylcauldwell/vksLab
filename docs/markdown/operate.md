@@ -15,7 +15,7 @@ The lab must be powered on in a specific order to ensure service dependencies ar
 
 | Order | Component | Action | Wait For |
 |-------|-----------|--------|----------|
-| 1 | Jumpbox | Power on VM | SSH/RDP accessible |
+| 1 | Gateway | Power on VM | SSH/RDP accessible |
 | 2 | Management ESXi hosts (esxi-01 to esxi-04) | Power on VMs | ESXi DCUI shows management IP |
 | 3 | Wait for vSAN cluster | Automatic | vSAN health green in vCenter |
 | 4 | Management appliances auto-start | Automatic (HA/DRS) | vCenter, SDDC Manager, NSX Manager accessible |
@@ -37,7 +37,7 @@ The lab must be powered on in a specific order to ensure service dependencies ar
 | 4 | Workload ESXi hosts | Put in maintenance mode (evacuate VMs first), then shut down | Hosts in maintenance, then powered off |
 | 5 | Management appliances | Shut down VCF Ops, VCF Auto, NSX Manager, SDDC Manager, then vCenter (last) | All management VMs powered off |
 | 6 | Management ESXi hosts | Put in maintenance mode, then shut down | Hosts powered off |
-| 7 | Jumpbox | Power off (last) | VM stopped |
+| 7 | Gateway | Power off (last) | VM stopped |
 
 **vCenter must be the last management appliance shut down and the first to start up.**
 
@@ -66,10 +66,10 @@ The lab must be powered on in a specific order to ensure service dependencies ar
 
 | Step | Action | Verification |
 |------|--------|-------------|
-| 1 | Deploy new nested ESXi VM with standard spec (8 vCPU, 72 GB RAM, 200 GB + 10 GB disk) | VM powered on |
+| 1 | Deploy new nested ESXi VM with standard spec (48 vCPU, 128 GB RAM, 40 GB boot NVMe + 200 GB vSAN NVMe) | VM powered on |
 | 2 | Configure networking (management access + trunk) | Management IP pingable |
 | 3 | Set hostname, DNS (10.0.10.1), NTP (10.0.10.1) | Services configured |
-| 4 | Add DNS record to jumpbox dnsmasq | `dig` resolves new hostname |
+| 4 | Add DNS record to gateway dnsmasq | `dig` resolves new hostname |
 | 5 | Commission host in SDDC Manager | Host appears in free pool |
 | 6 | Expand the target domain cluster | Host added to cluster |
 | 7 | Verify vSAN rebalance | vSAN health shows rebalancing, then green |
@@ -103,11 +103,11 @@ Use this procedure to verify Active-Standby failover behaviour or to test resili
 | Step | Action | Verification |
 |------|--------|-------------|
 | 1 | Identify active Edge | NSX Manager → System → Fabric → Edge Clusters → click cluster → note which Edge shows "Active" for Tier-0 |
-| 2 | Verify BGP adjacency before test | `vtysh -c 'show ip bgp summary'` on jumpbox → Established with 10.0.60.2 |
-| 3 | Start continuous ping from jumpbox | `ping -i 1 <VKS-LB-VIP>` (or any pod-reachable IP via SNAT) |
+| 2 | Verify BGP adjacency before test | `vtysh -c 'show ip bgp summary'` on gateway → Established with 10.0.60.2 |
+| 3 | Start continuous ping from gateway | `ping -i 1 <VKS-LB-VIP>` (or any pod-reachable IP via SNAT) |
 | 4 | Power off the active Edge VM | vCenter → right-click active Edge VM → Power Off |
 | 5 | Observe failover | NSX Manager → Edge Clusters → standby Edge promotes to Active (expect 2-4s) |
-| 6 | Monitor BGP re-establishment | `vtysh -c 'show ip bgp summary'` on jumpbox → watch for Established (expect 30-60s) |
+| 6 | Monitor BGP re-establishment | `vtysh -c 'show ip bgp summary'` on gateway → watch for Established (expect 30-60s) |
 | 7 | Verify traffic restoration | Continuous ping resumes; count lost packets (expect 30-60 lost at 1/sec) |
 | 8 | Power on the failed Edge VM | vCenter → Power On; Edge rejoins cluster as Standby |
 | 9 | Verify cluster health | NSX Manager → Edge Clusters → both Edges show Up |
@@ -134,7 +134,7 @@ For components that obtained certificates via ACME (step-ca automatic renewal):
 
 | Step | Action | Verification |
 |------|--------|-------------|
-| 1 | Check if `step ca renew` cron/timer is active on the jumpbox | `systemctl status step-ca-renew.timer` |
+| 1 | Check if `step ca renew` cron/timer is active on the gateway | `systemctl status step-ca-renew.timer` |
 | 2 | If expired, manually renew | `step ca renew /path/to/cert.pem /path/to/key.pem --force` |
 | 3 | Restart the affected service | Service responds with valid TLS |
 
@@ -154,7 +154,7 @@ If the step-ca root CA certificate approaches expiry or needs rotation:
 
 | Step | Action | Notes |
 |------|--------|-------|
-| 1 | Generate new root CA on jumpbox | `step ca init` or use `step certificate create` for a new root |
+| 1 | Generate new root CA on gateway | `step ca init` or use `step certificate create` for a new root |
 | 2 | Export new root certificate | `step ca root /tmp/new-root-ca.crt` |
 | 3 | Distribute to all ESXi hosts | `esxcli security cert import` on each host |
 | 4 | Update VCF component trust stores | Via vCenter and NSX Manager certificate management |
@@ -204,7 +204,7 @@ SDDC Manager coordinates updates to vCenter, NSX Manager, SDDC Manager itself, a
 | 5 | Upgrade NSX Manager cluster | Coordinator handles rolling upgrade |
 | 6 | Upgrade host transport nodes | Rolling upgrade, one host at a time |
 | 7 | Upgrade Edge cluster | Rolling upgrade, one Edge at a time |
-| 8 | Verify BGP adjacency after Edge upgrade | `vtysh -c 'show ip bgp summary'` on jumpbox |
+| 8 | Verify BGP adjacency after Edge upgrade | `vtysh -c 'show ip bgp summary'` on gateway |
 | 9 | Verify VPC and VKS connectivity | Test workload accessible |
 
 ### 2.4 VKS Kubernetes Version Upgrades
@@ -219,11 +219,11 @@ SDDC Manager coordinates updates to vCenter, NSX Manager, SDDC Manager itself, a
 | 6 | Verify cluster health | `kubectl get nodes` — all nodes Ready, new version |
 | 7 | Verify workloads | `kubectl get pods` — all pods Running |
 
-### 2.5 Jumpbox OS Patching
+### 2.5 Gateway OS Patching
 
 | Step | Action | Notes |
 |------|--------|-------|
-| 1 | SSH to jumpbox | — |
+| 1 | SSH to gateway | — |
 | 2 | `sudo apt update && sudo apt upgrade` | Review packages before confirming |
 | 3 | Verify dnsmasq still running | `systemctl status dnsmasq` |
 | 4 | Verify chrony still running | `systemctl status chronyd` |
@@ -267,10 +267,10 @@ op item list --vault "VKS Lab"
 
 | # | Check | Method | Expected Result |
 |---|-------|--------|-----------------|
-| 1 | BGP adjacency | `vtysh -c 'show ip bgp summary'` on jumpbox | Established |
-| 2 | BGP routes received | `vtysh -c 'show ip bgp'` on jumpbox | VPC prefixes present |
+| 1 | BGP adjacency | `vtysh -c 'show ip bgp summary'` on gateway | Established |
+| 2 | BGP routes received | `vtysh -c 'show ip bgp'` on gateway | VPC prefixes present |
 | 3 | DNS resolution | `dig @10.0.10.1 vcenter-mgmt.lab.dreamfold.dev` | Correct response |
-| 4 | NTP synchronisation | `chronyc tracking` on jumpbox | System clock synchronised |
+| 4 | NTP synchronisation | `chronyc tracking` on gateway | System clock synchronised |
 | 5 | ESXi NTP sync | `esxcli system ntp get` on each host | Server reachable |
 | 6 | Certificate expiry (R-009) | `step ca certificate list` or check expiry dates | No certs expiring within 30 days |
 | 7 | NSX Edge status | NSX Manager → Edge Clusters | Both Edges Up |
@@ -307,7 +307,7 @@ op item list --vault "VKS Lab"
 | vSAN health warnings | Disk group degraded | Check `esxcli vsan health cluster list`; rebuild disk group if needed |
 | Objects inaccessible | Insufficient hosts for FTT=1 | Ensure minimum 3 hosts (workload) or 4 hosts (management) are available |
 | Resync stuck | Insufficient bandwidth or capacity | Wait for resync; check vSAN capacity; consider reducing object count |
-| Network partition | VLAN 30 misconfigured | Verify vmk2 on VLAN 30 across all hosts; check jumpbox VLAN sub-interface |
+| Network partition | VLAN 30 misconfigured | Verify vmk2 on VLAN 30 across all hosts; check gateway VLAN sub-interface |
 
 #### BGP Flapping
 
@@ -331,8 +331,8 @@ op item list --vault "VKS Lab"
 
 | Symptom | Possible Cause | Resolution |
 |---------|---------------|------------|
-| Content library sync failed | No internet access from vCenter | Verify NAT/masquerade on jumpbox; check jumpbox default route and iptables |
-| Sync stuck at 0% | DNS resolution failure | Verify vCenter can resolve VMware CDN URLs via jumpbox DNS |
+| Content library sync failed | No internet access from vCenter | Verify NAT/masquerade on gateway; check gateway default route and iptables |
+| Sync stuck at 0% | DNS resolution failure | Verify vCenter can resolve VMware CDN URLs via gateway DNS |
 | VKr images not appearing | Library not subscribed or sync incomplete | Check subscription URL in vCenter → Content Libraries; trigger manual sync |
 | Insufficient storage for sync | Datastore full | Check vSAN capacity; remove old/unused items from library |
 
@@ -343,14 +343,14 @@ op item list --vault "VKS Lab"
 | Node shows NotReady | kubelet not running | SSH to node, check `systemctl status kubelet` |
 | Node unreachable | NSX VPC connectivity issue | Check VPC status, verify Tier-0/Tier-1 routing |
 | Pods stuck Pending | Insufficient node resources | Check `kubectl describe node`; consider scaling VM class |
-| Image pull failures | No internet access from VPC | Verify NAT rule on Tier-0; check route to internet via jumpbox |
+| Image pull failures | No internet access from VPC | Verify NAT rule on Tier-0; check route to internet via gateway |
 
 #### DNS Resolution Failures
 
 | Symptom | Possible Cause | Resolution |
 |---------|---------------|------------|
-| Cannot resolve lab hostnames | dnsmasq not running | `sudo systemctl restart dnsmasq` on jumpbox |
-| Upstream DNS fails | Jumpbox external NIC issue | Check ens160 connectivity; verify upstream DNS servers |
+| Cannot resolve lab hostnames | dnsmasq not running | `sudo systemctl restart dnsmasq` on gateway |
+| Upstream DNS fails | Gateway external NIC issue | Check ens160 connectivity; verify upstream DNS servers |
 | Stale records | dnsmasq config not reloaded | Edit config, then `sudo systemctl restart dnsmasq` |
 | VCF bringup DNS timeouts | IPv6 AAAA query delays | Lab is IPv4-only; AAAA queries to upstream servers can cause resolution delays. If bringup fails with DNS timeouts, check `/var/log/syslog` for slow AAAA responses and consider adding `filter-AAAA` to dnsmasq config (requires dnsmasq compiled with `--enable-filter-aaaa`) |
 
@@ -376,10 +376,10 @@ op item list --vault "VKS Lab"
 | Symptom | Possible Cause | Resolution |
 |---------|---------------|------------|
 | Cannot login via SSO | Keycloak container not running | `docker start keycloak`; check `docker logs keycloak` |
-| OIDC token validation failed | Clock skew between jumpbox and VCF components | Verify NTP sync on jumpbox (`chronyc tracking`) and VCF appliances; ensure time delta is under 5 seconds |
+| OIDC token validation failed | Clock skew between gateway and VCF components | Verify NTP sync on gateway (`chronyc tracking`) and VCF appliances; ensure time delta is under 5 seconds |
 | OIDC token validation failed | TLS certificate expired on Keycloak | Renew certificate: `step ca renew /etc/step-ca/certs/keycloak.crt /etc/step-ca/certs/keycloak.key --force`; restart Keycloak container |
 | Users cannot authenticate | Realm misconfiguration or user disabled | Check Keycloak admin console → lab realm → Users; verify user is enabled and credentials are set |
-| vCenter rejects OIDC provider | Discovery endpoint unreachable from vCenter | Verify vCenter can resolve `jumpbox.lab.dreamfold.dev` and reach port 8443; check firewall/routing |
+| vCenter rejects OIDC provider | Discovery endpoint unreachable from vCenter | Verify vCenter can resolve `gateway.lab.dreamfold.dev` and reach port 8443; check firewall/routing |
 | NSX Manager rejects OIDC provider | Client ID or secret mismatch | Verify client ID and secret in NSX OIDC config match the Keycloak client configuration |
 | SSO works but user has no permissions | Role mapping missing | Check vCenter/NSX role mappings for the Keycloak user or group; add appropriate RBAC assignments |
 
@@ -394,9 +394,9 @@ op item list --vault "VKS Lab"
 | NSX Edge | `/var/log/syslog` | SSH to Edge VM |
 | vSAN | vCenter → Monitor → vSAN → Health | vSphere Client |
 | VKS / Supervisor | `kubectl logs -n vmware-system-*` | Supervisor API |
-| Jumpbox dnsmasq | `/var/log/syslog` (filter: dnsmasq) | `journalctl -u dnsmasq` |
-| Jumpbox chrony | `/var/log/syslog` (filter: chronyd) | `journalctl -u chronyd` |
-| Jumpbox step-ca | `journalctl -u step-ca` | systemd journal |
+| Gateway dnsmasq | `/var/log/syslog` (filter: dnsmasq) | `journalctl -u dnsmasq` |
+| Gateway chrony | `/var/log/syslog` (filter: chronyd) | `journalctl -u chronyd` |
+| Gateway step-ca | `journalctl -u step-ca` | systemd journal |
 | FRR | `/var/log/frr/zebra.log`, `/var/log/frr/bgpd.log` | `journalctl` or file |
 | 1Password | Operator laptop | `op item list --vault Employee` |
 | Keycloak | Container stdout | `docker logs keycloak` |
@@ -476,7 +476,7 @@ vCenter → Cluster → Monitor → vSAN → Performance
   - Congestion indicators
 ```
 
-#### Jumpbox Routing (FRR)
+#### Gateway Routing (FRR)
 
 ```bash
 # Check all VLAN sub-interfaces
@@ -607,10 +607,10 @@ Refer to [Physical Design](physical-design.md) Section 10 for the canonical vCD 
 
 | Option | Impact | vCD Resources Required |
 |--------|--------|----------------------|
-| Add ESXi host to workload domain | More compute/storage for VKS | +8 vCPU, +72 GB RAM, +210 GB disk |
+| Add ESXi host to workload domain | More compute/storage for VKS | +48 vCPU, +128 GB RAM, +240 GB disk |
 | Increase VKS worker count | More pod capacity | Uses existing ESXi resources |
 | Scale VKS VM class (medium → large) | More per-node resources | Uses existing ESXi resources |
-| Add ESXi host to management domain | More headroom for appliances | +8 vCPU, +72 GB RAM, +210 GB disk |
+| Add ESXi host to management domain | More headroom for appliances | +48 vCPU, +128 GB RAM, +240 GB disk |
 
 ### 5.3 Resource Monitoring
 
@@ -622,4 +622,4 @@ Refer to [Physical Design](physical-design.md) Section 10 for the canonical vCD 
 | VKS node resources | `kubectl top nodes` | CPU and memory usage per node |
 | VKS pod resources | `kubectl top pods` | Per-pod resource consumption |
 | NSX Edge throughput | NSX Manager → Edge dashboard | Data plane throughput |
-| BGP route count | `vtysh -c 'show ip bgp summary'` on jumpbox | Prefixes received/advertised |
+| BGP route count | `vtysh -c 'show ip bgp summary'` on gateway | Prefixes received/advertised |

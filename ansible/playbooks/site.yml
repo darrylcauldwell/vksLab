@@ -1,6 +1,6 @@
 ---
 # Full lab deployment — all 6 phases in order
-- name: Phase 1a — Configure jumpbox
+- name: Phase 1a — Configure gateway
   ansible.builtin.import_playbook: phase1_foundation.yml
 
 - name: Phase 2 — Prepare ESXi hosts

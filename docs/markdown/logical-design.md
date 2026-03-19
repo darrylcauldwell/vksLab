@@ -15,7 +15,7 @@ date: "March 2026"
                     │                                                                 │
    Internet         │  ┌──────────┐    vCD Private Network (Trunk)                    │
        │            │  │  Ubuntu   │◄──────────────────────────────────────────┐       │
-       │            │  │ Jumpbox   │         │              │                  │       │
+       │            │  │ Gateway   │         │              │                  │       │
        ▼            │  │DNS/DHCP/CA│         │              │                  │       │
   vCD Public Net    │  │          ─┼─────────┤              │                  │       │
   ──────────────────┼──┼─ NIC1     │         │              │                  │       │
@@ -26,7 +26,7 @@ date: "March 2026"
                     │              │     ▼   ▼              ▼          │       │       │
                     │              │  ┌──────────┐                    │       │       │
                     │              │  │  Ubuntu   │                    │       │       │
-                    │              │  │  Jumpbox  │◄─── BGP ───┐      │       │       │
+                    │              │  │  Gateway  │◄─── BGP ───┐      │       │       │
                     │              │  │  (FRR) │            │      │       │       │
                     │              │  └──────────┘            │      │       │       │
                     │              │       │                    │      │       │       │
@@ -77,7 +77,7 @@ See [Delivery Guide](deliver.md) for step-by-step deployment procedures with exa
 
 | Component | Quantity | Role |
 |-----------|----------|------|
-| Ubuntu Jumpbox | 1 | External access, inter-VLAN routing, BGP (FRR), CA, DNS, DHCP, NTP, identity (Keycloak) |
+| Ubuntu Gateway | 1 | External access, inter-VLAN routing, BGP (FRR), CA, DNS, DHCP, NTP, identity (Keycloak) |
 | Nested ESXi (Management) | 4 | VCF management domain hosts |
 | Nested ESXi (Workload) | 3 | VCF workload domain hosts |
 | VCF Installer | 1 | Drives VCF bringup (temporary) |
@@ -94,7 +94,7 @@ See [Delivery Guide](deliver.md) for step-by-step deployment procedures with exa
 
 All lab VMs run inside a single vCloud Director vApp:
 
-- 1x Ubuntu jumpbox
+- 1x Ubuntu gateway
 - 7x nested ESXi hosts
 - VCF management appliances (deployed during bringup onto nested ESXi)
 
@@ -102,10 +102,10 @@ All lab VMs run inside a single vCloud Director vApp:
 
 | Network | Type | Purpose |
 |---------|------|---------|
-| vCD Public | Org VDC external/routed | Jumpbox external access (RDP, SSH) |
+| vCD Public | Org VDC external/routed | Gateway external access (RDP, SSH) |
 | vCD Private | Org VDC internal (isolated) | All inter-VM communication, carries VCF VLANs as trunk |
 
-The vCD public network provides external reachability. The vCD private network is an isolated org VDC network that carries all internal lab traffic as a trunk — VLAN tagging is handled by the nested ESXi vSwitches and the jumpbox VLAN sub-interfaces.
+The vCD public network provides external reachability. The vCD private network is an isolated org VDC network that carries all internal lab traffic as a trunk — VLAN tagging is handled by the nested ESXi vSwitches and the gateway VLAN sub-interfaces.
 
 ### Design Decisions
 
@@ -117,18 +117,18 @@ The vCD public network provides external reachability. The vCD private network i
 
 ## 3. Network Topology
 
-### Dual-Homed Jumpbox Pattern
+### Dual-Homed Gateway Pattern
 
-The Ubuntu jumpbox is dual-homed:
+The Ubuntu gateway is dual-homed:
 
 - **NIC1** (vCD public network): externally reachable via RDP/SSH
 - **NIC2** (vCD private network): connects to the internal lab fabric on the management VLAN
 
-All other lab VMs have a single NIC on the vCD private network. The jumpbox performs IP forwarding and inter-VLAN routing via VLAN sub-interfaces on ens192.
+All other lab VMs have a single NIC on the vCD private network. The gateway performs IP forwarding and inter-VLAN routing via VLAN sub-interfaces on ens192.
 
-### Jumpbox Routing (FRR)
+### Gateway Routing (FRR)
 
-The jumpbox has a trunk interface (ens192, MTU 9000) on the vCD private network carrying all VCF VLANs via 802.1Q sub-interfaces. It provides:
+The gateway has a trunk interface (ens192, MTU 9000) on the vCD private network carrying all VCF VLANs via 802.1Q sub-interfaces. It provides:
 
 - **Inter-VLAN routing** between management, vMotion, and other VCF networks via VLAN sub-interfaces
 - **BGP peering** with the NSX Tier-0 gateway for north-south routing from VPC workloads (via FRR)
@@ -146,7 +146,7 @@ Six VLANs segment traffic by function, each on its own /24 subnet:
 | 30 | vSAN | vSAN storage traffic | Jumbo |
 | 40 | Host Overlay | NSX host transport endpoint tunnels | Jumbo |
 | 50 | Edge Overlay | NSX Edge TEP tunnels | Jumbo |
-| 60 | Edge Uplink | NSX Tier-0 ↔ Jumpbox BGP peering | Standard |
+| 60 | Edge Uplink | NSX Tier-0 ↔ Gateway BGP peering | Standard |
 
 ### MTU Strategy
 
@@ -156,23 +156,23 @@ Six VLANs segment traffic by function, each on its own /24 subnet:
 
 ### DNS Resolution Chain
 
-The jumpbox runs dnsmasq, authoritative for the `lab.dreamfold.dev` zone. Unknown queries are forwarded upstream via the jumpbox's external NIC. All nested VMs point to the jumpbox for DNS — they must not query external DNS directly.
+The gateway runs dnsmasq, authoritative for the `lab.dreamfold.dev` zone. Unknown queries are forwarded upstream via the gateway's external NIC. All nested VMs point to the gateway for DNS — they must not query external DNS directly.
 
 ### Design Decisions
 
 | Req. | Decision ID | Design Decision | Design Justification | Risk / Mitigation |
 |------|-------------|-----------------|----------------------|-------------------|
-| R-002 | NET-01 | Dual-homed jumpbox provides the only external entry point | Single ingress point simplifies security and avoids exposing VCF management interfaces directly | Risk: Jumpbox outage removes all external access. Mitigation: Acceptable for lab; vCD console access remains available |
-| R-006 | NET-02 | Jumpbox provides inter-VLAN routing (VLAN sub-interfaces) and BGP peering (FRR) | Consolidates routing onto the jumpbox — eliminates a separate router VM, saves 2 vCPU / 4 GB RAM, removes Arista licence dependency | Risk: FRR is less feature-rich than a dedicated network OS. Mitigation: Only basic L3 routing and BGP needed for lab |
+| R-002 | NET-01 | Dual-homed gateway provides the only external entry point | Single ingress point simplifies security and avoids exposing VCF management interfaces directly | Risk: Gateway outage removes all external access. Mitigation: Acceptable for lab; vCD console access remains available |
+| R-006 | NET-02 | Gateway provides inter-VLAN routing (VLAN sub-interfaces) and BGP peering (FRR) | Consolidates routing onto the gateway — eliminates a separate router VM, saves 2 vCPU / 4 GB RAM, removes Arista licence dependency | Risk: FRR is less feature-rich than a dedicated network OS. Mitigation: Only basic L3 routing and BGP needed for lab |
 | R-004 | NET-03 | Six VLANs segment traffic by function | Matches VCF reference architecture VLAN model — management, vMotion, vSAN, host TEP, edge TEP, edge uplink | Risk: Over-segmentation for a lab. Mitigation: Required by VCF — cannot reduce without breaking bringup |
 | R-004 | NET-04 | Jumbo frames (MTU 9000) for overlay and storage VLANs | Required for NSX Geneve encapsulation overhead and optimal vSAN performance | Risk: vCD private network must support MTU 9000. Mitigation: Verify provider portgroup MTU before deployment |
-| R-003 | NET-05 | dnsmasq on jumpbox provides authoritative DNS for lab.dreamfold.dev | Lightweight, simple configuration, dual-homed jumpbox can forward to upstream DNS | Risk: Single DNS server — no redundancy. Mitigation: Acceptable for lab; dnsmasq restarts quickly |
+| R-003 | NET-05 | dnsmasq on gateway provides authoritative DNS for lab.dreamfold.dev | Lightweight, simple configuration, dual-homed gateway can forward to upstream DNS | Risk: Single DNS server — no redundancy. Mitigation: Acceptable for lab; dnsmasq restarts quickly |
 
 ## 4. Infrastructure Services Design
 
-All infrastructure services (DNS, NTP, CA, secrets, identity) run on the Ubuntu jumpbox.
+All infrastructure services (DNS, NTP, CA, secrets, identity) run on the Ubuntu gateway.
 
-**Rationale**: The jumpbox sits on the management VLAN (10.0.10.1), reachable by all internal VMs. Running all services on one VM minimises resource consumption and component count.
+**Rationale**: The gateway sits on the management VLAN (10.0.10.1), reachable by all internal VMs. Running all services on one VM minimises resource consumption and component count.
 
 | Service | Technology | Role |
 |---------|------------|------|
@@ -189,7 +189,7 @@ The CA root certificate must be distributed to ESXi hosts and management applian
 
 Lab credentials follow a two-tier model: **bootstrap** (simple, typed manually) and **runtime** (complex, injected by Ansible).
 
-- **Bootstrap password**: A single, simple password stored in 1Password as "Lab Bootstrap". The operator types this into the vCD console during Ubuntu jumpbox install and into the ESXi DCUI to set the initial root password. Ansible connects to hosts using this password.
+- **Bootstrap password**: A single, simple password stored in 1Password as "Lab Bootstrap". The operator types this into the vCD console during Ubuntu gateway install and into the ESXi DCUI to set the initial root password. Ansible connects to hosts using this password.
 - **Runtime passwords**: Complex, auto-generated passwords stored as separate 1Password items. Ansible injects these into VCF components during deployment. The `esxi_prepare` role (Phase 2) changes ESXi root passwords from bootstrap to runtime credentials so that VCF bringup specs reference the correct values.
 - **Derived credentials**: Service passwords that do not need to be stored in 1Password are derived deterministically from the bootstrap password via salted SHA-256 hash (e.g., `(bootstrap_password + 'step-ca') | hash('sha256')`). This ensures playbook idempotency — reruns produce the same password rather than generating a new random value that would desynchronise with previously initialised services.
 
@@ -199,7 +199,7 @@ Lab credentials are stored in the operator's 1Password vault ("Employee"). Ansib
 
 | Item Title | Fields | Purpose |
 |------------|--------|---------|
-| Lab Bootstrap | `password`, `ip_address` | Simple password for console/DCUI entry; jumpbox public IP |
+| Lab Bootstrap | `password`, `ip_address` | Simple password for console/DCUI entry; gateway public IP |
 | ESXi Root | `password` | Runtime root password for all ESXi hosts |
 | vCenter SSO | `password` | vCenter SSO administrator password |
 | SDDC Manager | `password` | SDDC Manager admin password |
@@ -210,20 +210,20 @@ Lab credentials are stored in the operator's 1Password vault ("Employee"). Ansib
 
 | Req. | Decision ID | Design Decision | Design Justification | Risk / Mitigation |
 |------|-------------|-----------------|----------------------|-------------------|
-| R-003 | SVC-01 | All infrastructure services (DNS, NTP, CA, DHCP, secrets) co-located on the jumpbox | Minimises VM count; jumpbox on management VLAN is reachable by all internal VMs; upstream access via iptables masquerade on public NIC | Risk: Jumpbox overloaded or single point of failure. Mitigation: Services are lightweight; lab-grade availability is acceptable |
+| R-003 | SVC-01 | All infrastructure services (DNS, NTP, CA, DHCP, secrets) co-located on the gateway | Minimises VM count; gateway on management VLAN is reachable by all internal VMs; upstream access via iptables masquerade on public NIC | Risk: Gateway overloaded or single point of failure. Mitigation: Services are lightweight; lab-grade availability is acceptable |
 | R-009 | SVC-02 | step-ca provides ACME-capable CA for TLS certificates | Automated certificate issuance via ACME protocol; avoids manual certificate management | Risk: Root CA compromise affects all lab TLS. Mitigation: Lab-only CA — no production trust chain |
 | R-003 | SVC-03 | chrony as NTP server syncing to public pools | Provides accurate time source for VCF components; stratum 2 sufficient for lab | Risk: Upstream NTP unreachable from nested environment. Mitigation: chrony maintains local time accuracy during short outages |
 | R-003 | SVC-04 | dnsmasq DHCP with static MAC→IP reservations for ESXi hosts | Eliminates manual IP configuration during ESXi deployment; hosts receive correct IP on first boot | Risk: MAC address mismatch prevents DHCP lease. Mitigation: Verify MAC assignments in vCD before first boot |
-| R-003 | SVC-05 | Single NTP server on jumpbox (10.0.10.1) | Jumpbox chrony syncs to ntp.broadcom.net upstream and serves time to all lab VMs; VCF validation may require a second NTP entry — use ntp.broadcom.net as fallback if needed | Risk: Single NTP server — no local redundancy. Mitigation: chrony maintains local time accuracy during short upstream outages |
+| R-003 | SVC-05 | Single NTP server on gateway (10.0.10.1) | Gateway chrony syncs to ntp.broadcom.net upstream and serves time to all lab VMs; VCF validation may require a second NTP entry — use ntp.broadcom.net as fallback if needed | Risk: Single NTP server — no local redundancy. Mitigation: chrony maintains local time accuracy during short upstream outages |
 | R-002 | SVC-06 | 1Password as centralised secret store for lab credentials | Leverages existing 1Password subscription on operator laptop; `community.general.onepassword` Ansible lookup plugin; no in-lab infrastructure required | Risk: Requires 1Password CLI and active session on operator laptop. Mitigation: `op signin` before running playbooks |
 
 ### Identity and Access Management
 
-Keycloak runs as a Docker container on the jumpbox (port 8443, HTTPS) and provides centralised identity for VCF management components. It replaces per-component local authentication with a single sign-on (SSO) experience via OIDC.
+Keycloak runs as a Docker container on the gateway (port 8443, HTTPS) and provides centralised identity for VCF management components. It replaces per-component local authentication with a single sign-on (SSO) experience via OIDC.
 
 - **Realm**: A single `lab` realm contains all user accounts. There is no external LDAP or Active Directory — the lab has no domain controller.
 - **Users**: Local Keycloak users are created for `admin` (full administrator) and `operator` (read-only / day-2 operations).
-- **Integration**: The VCF Identity Broker (embedded in SDDC Manager) is configured with Keycloak as an external OIDC identity source. The Identity Broker federates SSO across all VCF components (vCenter, NSX Manager, SDDC Manager). A single OIDC client (`vcf-identity-broker`) in the `lab` realm handles the integration. Users authenticate via the Keycloak login page and receive an OIDC token validated against the discovery endpoint (`https://jumpbox.lab.dreamfold.dev:8443/realms/lab/.well-known/openid-configuration`).
+- **Integration**: The VCF Identity Broker (embedded in SDDC Manager) is configured with Keycloak as an external OIDC identity source. The Identity Broker federates SSO across all VCF components (vCenter, NSX Manager, SDDC Manager). A single OIDC client (`vcf-identity-broker`) in the `lab` realm handles the integration. Users authenticate via the Keycloak login page and receive an OIDC token validated against the discovery endpoint (`https://gateway.lab.dreamfold.dev:8443/realms/lab/.well-known/openid-configuration`).
 - **Fallback**: Local administrator accounts (administrator@vsphere.local, NSX admin) remain available as a fallback if Keycloak is unavailable.
 
 | Req. | Decision ID | Design Decision | Design Justification | Risk / Mitigation |
@@ -231,8 +231,8 @@ Keycloak runs as a Docker container on the jumpbox (port 8443, HTTPS) and provid
 | R-002 | SVC-07 | Keycloak as external OIDC identity provider, federated via VCF Identity Broker | Single sign-on reduces credential sprawl; Identity Broker (in SDDC Manager) provides a single integration point for all VCF components rather than per-component OIDC configuration | Risk: Keycloak container outage blocks SSO login. Mitigation: Local administrator accounts remain functional as fallback; Keycloak container configured with restart policy |
 | C-004 | SVC-08 | Local Keycloak realm with local users (no AD/LDAP) | Lab has no domain controller; local users in a single realm provide the simplest identity model | Risk: No directory sync — user management is manual. Mitigation: Acceptable for lab with a small number of operators |
 | R-009 | SVC-09 | step-ca max certificate duration set to 1 year (8760h) | Default step-ca provisioner limits certificates to 24 hours, which is too short for lab services like Keycloak that need stable TLS. 1-year duration avoids frequent renewal while remaining shorter than the 10-year root CA lifetime | Risk: Long-lived certificates are not rotated. Mitigation: Lab environment — acceptable; see [Operations Guide](operate.md) for renewal SOP |
-| R-009 | SVC-10 | step-ca binds to 127.0.0.1 only | Avoids dependency on VLAN sub-interface readiness during startup; all certificate operations originate from the jumpbox itself | Risk: Remote ACME clients cannot reach step-ca directly. Mitigation: All cert issuance is performed by Ansible from the jumpbox; no remote ACME clients are needed |
-| R-009 | SVC-11 | Keycloak container managed via Docker CLI (not community.docker Ansible module) | Avoids requiring the Python `docker` library on the jumpbox; reduces jumpbox package dependencies | Risk: Slightly less declarative than Ansible module. Mitigation: Idempotency achieved via `docker inspect` check before `docker run` |
+| R-009 | SVC-10 | step-ca binds to 127.0.0.1 only | Avoids dependency on VLAN sub-interface readiness during startup; all certificate operations originate from the gateway itself | Risk: Remote ACME clients cannot reach step-ca directly. Mitigation: All cert issuance is performed by Ansible from the gateway; no remote ACME clients are needed |
+| R-009 | SVC-11 | Keycloak container managed via Docker CLI (not community.docker Ansible module) | Avoids requiring the Python `docker` library on the gateway; reduces gateway package dependencies | Risk: Slightly less declarative than Ansible module. Mitigation: Idempotency achieved via `docker inspect` check before `docker run` |
 | R-002 | SVC-12 | Bootstrap-to-runtime password rotation during ESXi preparation | ESXi hosts start with a simple bootstrap password (typed via DCUI) and are rotated to complex runtime credentials by the `esxi_prepare` role. VCF bringup specs then reference the runtime passwords | Risk: Phase 2 playbook cannot be rerun after password change without DCUI reset. Mitigation: Lab deployment is a one-pass process; DCUI reset is documented as fallback |
 | R-002 | SVC-13 | Deterministic password derivation for service credentials | Service passwords (e.g., step-ca) are derived from the bootstrap password via salted SHA-256 hash rather than random generation. This ensures Ansible playbooks are idempotent — reruns produce the same password | Risk: Derived password security depends on bootstrap password entropy. Mitigation: Bootstrap password stored in 1Password; SHA-256 output provides sufficient complexity for lab services |
 
@@ -240,7 +240,7 @@ Keycloak runs as a Docker container on the jumpbox (port 8443, HTTPS) and provid
 
 The step-ca root CA certificate must be trusted by ESXi hosts and VCF management appliances for TLS validation. The distribution mechanism spans two Ansible phases:
 
-1. **Phase 1** (jumpbox role): step-ca generates the root CA during initialisation. The certificate is exported to a local path on the jumpbox and then fetched to the Ansible controller using `ansible.builtin.fetch`.
+1. **Phase 1** (gateway role): step-ca generates the root CA during initialisation. The certificate is exported to a local path on the gateway and then fetched to the Ansible controller using `ansible.builtin.fetch`.
 2. **Phase 2** (esxi_prepare role): The controller pushes the root CA certificate to each ESXi host via `ansible.builtin.copy`, then imports it into the ESXi trust store with `esxcli security cert import`.
 
 This two-step fetch-then-push pattern is necessary because the Ansible `copy` module sources files from the controller, not from intermediate hosts.
@@ -357,7 +357,7 @@ The lab's data protection model is deliberately simple:
 | VKS PersistentVolume level | None | — | No PV-level backup, snapshot, or replication |
 | Application data level | None | — | No file-level backup for data within VKS pods |
 
-**There is no NFS server, no file-level backup infrastructure, and no PersistentVolume backup solution.** The lab is designed to be disposable (C-004). If future workloads require persistent data protection beyond vApp snapshots, consider adding Velero (Kubernetes backup) or an NFS server on the jumpbox for shared storage — but these are out of scope for the current design.
+**There is no NFS server, no file-level backup infrastructure, and no PersistentVolume backup solution.** The lab is designed to be disposable (C-004). If future workloads require persistent data protection beyond vApp snapshots, consider adding Velero (Kubernetes backup) or an NFS server on the gateway for shared storage — but these are out of scope for the current design.
 
 ### Host Networking Model
 
@@ -444,20 +444,20 @@ The Tier-0 gateway operates in **Active-Standby** mode across the two Edge VMs. 
 
 1. Active Edge fails → BFD detects failure (~500ms)
 2. Standby Edge promotes to active (~2-4s)
-3. New active Edge re-establishes the BGP session with the jumpbox (FRR) on VLAN 60
-4. BGP hold timer (180s) on the jumpbox determines when stale routes are withdrawn
+3. New active Edge re-establishes the BGP session with the gateway (FRR) on VLAN 60
+4. BGP hold timer (180s) on the gateway determines when stale routes are withdrawn
 5. New BGP session establishes, routes are re-exchanged
 
 **Expected convergence time**: In a nested lab environment, expect 30-60 seconds for full north-south traffic restoration. This includes BFD detection (~0.5s), Edge promotion (~2-4s), and BGP session re-establishment (variable, up to the hold timer). The BGP hold timer (180s) is the worst case for route withdrawal if the session never re-establishes.
 
-**Graceful restart**: NSX supports BGP graceful restart, which allows the new active Edge to signal the peer (jumpbox FRR) that it is restarting BGP. FRR retains stale routes during the restart window rather than immediately withdrawing them, reducing traffic disruption.
+**Graceful restart**: NSX supports BGP graceful restart, which allows the new active Edge to signal the peer (gateway FRR) that it is restarting BGP. FRR retains stale routes during the restart window rather than immediately withdrawing them, reducing traffic disruption.
 
 ### Gateway Hierarchy
 
 ```
 NSX Tier-0 Gateway (Active-Standby)
     │
-    ├── BGP peering with jumpbox (FRR)
+    ├── BGP peering with gateway (FRR)
     │   (external connectivity)
     │
     └── NSX Tier-1 Gateway
@@ -469,13 +469,13 @@ NSX Tier-0 Gateway (Active-Standby)
                     └── VKS pod and service networks
 ```
 
-- **Tier-0**: Active-Standby HA mode, BGP uplink to jumpbox (FRR), source NAT for outbound traffic
+- **Tier-0**: Active-Standby HA mode, BGP uplink to gateway (FRR), source NAT for outbound traffic
 - **Tier-1**: Linked to Tier-0, advertises connected subnets, hosts NSX LB for Kubernetes services
 - **VPC**: Centralised connectivity model — all north-south traffic traverses the Edge cluster
 
 ### BGP Design
 
-| Parameter | Jumpbox (FRR) | NSX Tier-0 |
+| Parameter | Gateway (FRR) | NSX Tier-0 |
 |-----------|------|------------|
 | ASN | 65000 | 65001 |
 | Router ID | 10.0.60.1 | 10.0.60.2 |
@@ -483,7 +483,7 @@ NSX Tier-0 Gateway (Active-Standby)
 | Keepalive / Hold | 60s / 180s | 60s / 180s |
 | Advertisements | Connected subnets (all VLANs) | VPC/overlay prefixes |
 
-BGP provides dynamic route exchange: the jumpbox advertises lab infrastructure subnets to NSX, and NSX advertises VPC/overlay prefixes back. This gives VKS workloads a routed path out through the Edge cluster → Tier-0 → jumpbox.
+BGP provides dynamic route exchange: the gateway advertises lab infrastructure subnets to NSX, and NSX advertises VPC/overlay prefixes back. This gives VKS workloads a routed path out through the Edge cluster → Tier-0 → gateway.
 
 **Timer selection**: Keepalive 60s / hold 180s (3× keepalive) are conservative values suited to a nested lab. Default BGP timers (60/180) provide tolerance for momentary delays caused by nested virtualisation overhead, vSAN latency spikes, or Edge VM resource contention. More aggressive timers (e.g., 10/30) would detect failures faster but risk false positives in a resource-constrained nested environment.
 
@@ -492,14 +492,14 @@ BGP provides dynamic route exchange: the jumpbox advertises lab infrastructure s
 NSX VPC provides project-level network isolation for VKS workloads:
 
 - **Connectivity**: Centralised (via Edge cluster) — not distributed
-- **External connectivity**: Via Tier-0 BGP to jumpbox
+- **External connectivity**: Via Tier-0 BGP to gateway
 - **Subnets**: Created dynamically by VKS for pod and service networks
 - **NAT**: Source NAT on Tier-0 for outbound traffic
 - **Load balancing**: NSX LB via Tier-1 for Kubernetes services
 
 ### Source NAT (SNAT) Design
 
-SNAT on the Tier-0 gateway translates outbound VPC traffic so that external networks (infrastructure VLANs, jumpbox, internet) see a single routable source IP — the Tier-0 uplink address.
+SNAT on the Tier-0 gateway translates outbound VPC traffic so that external networks (infrastructure VLANs, gateway, internet) see a single routable source IP — the Tier-0 uplink address.
 
 | Parameter | Value |
 |-----------|-------|
@@ -508,9 +508,9 @@ SNAT on the Tier-0 gateway translates outbound VPC traffic so that external netw
 | Applied on | Tier-0 gateway |
 | Direction | Outbound (egress from VPC to external) |
 
-**Why SNAT is required**: VPC pod and service CIDRs (192.168.0.0/16, 10.96.0.0/12) are internal overlay addresses. External networks (jumpbox, internet) cannot route return traffic to these addresses directly. SNAT translates the source to 10.0.60.2, which the jumpbox knows how to reach via the directly connected VLAN 60 sub-interface. Return traffic is reverse-NATted by the Tier-0 back to the original pod/service IP.
+**Why SNAT is required**: VPC pod and service CIDRs (192.168.0.0/16, 10.96.0.0/12) are internal overlay addresses. External networks (gateway, internet) cannot route return traffic to these addresses directly. SNAT translates the source to 10.0.60.2, which the gateway knows how to reach via the directly connected VLAN 60 sub-interface. Return traffic is reverse-NATted by the Tier-0 back to the original pod/service IP.
 
-**Inbound traffic** to Kubernetes services uses NSX Load Balancer VIPs on the Tier-1 gateway. The LB VIP is a routable address advertised via Tier-1 → Tier-0 → BGP to the jumpbox, so inbound traffic does not require DNAT rules on the Tier-0.
+**Inbound traffic** to Kubernetes services uses NSX Load Balancer VIPs on the Tier-1 gateway. The LB VIP is a routable address advertised via Tier-1 → Tier-0 → BGP to the gateway, so inbound traffic does not require DNAT rules on the Tier-0.
 
 ### Route Redistribution Chain
 
@@ -525,9 +525,9 @@ Tier-1 Gateway
   ▼
 Tier-0 Gateway
   │  Route redistribution: connected, static, NAT
-  │  BGP advertisement to jumpbox
+  │  BGP advertisement to gateway
   ▼
-Jumpbox / FRR (ASN 65000)
+Gateway / FRR (ASN 65000)
   │  Receives VPC prefixes via BGP
   │  Redistributes connected subnets back to NSX
   ▼
@@ -551,7 +551,7 @@ Infrastructure VLANs (10.0.10–60.0/24)
 | NAT IPs | Enabled | Redistributes SNAT translated IPs |
 | Tier-1 Connected | Enabled | Redistributes Tier-1 advertised routes into BGP |
 
-**Jumpbox route redistribution**: The FRR BGP configuration uses `redistribute connected` to advertise all VLAN sub-interface subnets (VLANs 10–60) to the NSX Tier-0. This gives the Tier-0 reachability to the infrastructure VLANs without requiring static routes.
+**Gateway route redistribution**: The FRR BGP configuration uses `redistribute connected` to advertise all VLAN sub-interface subnets (VLANs 10–60) to the NSX Tier-0. This gives the Tier-0 reachability to the infrastructure VLANs without requiring static routes.
 
 ### End-to-End Traffic Flow
 
@@ -567,10 +567,10 @@ Infrastructure VLANs (10.0.10–60.0/24)
 3. Tier-1 gateway routes to Tier-0 (connected subnet → parent gateway)
    │
    ▼ SNAT: source 192.168.x.x → 10.0.60.2
-4. Tier-0 gateway forwards via uplink on VLAN 60 to next-hop 10.0.60.1 (jumpbox)
+4. Tier-0 gateway forwards via uplink on VLAN 60 to next-hop 10.0.60.1 (gateway)
    │
-   ▼ NAT: source 10.0.x.x → jumpbox public IP (iptables masquerade)
-5. Jumpbox masquerades source IP via iptables and forwards via ens160 (public NIC) → internet
+   ▼ NAT: source 10.0.x.x → gateway public IP (iptables masquerade)
+5. Gateway masquerades source IP via iptables and forwards via ens160 (public NIC) → internet
 ```
 
 #### North-South: Internet → Pod (Ingress via LoadBalancer)
@@ -578,11 +578,11 @@ Infrastructure VLANs (10.0.10–60.0/24)
 ```
 1. External client connects to Kubernetes LoadBalancer VIP (routable address)
    │
-   ▼ Traffic arrives at jumpbox public NIC (if from internet)
-2. Jumpbox routes to VIP via jumpbox (connected route for 10.0.60.0/24)
+   ▼ Traffic arrives at gateway public NIC (if from internet)
+2. Gateway routes to VIP via gateway (connected route for 10.0.60.0/24)
    │
-   ▼ Jumpbox has BGP route (FRR) for VIP → next-hop 10.0.60.2
-3. Jumpbox forwards to Tier-0 uplink (10.0.60.2) on VLAN 60
+   ▼ Gateway has BGP route (FRR) for VIP → next-hop 10.0.60.2
+3. Gateway forwards to Tier-0 uplink (10.0.60.2) on VLAN 60
    │
    ▼ Standard L3 routing
 4. Tier-0 forwards to Tier-1 (VIP is Tier-1 LB address)
@@ -601,15 +601,15 @@ Infrastructure VLANs (10.0.10–60.0/24)
 | Pod → ESXi host | Container networking (VPC overlay) | Pod-to-pod within same host is local |
 | ESXi host → Edge VM | Geneve tunnel (VLAN 40 → VLAN 50) | NSX overlay, MTU 9000 required |
 | Edge VM → Tier-0 uplink | Standard Ethernet (VLAN 60) | Geneve decapsulated at Edge; MTU 1500 |
-| Tier-0 uplink → Jumpbox | Standard Ethernet (VLAN 60) | Routed L3, no encapsulation |
-| Jumpbox ens192.60 → ens160 | IP forwarding + iptables masquerade | NAT for internet-bound |
+| Tier-0 uplink → Gateway | Standard Ethernet (VLAN 60) | Routed L3, no encapsulation |
+| Gateway ens192.60 → ens160 | IP forwarding + iptables masquerade | NAT for internet-bound |
 
 ### Design Decisions
 
 | Req. | Decision ID | Design Decision | Design Justification | Risk / Mitigation |
 |------|-------------|-----------------|----------------------|-------------------|
 | R-006 | NSX-01 | Two-node NSX Edge cluster sized Large | Minimum for Active-Standby HA; Large sizing required for VKS workloads | Risk: Large Edges consume significant resources (8 vCPU, 32 GB each). Mitigation: Workload domain hosts sized accordingly |
-| R-006 | NSX-02 | Active-Standby Tier-0 with BGP uplink to jumpbox (FRR) (keepalive 60s, hold 180s) | Provides dynamic route exchange; jumpbox advertises infrastructure subnets, NSX advertises VPC prefixes; conservative timers tolerate nested virtualisation overhead | Risk: BGP misconfiguration breaks north-south routing. Mitigation: Verify adjacency and route tables in Phase 5 |
+| R-006 | NSX-02 | Active-Standby Tier-0 with BGP uplink to gateway (FRR) (keepalive 60s, hold 180s) | Provides dynamic route exchange; gateway advertises infrastructure subnets, NSX advertises VPC prefixes; conservative timers tolerate nested virtualisation overhead | Risk: BGP misconfiguration breaks north-south routing. Mitigation: Verify adjacency and route tables in Phase 5 |
 | R-008 | NSX-03 | Centralised VPC connectivity model (via Edge cluster) | All north-south traffic traverses Edge — simpler than distributed model for lab | Risk: Edge cluster becomes throughput bottleneck. Mitigation: Acceptable for lab traffic volumes |
 | R-008 | NSX-04 | Source NAT on Tier-0 for outbound VPC traffic | Simplifies return routing — external networks see traffic from Tier-0 uplink IP | Risk: NAT hides source IPs. Mitigation: Acceptable for lab; can add specific SNAT rules if needed |
 
@@ -625,7 +625,7 @@ A vSphere Namespace provides the tenancy boundary for VKS. It defines the allowe
 
 ### Content Library
 
-A subscribed content library provides Kubernetes release images (VKr — VMware Kubernetes releases). The library syncs from VMware's public endpoint. Internet access from the nested environment is required (routed via jumpbox → vCD public network).
+A subscribed content library provides Kubernetes release images (VKr — VMware Kubernetes releases). The library syncs from VMware's public endpoint. Internet access from the nested environment is required (routed via gateway → vCD public network).
 
 ### VKS Cluster Topology
 
@@ -684,5 +684,5 @@ Worker Node → Pod mount
 |------|-------------|-----------------|----------------------|-------------------|
 | R-005 | VKS-01 | Supervisor enabled on workload domain cluster with NSX networking | Required for VKS; NSX provides pod networking via VPC | Risk: Supervisor enablement requires stable NSX and vSAN. Mitigation: Validate both before enabling Supervisor |
 | R-005 | VKS-02 | 3 control plane + 3 worker nodes for VKS cluster | HA control plane with 3 workers provides realistic cluster topology | Risk: 6 VMs consume significant workload domain resources. Mitigation: Use best-effort-medium VM class (2 vCPU, 8 GB) |
-| R-005 | VKS-03 | Subscribed content library for VKr images | Automatic sync of Kubernetes release images from VMware | Risk: Requires internet access from nested environment. Mitigation: Route via jumpbox → vCD public network |
+| R-005 | VKS-03 | Subscribed content library for VKr images | Automatic sync of Kubernetes release images from VMware | Risk: Requires internet access from nested environment. Mitigation: Route via gateway → vCD public network |
 | C-004 | VKS-04 | best-effort-medium VM class for VKS nodes | Balances resource use against lab constraints | Risk: Insufficient resources for complex workloads. Mitigation: Scale VM class up if needed; monitor resource utilisation |

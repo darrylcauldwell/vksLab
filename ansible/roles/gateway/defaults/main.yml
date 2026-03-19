@@ -1,10 +1,10 @@
-jumpbox_ip: "{{ lab_mgmt_prefix }}.1"
-jumpbox_private_nic: ens192
-jumpbox_public_nic: ens160
-jumpbox_lab_network: "{{ lab_network_prefix }}.0.0/16"
-jumpbox_vlan_trunk_nic: ens192
+gateway_ip: "{{ lab_mgmt_prefix }}.1"
+gateway_private_nic: ens192
+gateway_public_nic: ens160
+gateway_lab_network: "{{ lab_network_prefix }}.0.0/16"
+gateway_vlan_trunk_nic: ens192
 
-jumpbox_packages:
+gateway_packages:
   - xfce4
   - xrdp
   - dnsmasq
@@ -16,14 +16,14 @@ jumpbox_packages:
   - conky-all
 
 # Smallstep packages (installed from Smallstep apt repo)
-jumpbox_step_packages:
+gateway_step_packages:
   - step-cli
   - step-ca
 
 # VLAN sub-interface configuration
 # Management (VLAN 10) is the native/untagged VLAN on ens192 — no sub-interface.
 # This allows ESXi hosts to DHCP without VLAN tagging on their management port group.
-jumpbox_vlan_interfaces:
+gateway_vlan_interfaces:
   - {vlan: 20, description: vMotion, ip: "{{ lab_vmotion_prefix }}.1/24", mtu: 9000}
   - {vlan: 30, description: vSAN, ip: "{{ lab_vsan_prefix }}.1/24", mtu: 9000}
   - {vlan: 40, description: "Host Overlay (TEP)", ip: "{{ lab_overlay_prefix }}.1/24", mtu: 9000}
@@ -31,14 +31,14 @@ jumpbox_vlan_interfaces:
   - {vlan: 60, description: "Edge Uplink / BGP", ip: "{{ lab_uplink_prefix }}.1/24", mtu: 1500}
 
 # Upstream DNS forwarders
-jumpbox_upstream_dns:
+gateway_upstream_dns:
   - 192.19.189.20
   - 192.19.189.10
   - 192.19.189.30
 
 # DNS records for dnsmasq
-jumpbox_dns_records:
-  - {hostname: jumpbox, ip: "{{ lab_mgmt_prefix }}.1"}
+gateway_dns_records:
+  - {hostname: gateway, ip: "{{ lab_mgmt_prefix }}.1"}
   - {hostname: vcf-installer, ip: "{{ lab_mgmt_prefix }}.3"}
   - {hostname: vcenter-mgmt, ip: "{{ lab_mgmt_prefix }}.4"}
   - {hostname: sddc-manager, ip: "{{ lab_mgmt_prefix }}.5"}
@@ -58,7 +58,7 @@ jumpbox_dns_records:
   - {hostname: edge-02, ip: "{{ lab_mgmt_prefix }}.21"}
 
 # DHCP reservations (MAC → IP)
-jumpbox_dhcp_reservations:
+gateway_dhcp_reservations:
   - {mac: "00:50:56:xx:xx:01", hostname: esxi-01, ip: "{{ lab_mgmt_prefix }}.11"}
   - {mac: "00:50:56:xx:xx:02", hostname: esxi-02, ip: "{{ lab_mgmt_prefix }}.12"}
   - {mac: "00:50:56:xx:xx:03", hostname: esxi-03, ip: "{{ lab_mgmt_prefix }}.13"}

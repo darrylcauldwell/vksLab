@@ -27,10 +27,10 @@ ${color3}ENVIRONMENT${color}
   Domain        ${color1}{{ lab_domain }}${color}
   Lab Network   ${color1}{{ lab_network_prefix }}.0.0/16${color}
 
-${color3}JUMPBOX${color}
+${color3}GATEWAY${color}
   Hostname      ${color1}${nodename}${color}
-  Public IP     ${color1}${addr {{ jumpbox_public_nic }}}${color}
-  Management    ${color1}{{ jumpbox_ip }}${color}
+  Public IP     ${color1}${addr {{ gateway_public_nic }}}${color}
+  Management    ${color1}{{ gateway_ip }}${color}
   Uptime        ${color1}${uptime}${color}
 
 ${color3}SERVICES${color}
@@ -48,8 +48,8 @@ ${color3}VCF COMPONENTS${color}
   NSX wld       ${color1}nsx-mgr-wld.{{ lab_domain }}${color}
 
 ${color3}VLANS${color}
-  Native        ${color1}Management${color}  {{ jumpbox_ip }}/24
-{% for iface in jumpbox_vlan_interfaces %}
+  Native        ${color1}Management${color}  {{ gateway_ip }}/24
+{% for iface in gateway_vlan_interfaces %}
   VLAN {{ "%-4s" | format(iface.vlan) }}      ${color1}{{ iface.description }}${color}  {{ iface.ip }}
 {% endfor %}
 

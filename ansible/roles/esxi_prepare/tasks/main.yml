@@ -122,7 +122,7 @@
 
 # --- Network ---
 
-# Set default gateway to jumpbox on management network
+# Set default gateway on management network
 - name: Configure default gateway
   ansible.builtin.shell: >
     esxcfg-route {{ esxi_gateway }}

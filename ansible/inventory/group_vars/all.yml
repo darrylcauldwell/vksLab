@@ -26,8 +26,8 @@ lab_dns_server: "{{ lab_mgmt_prefix }}.1"
 lab_ntp_servers:
   - "{{ lab_mgmt_prefix }}.1"
 
-# Jumpbox public IP (stored in 1Password after vCD deployment)
-jumpbox_public_ip: "{{ lookup('community.general.onepassword', 'Lab Bootstrap', field='ip_address', vault=onepassword_vault) }}"
+# Gateway public IP (stored in 1Password after vCD deployment)
+gateway_public_ip: "{{ lookup('community.general.onepassword', 'Lab Bootstrap', field='ip_address', vault=onepassword_vault) }}"
 
 # 1Password vault and item names for secret lookups
 onepassword_vault: Employee

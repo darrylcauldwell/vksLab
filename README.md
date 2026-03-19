@@ -14,7 +14,7 @@ VMware Kubernetes Service (VKS) lab environment — infrastructure-as-documentat
 
 ## Ansible Automation
 
-Ansible roles and playbooks automate all 6 deployment phases. Runs from the operator's laptop via SSH ProxyJump through the jumpbox, with secrets from 1Password.
+Ansible roles and playbooks automate all 6 deployment phases. Runs from the operator's laptop via SSH ProxyJump through the gateway, with secrets from 1Password.
 
 ```bash
 # Install collections

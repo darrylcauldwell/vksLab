@@ -1,9 +1,9 @@
 ---
-# Phase 1 — Foundation: jumpbox services, Docker containers, routing, BGP
-- name: Phase 1 — Configure jumpbox
-  hosts: jumpboxes
+# Phase 1 — Foundation: gateway services, Docker containers, routing, BGP
+- name: Phase 1 — Configure gateway
+  hosts: gateways
   gather_facts: true
   become: false
   roles:
-    - jumpbox
+    - gateway
     - docker_services

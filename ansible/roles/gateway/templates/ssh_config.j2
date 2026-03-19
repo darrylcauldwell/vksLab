@@ -1,7 +1,7 @@
 # ~/.ssh/config — managed by Ansible
 
-{% for record in jumpbox_dns_records %}
-{% if record.hostname != 'jumpbox' %}
+{% for record in gateway_dns_records %}
+{% if record.hostname != 'gateway' %}
 Host {{ record.hostname }}
     HostName {{ record.ip }}
 {% if record.hostname.startswith('esxi') %}

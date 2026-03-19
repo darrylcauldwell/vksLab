@@ -18,7 +18,7 @@ date: "March 2026"
 | 30 | vSAN | 10.0.30.0/24 | vSAN storage traffic | 9000 |
 | 40 | Host Overlay (TEP) | 10.0.40.0/24 | NSX host transport endpoint tunnels | 9000 |
 | 50 | Edge Overlay | 10.0.50.0/24 | NSX Edge TEP tunnels | 9000 |
-| 60 | Edge Uplink | 10.0.60.0/24 | NSX Tier-0 ↔ Jumpbox BGP peering | 1500 |
+| 60 | Edge Uplink | 10.0.60.0/24 | NSX Tier-0 ↔ Gateway BGP peering | 1500 |
 
 ## 2. IP Addressing Scheme
 
@@ -26,7 +26,7 @@ date: "March 2026"
 
 | IP Address | Hostname | Role |
 |------------|----------|------|
-| 10.0.10.1 | jumpbox | Jumpbox VLAN 10 sub-interface (default gateway) |
+| 10.0.10.1 | gateway | Gateway VLAN 10 sub-interface (default gateway) |
 | 10.0.10.3 | vcf-installer | VCF Installer appliance |
 | 10.0.10.4 | vcenter-mgmt | vCenter Server (management) |
 | 10.0.10.5 | sddc-manager | SDDC Manager |
@@ -75,10 +75,10 @@ date: "March 2026"
 
 | IP Address | Role |
 |------------|------|
-| 10.0.60.1 | Jumpbox ens192.60 (BGP neighbor) |
+| 10.0.60.1 | Gateway ens192.60 (BGP neighbor) |
 | 10.0.60.2 | NSX Tier-0 uplink interface |
 
-## 3. Ubuntu Jumpbox Specification
+## 3. Ubuntu Gateway Specification
 
 > Implements NET-01 (dual-homed single entry point), SVC-01 through SVC-06 (co-located infrastructure services). See [Logical Design](logical-design.md) Sections 3–4.
 
@@ -104,7 +104,7 @@ See [Delivery Guide](deliver.md) for netplan configuration. Key parameters:
   - ens192.40: 10.0.40.1/24 (Host Overlay, MTU 9000)
   - ens192.50: 10.0.50.1/24 (Edge Overlay, MTU 9000)
   - ens192.60: 10.0.60.1/24 (Edge Uplink / BGP, MTU 1500)
-- IP forwarding enabled — jumpbox is the inter-VLAN router
+- IP forwarding enabled — gateway is the inter-VLAN router
 - FRR provides BGP peering with NSX Tier-0
 
 ### Services Configuration
@@ -121,11 +121,11 @@ See [Delivery Guide](deliver.md) for netplan configuration. Key parameters:
 | Remote access | xrdp | Listening on port 3389 (NIC1) |
 | Web browser | Firefox | Access vCenter, NSX Manager, SDDC Manager UIs |
 
-All VCF components point to 10.0.10.1 for DNS and NTP. systemd-resolved is disabled on the jumpbox to free port 53 for dnsmasq.
+All VCF components point to 10.0.10.1 for DNS and NTP. systemd-resolved is disabled on the gateway to free port 53 for dnsmasq.
 
-**CA certificate distribution**: The step-ca root certificate is fetched from the jumpbox to the Ansible controller during Phase 1, then pushed to each ESXi host during Phase 2 via `ansible.builtin.copy` and imported with `esxcli security cert import`. See [Logical Design](logical-design.md) SVC-10 and "Certificate Distribution" for details.
+**CA certificate distribution**: The step-ca root certificate is fetched from the gateway to the Ansible controller during Phase 1, then pushed to each ESXi host during Phase 2 via `ansible.builtin.copy` and imported with `esxcli security cert import`. See [Logical Design](logical-design.md) SVC-10 and "Certificate Distribution" for details.
 
-**DNS configuration**: dnsmasq listens on the VLAN 10 sub-interface (ens192.10) for lab DNS/DHCP. The jumpbox's own `/etc/resolv.conf` points to upstream DNS (192.19.189.20) — not through its own dnsmasq — so that package installation and external resolution work independently of dnsmasq state.
+**DNS configuration**: dnsmasq listens on the VLAN 10 sub-interface (ens192.10) for lab DNS/DHCP. The gateway's own `/etc/resolv.conf` points to upstream DNS (192.19.189.20) — not through its own dnsmasq — so that package installation and external resolution work independently of dnsmasq state.
 
 ### DHCP Reservations (VLAN 10)
 
@@ -151,8 +151,8 @@ ESXi hosts receive their management IP via DHCP with static MAC→IP reservation
 
 | Resource | Per Host | Total (4 hosts) |
 |----------|----------|-----------------|
-| vCPU | 8 | 32 |
-| RAM | 72 GB | 288 GB |
+| vCPU | 48 | 192 |
+| RAM | 128 GB | 512 GB |
 | Disk (vSAN NVMe) | 200 GB | 800 GB |
 | NICs | 2 (management + trunk) | — |
 | ESXi Version | 9.0 | — |
@@ -161,8 +161,8 @@ ESXi hosts receive their management IP via DHCP with static MAC→IP reservation
 
 | Resource | Per Host | Total (3 hosts) |
 |----------|----------|-----------------|
-| vCPU | 8 | 24 |
-| RAM | 72 GB | 216 GB |
+| vCPU | 48 | 144 |
+| RAM | 128 GB | 384 GB |
 | Disk (vSAN NVMe) | 200 GB | 600 GB |
 | NICs | 2 (management + trunk) | — |
 | ESXi Version | 9.0 | — |
@@ -243,8 +243,8 @@ With FTT=1 RAID-1, each object is mirrored — raw capacity is halved for data p
 Before running the VCF Installer:
 
 1. All 4 management ESXi hosts are accessible on the management network
-2. DNS forward and reverse records exist for all components (configured in jumpbox dnsmasq)
-3. NTP is reachable from all hosts (jumpbox chrony)
+2. DNS forward and reverse records exist for all components (configured in gateway dnsmasq)
+3. NTP is reachable from all hosts (gateway chrony)
 4. ESXi hosts have matching passwords and are in maintenance mode
 
 See [Delivery Guide](deliver.md) Phase 3 for the step-by-step bringup procedure.
@@ -284,7 +284,7 @@ Edge VMs are sized as **Large** (8 vCPU, 32 GB RAM) to support VKS workloads.
 | Edge Cluster | workload-edge-cluster |
 | Uplink Interface | 10.0.60.2/24 on VLAN 60 |
 | BGP ASN | 65001 |
-| BGP Neighbor | 10.0.60.1 (Jumpbox FRR, ASN 65000) |
+| BGP Neighbor | 10.0.60.1 (Gateway FRR, ASN 65000) |
 
 ### Tier-1 Gateway Settings
 
@@ -300,7 +300,7 @@ Edge VMs are sized as **Large** (8 vCPU, 32 GB RAM) to support VKS workloads.
 |---------|-------|
 | VPC Name | vks-vpc |
 | Connectivity | Centralised (via Edge cluster) |
-| External Connectivity | Via Tier-0 BGP to jumpbox |
+| External Connectivity | Via Tier-0 BGP to gateway |
 | Subnets | Created dynamically by VKS for pod and service networks |
 | NAT | Source NAT on Tier-0 for outbound traffic |
 | Load Balancing | NSX LB via Tier-1 for Kubernetes services |
@@ -309,7 +309,7 @@ Edge VMs are sized as **Large** (8 vCPU, 32 GB RAM) to support VKS workloads.
 
 After NSX networking is configured and BGP is established, the following routes should be present.
 
-#### Jumpbox Route Table (`ip route` / `vtysh -c 'show ip bgp'`)
+#### Gateway Route Table (`ip route` / `vtysh -c 'show ip bgp'`)
 
 ```text
 default via <public-gw> dev ens160              ← internet via public NIC
@@ -338,17 +338,17 @@ GET https://nsx-mgr-wld.lab.dreamfold.dev/policy/api/v1/infra/tier-0s/tier0-gate
 
 | Prefix | Next Hop | Type | Source |
 |--------|----------|------|--------|
-| 10.0.10.0/24 | 10.0.60.1 | BGP | Jumpbox (management) |
-| 10.0.20.0/24 | 10.0.60.1 | BGP | Jumpbox (vMotion) |
-| 10.0.30.0/24 | 10.0.60.1 | BGP | Jumpbox (vSAN) |
-| 10.0.40.0/24 | 10.0.60.1 | BGP | Jumpbox (host overlay) |
-| 10.0.50.0/24 | 10.0.60.1 | BGP | Jumpbox (edge overlay) |
+| 10.0.10.0/24 | 10.0.60.1 | BGP | Gateway (management) |
+| 10.0.20.0/24 | 10.0.60.1 | BGP | Gateway (vMotion) |
+| 10.0.30.0/24 | 10.0.60.1 | BGP | Gateway (vSAN) |
+| 10.0.40.0/24 | 10.0.60.1 | BGP | Gateway (host overlay) |
+| 10.0.50.0/24 | 10.0.60.1 | BGP | Gateway (edge overlay) |
 | 10.0.60.0/24 | — | Connected | Tier-0 uplink |
 | 192.168.x.0/24 | — | Connected | Tier-1 (VKS pod subnets) |
 | 10.96.x.0/24 | — | Connected | Tier-1 (VKS service subnets) |
-| 0.0.0.0/0 | 10.0.60.1 | Static | Default route to jumpbox |
+| 0.0.0.0/0 | 10.0.60.1 | Static | Default route to gateway |
 
-> **Expected route count**: ~6 BGP routes from jumpbox (one per VLAN SVI) plus connected/redistributed routes from Tier-1. The exact count depends on how many VPC subnets are created by the Supervisor and VKS.
+> **Expected route count**: ~6 BGP routes from gateway (one per VLAN SVI) plus connected/redistributed routes from Tier-1. The exact count depends on how many VPC subnets are created by the Supervisor and VKS.
 
 ## 9. VKS Cluster Specification
 
@@ -387,7 +387,7 @@ GET https://nsx-mgr-wld.lab.dreamfold.dev/policy/api/v1/infra/tier-0s/tier0-gate
 
 ### Content Library
 
-A subscribed content library provides Kubernetes release images (VKr). The library syncs from VMware's public endpoint. Internet access from the nested environment is required (routed via jumpbox → vCD public network).
+A subscribed content library provides Kubernetes release images (VKr). The library syncs from VMware's public endpoint. Internet access from the nested environment is required (routed via gateway → vCD public network).
 
 ## 10. Resource Summary Tables
 
@@ -395,10 +395,10 @@ A subscribed content library provides Kubernetes release images (VKr). The libra
 
 | Component | vCPU | RAM (GB) | Storage (GB) |
 |-----------|------|----------|-------------|
-| Ubuntu Jumpbox | 2 | 10 | 60 |
-| ESXi (Management, 4x) | 32 | 288 | 800 |
-| ESXi (Workload, 3x) | 24 | 216 | 600 |
-| **vCD Total** | **58** | **514** | **1,460** |
+| Ubuntu Gateway | 2 | 10 | 60 |
+| ESXi (Management, 4x) | 192 | 512 | 800 |
+| ESXi (Workload, 3x) | 144 | 384 | 600 |
+| **vCD Total** | **338** | **906** | **1,460** |
 
 ### VCF Appliances (Nested, on ESXi)
 
@@ -417,7 +417,7 @@ These run inside the nested environment and consume resources from the ESXi host
 | VCF Automation | 4 | 24 | 100 |
 | **Nested Total** | **52** | **234** | **1,800** |
 
-> **Note**: The nested appliance resources are consumed from the 504 GB RAM and 1,400 GB storage provisioned to the ESXi VMs. The remaining ~270 GB RAM is available for VKS workloads and Supervisor VMs. Cross-reference with Holodeck benchmarks (~325 GB RAM for VCF 9.0 single-site with Automation).
+> **Note**: The nested appliance resources are consumed from the 896 GB RAM and 1,400 GB storage provisioned to the ESXi VMs. The remaining ~662 GB RAM is available for VKS workloads and Supervisor VMs.
 
 ### 10.1 Capacity Headroom Analysis
 
@@ -427,7 +427,7 @@ The management domain hosts run all VCF infrastructure appliances. The VCF Insta
 
 | Category | vCPU | RAM (GB) |
 |----------|------|----------|
-| **Total provisioned (4 hosts)** | 32 | 288 |
+| **Total provisioned (4 hosts)** | 192 | 512 |
 | vCenter Server (management) | 4 | 21 |
 | SDDC Manager | 4 | 16 |
 | NSX Manager (management) | 6 | 24 |
@@ -435,10 +435,10 @@ The management domain hosts run all VCF infrastructure appliances. The VCF Insta
 | VCF Automation | 4 | 24 |
 | **Appliance subtotal** | **22** | **101** |
 | VCF Installer (temporary, reclaimed after bringup) | 4 | 24 |
-| **Remaining after bringup** | **10** | **187** |
-| **Utilisation** | **~69%** | **~35%** |
+| **Remaining after bringup** | **170** | **411** |
+| **Utilisation** | **~11%** | **~20%** |
 
-> **Note**: Management domain hosts are sized for appliance overhead with comfortable headroom. RAM utilisation is low because VCF appliances are CPU-bound rather than memory-bound. The surplus RAM provides a buffer for SDDC Manager lifecycle operations (e.g., in-place upgrades that temporarily run two appliance instances).
+> **Note**: Management domain hosts have substantial headroom. The surplus provides a comfortable buffer for SDDC Manager lifecycle operations (e.g., in-place upgrades that temporarily run two appliance instances).
 
 #### Workload Domain Headroom
 
@@ -446,17 +446,17 @@ The workload domain hosts run the workload vCenter, NSX Manager, NSX Edge cluste
 
 | Category | vCPU | RAM (GB) |
 |----------|------|----------|
-| **Total provisioned (3 hosts)** | 24 | 216 |
+| **Total provisioned (3 hosts)** | 144 | 384 |
 | vCenter Server (workload) | 4 | 21 |
 | NSX Manager (workload) | 6 | 24 |
 | NSX Edge cluster (2x Large) | 16 | 64 |
 | Supervisor control plane (3 CP VMs) | ~6 | ~24 |
 | VKS workers (3x best-effort-medium) | 6 | 24 |
 | **Consumed subtotal** | **~38** | **~157** |
-| **Remaining** | **-14 (overcommit)** | **~59** |
-| **Utilisation** | **~158% (overcommit)** | **~73%** |
+| **Remaining** | **~106** | **~227** |
+| **Utilisation** | **~26%** | **~41%** |
 
-> **Note**: CPU overcommit is expected and acceptable in a nested lab environment. Nested virtualisation already means no performance guarantees from the underlying vCD platform — the physical host's scheduler mediates all CPU access. Workload domain vCPU overcommit does not prevent operation but will cause contention under sustained load. RAM is the real constraint to watch: ~59 GB free provides room for modest workload growth but not additional large VMs.
+> **Note**: The workload domain has comfortable headroom for VKS workloads and scaling. The surplus allows adding more VKS worker nodes or scaling existing ones to larger VM classes without resource pressure.
 
 #### Scaling Thresholds
 
@@ -467,4 +467,4 @@ Monitor these indicators to determine when the lab has reached practical limits.
 | vSAN capacity | > 70% used | Plan storage addition or object cleanup |
 | Host RAM utilisation | > 90% sustained | Add ESXi host or reduce VM count |
 | VKS node CPU/RAM | > 80% sustained | Scale VM class up or add worker nodes |
-| Workload domain vCPU overcommit | > 200% | Reduce Edge size or add host |
+| Workload domain vCPU utilisation | > 80% sustained | Add ESXi host or reduce workload |

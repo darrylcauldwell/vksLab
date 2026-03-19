@@ -1,5 +1,5 @@
 ---
-# Phase 1 — Docker services on jumpbox
+# Phase 1 — Docker services on gateway
 # Keycloak is the external OIDC identity provider. It integrates with the
 # VCF Identity Broker, which in turn unifies logons for vCenter and NSX Manager.
 
@@ -25,7 +25,7 @@
     append: true
 
 # --- Keycloak TLS certificate ---
-# Issued from step-ca (configured by jumpbox role). Keycloak serves HTTPS
+# Issued from step-ca (configured by gateway role). Keycloak serves HTTPS
 # on port 8443 — vCenter and NSX Manager connect to its OIDC endpoints.
 
 - name: Create certificate directory

@@ -2,20 +2,20 @@
 network:
   version: 2
   ethernets:
-    {{ jumpbox_public_nic }}:
+    {{ gateway_public_nic }}:
       dhcp4: true
-    {{ jumpbox_vlan_trunk_nic }}:
+    {{ gateway_vlan_trunk_nic }}:
       addresses:
-        - {{ jumpbox_ip }}/24
+        - {{ gateway_ip }}/24
       mtu: 9000
       nameservers:
         addresses:
           - 127.0.0.1
   vlans:
-{% for iface in jumpbox_vlan_interfaces %}
-    {{ jumpbox_vlan_trunk_nic }}.{{ iface.vlan }}:
+{% for iface in gateway_vlan_interfaces %}
+    {{ gateway_vlan_trunk_nic }}.{{ iface.vlan }}:
       id: {{ iface.vlan }}
-      link: {{ jumpbox_vlan_trunk_nic }}
+      link: {{ gateway_vlan_trunk_nic }}
       addresses:
         - {{ iface.ip }}
       mtu: {{ iface.mtu }}

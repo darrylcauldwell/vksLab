@@ -20,7 +20,7 @@ The lab is built in six sequential phases, each depending on the previous one.
 | 5 | NSX Networking |
 | 6 | VKS |
 
-**Phase 1** establishes the vApp, jumpbox (DNS, NTP, CA, inter-VLAN routing, FRR BGP). **Phase 2** deploys all seven nested ESXi hosts. **Phase 3** runs the VCF Installer to bring up the management domain (vCenter, SDDC Manager, NSX Manager, VCF Operations, VCF Automation). **Phase 4** commissions workload hosts and creates the workload domain. **Phase 5** deploys the NSX Edge cluster, configures Tier-0/Tier-1 gateways, establishes BGP peering, and creates the NSX VPC. **Phase 6** enables the Supervisor, creates a vSphere Namespace, and deploys a VKS cluster with a test workload.
+**Phase 1** establishes the vApp, gateway (DNS, NTP, CA, inter-VLAN routing, FRR BGP). **Phase 2** deploys all seven nested ESXi hosts. **Phase 3** runs the VCF Installer to bring up the management domain (vCenter, SDDC Manager, NSX Manager, VCF Operations, VCF Automation). **Phase 4** commissions workload hosts and creates the workload domain. **Phase 5** deploys the NSX Edge cluster, configures Tier-0/Tier-1 gateways, establishes BGP peering, and creates the NSX VPC. **Phase 6** enables the Supervisor, creates a vSphere Namespace, and deploys a VKS cluster with a test workload.
 
 ## 2. Prerequisites
 
@@ -30,7 +30,7 @@ The following must be in place before starting Phase 1.
 
 | # | Prerequisite | Status |
 |---|-------------|--------|
-| 1 | vCD resources approved (60 vCPU, 512 GB RAM, 1.5 TB storage) | ☐ |
+| 1 | vCD resources approved (338 vCPU, 906 GB RAM, 1.5 TB storage) | ☐ |
 | 2 | Ubuntu ISO available in vCD Content Hub (`ubuntu-24.04.2-live-server-amd64.iso`), ESXi vApp template available (`[baked]esxi-9.0.2-2514807`) | ☐ |
 | 3 | VCF Installer OVA (`VCF-SDDC-Manager-Appliance-9.0.2.0.25151285.ova`, 2.03 GB) — download from support.broadcom.com to operator laptop | ☐ |
 | 4 | RDP client installed on operator Mac — [Windows App](https://apps.apple.com/app/windows-app/id1295203466) from App Store | ☐ |
@@ -75,7 +75,7 @@ Verify: `op item list --vault Employee` shows all 6 items.
 
 #### 3.1.2 Ansible
 
-Ansible runs from the operator's laptop (not the jumpbox) and connects to lab hosts via SSH ProxyJump through the jumpbox.
+Ansible runs from the operator's laptop (not the gateway) and connects to lab hosts via SSH ProxyJump through the gateway.
 
 ```bash
 # Create and activate virtual environment (from repo root)
@@ -97,31 +97,31 @@ ansible-galaxy collection install -r ansible/collections/requirements.yml
 | 3.2.2 | Add routed network (public) to vApp | External connectivity available |
 | 3.2.3 | Add isolated network: name `lab-trunk`, gateway CIDR `192.168.254.1/24`, tick **Allow Guest VLAN** | Trunk-capable internal network available |
 
-### 3.3 Deploy Jumpbox VM (Manual in vCD)
+### 3.3 Deploy Gateway VM (Manual in vCD)
 
 | Step | Action | Expected Result | Verification |
 |------|--------|-----------------|--------------|
 | 3.3.1 | Create Ubuntu 24.04 VM from Content Hub ISO (2 vCPU, 10 GB RAM, 60 GB disk) with NIC1 on Public network, NIC2 on private network | VM created | VM visible in vApp |
-| 3.3.2 | Power on and complete Ubuntu installer via vCD console — set server name `jumpbox`, username `ubuntu`, password from 1Password "Lab Bootstrap" item | Ubuntu installed | Login prompt on console |
+| 3.3.2 | Power on and complete Ubuntu installer via vCD console — set server name `gateway`, username `ubuntu`, password from 1Password "Lab Bootstrap" item | Ubuntu installed | Login prompt on console |
 | 3.3.3 | Note public IP assigned by DHCP to NIC1 (ens160) | IP obtained | `ip addr show ens160` |
 | 3.3.4 | If no SSH key exists, generate one: `ssh-keygen -t ed25519` | Key pair created | `~/.ssh/id_ed25519.pub` exists |
-| 3.3.5 | Copy SSH key to jumpbox: `ssh-copy-id ubuntu@<jumpbox-ip>` | Key deployed | `ssh ubuntu@<jumpbox-ip>` connects without password |
-| 3.3.6 | Store jumpbox IP in 1Password: `op item edit "Lab Bootstrap" ip_address=<jumpbox-ip>` | IP stored | `op item get "Lab Bootstrap" --fields ip_address` returns IP |
+| 3.3.5 | Copy SSH key to gateway: `ssh-copy-id ubuntu@<gateway-ip>` | Key deployed | `ssh ubuntu@<gateway-ip>` connects without password |
+| 3.3.6 | Store gateway IP in 1Password: `op item edit "Lab Bootstrap" ip_address=<gateway-ip>` | IP stored | `op item get "Lab Bootstrap" --fields ip_address` returns IP |
 
 ### 3.4 Clone ESXi VMs (Manual in vCD)
 
-Start cloning all 7 ESXi VMs now — they run concurrently with the jumpbox playbook below and take a while to complete. See §4.1 and §4.2 for full details.
+Start cloning all 7 ESXi VMs now — they run concurrently with the gateway playbook below and take a while to complete. See §4.1 and §4.2 for full details.
 
 | Step | Action | Expected Result |
 |------|--------|-----------------|
-| 3.4.1 | Clone esxi-01 through esxi-04 from vApp template `[baked]esxi-9.0.2-2514807` (8 vCPU, 72 GB RAM, 40 GB boot + 200 GB NVMe), both NICs on `lab-trunk` | 4 management VMs cloning |
+| 3.4.1 | Clone esxi-01 through esxi-04 from vApp template `[baked]esxi-9.0.2-2514807` (48 vCPU, 128 GB RAM, 40 GB boot NVMe + 200 GB vSAN NVMe), both NICs on `lab-trunk` | 4 management VMs cloning |
 | 3.4.2 | Clone esxi-05 through esxi-07 (same spec), both NICs on `lab-trunk` | 3 workload VMs cloning |
 
 > **Note**: Do not power on the ESXi VMs yet — MAC addresses and DHCP reservations are configured in Phase 2.
 
-### 3.5 Configure Jumpbox (Automated)
+### 3.5 Configure Gateway (Automated)
 
-All jumpbox configuration (VLAN sub-interfaces, dnsmasq DNS/DHCP, chrony NTP, step-ca, XFCE/xrdp, IP masquerading, FRR BGP, Firefox, Keycloak) is automated by the `jumpbox` and `docker_services` Ansible roles:
+All gateway configuration (VLAN sub-interfaces, dnsmasq DNS/DHCP, chrony NTP, step-ca, XFCE/xrdp, IP masquerading, FRR BGP, Firefox, Keycloak) is automated by the `gateway` and `docker_services` Ansible roles:
 
 ```bash
 source .venv/bin/activate
@@ -133,13 +133,13 @@ ansible-playbook playbooks/phase1_foundation.yml
 
 | Check | Command / Method | Expected Result |
 |-------|------------------|-----------------|
-| Jumpbox external access | RDP to jumpbox public IP | Desktop accessible |
-| Jumpbox DNS | `dig @10.0.10.1 jumpbox.lab.dreamfold.dev` | Returns 10.0.10.1 |
-| Jumpbox NTP | `chronyc sources` | Shows upstream servers |
-| Jumpbox CA | `step ca health` | Returns "ok" |
-| VLAN sub-interfaces | `ip addr show ens192.10` on jumpbox | Shows 10.0.10.1 |
+| Gateway external access | RDP to gateway public IP | Desktop accessible |
+| Gateway DNS | `dig @10.0.10.1 gateway.lab.dreamfold.dev` | Returns 10.0.10.1 |
+| Gateway NTP | `chronyc sources` | Shows upstream servers |
+| Gateway CA | `step ca health` | Returns "ok" |
+| VLAN sub-interfaces | `ip addr show ens192.10` on gateway | Shows 10.0.10.1 |
 | Inter-VLAN routing | `ping 10.0.20.1` from a host on VLAN 10 | Success |
-| FRR BGP | `vtysh -c 'show ip bgp summary'` on jumpbox | FRR running |
+| FRR BGP | `vtysh -c 'show ip bgp summary'` on gateway | FRR running |
 
 ## 4. Phase 2 — Nested ESXi
 
@@ -147,11 +147,11 @@ ansible-playbook playbooks/phase1_foundation.yml
 
 ### 4.1 Deploy ESXi Hosts
 
-ESXi hosts receive their management IP via DHCP from the jumpbox dnsmasq (configured in Phase 1). Note the MAC address assigned by vCD for each VM and update `esxi_mac` in `ansible/inventory/hosts.yml`.
+ESXi hosts receive their management IP via DHCP from the gateway dnsmasq (configured in Phase 1). Note the MAC address assigned by vCD for each VM and update `esxi_mac` in `ansible/inventory/hosts.yml`.
 
 | Step | Action | Expected Result | Verification |
 |------|--------|-----------------|--------------|
-| 4.1.1 | For each host (esxi-01 through esxi-07): clone from vApp template `[baked]esxi-9.0.2-2514807` (8 vCPU, 72 GB RAM, 40 GB boot disk + 200 GB NVMe vSAN disk), both NICs on `lab-trunk` | VM created | ESXi DCUI visible via vCD console |
+| 4.1.1 | For each host (esxi-01 through esxi-07): clone from vApp template `[baked]esxi-9.0.2-2514807` (48 vCPU, 128 GB RAM, 40 GB boot NVMe + 200 GB vSAN NVMe), both NICs on `lab-trunk` | VM created | ESXi DCUI visible via vCD console |
 | 4.1.2 | Note vmnic0 MAC address for each host, update `esxi_mac` in `ansible/inventory/hosts.yml` | MACs recorded | Inventory updated |
 | 4.1.3 | On each host via DCUI: Troubleshooting Options → Enable SSH | SSH enabled | `ssh root@<ip>` connects |
 | 4.1.4 | On each host via DCUI: set root password to match 1Password "Lab Bootstrap" item | Password set | SSH login with bootstrap password works |
@@ -186,7 +186,7 @@ The `prepare` command performs these steps on each host via SSH:
 
 | Check | Command / Method | Expected Result |
 |-------|------------------|-----------------|
-| All hosts reachable | `ping 10.0.10.{11..17}` from jumpbox | All respond |
+| All hosts reachable | `ping 10.0.10.{11..17}` from gateway | All respond |
 | DNS resolution | `nslookup esxi-01.lab.dreamfold.dev 10.0.10.1` | Returns correct IP for all hosts |
 | Reverse DNS | `nslookup 10.0.10.11 10.0.10.1` | Returns esxi-01.lab.dreamfold.dev |
 | NTP sync | `esxcli system ntp get` on each host | NTP server configured (10.0.10.1) |
@@ -211,13 +211,13 @@ Verify all DNS records are configured in dnsmasq (done in Phase 1). Forward and 
 
 ### 5.2 Download and Deploy VCF Installer
 
-In VCF 9.0, the SDDC Manager appliance doubles as the VCF Installer (Cloud Builder functionality is consolidated into it). The OVA is downloaded once to the operator's laptop and SCP'd to the jumpbox for each deployment — this avoids re-downloading 2+ GB on every lab rebuild.
+In VCF 9.0, the SDDC Manager appliance doubles as the VCF Installer (Cloud Builder functionality is consolidated into it). The OVA is downloaded once to the operator's laptop and SCP'd to the gateway for each deployment — this avoids re-downloading 2+ GB on every lab rebuild.
 
 | Step | Action | Expected Result | Verification |
 |------|--------|-----------------|--------------|
 | 5.2.1 | Download `VCF-SDDC-Manager-Appliance-9.0.2.0.25151285.ova` (2.03 GB) from support.broadcom.com to operator laptop | OVA saved locally | File exists on laptop |
-| 5.2.2 | SCP OVA from laptop to jumpbox: `scp VCF-SDDC-Manager-Appliance-9.0.2.0.25151285.ova <jumpbox-public-ip>:~/vcf-installer.ova` | OVA on jumpbox | `ls -lh ~/vcf-installer.ova` |
-| 5.2.3 | Upload OVA from jumpbox to esxi-01 datastore via `scp` or ESXi Host Client | OVA available on datastore | Datastore browser shows file |
+| 5.2.2 | SCP OVA from laptop to gateway: `scp VCF-SDDC-Manager-Appliance-9.0.2.0.25151285.ova <gateway-public-ip>:~/vcf-installer.ova` | OVA on gateway | `ls -lh ~/vcf-installer.ova` |
+| 5.2.3 | Upload OVA from gateway to esxi-01 datastore via `scp` or ESXi Host Client | OVA available on datastore | Datastore browser shows file |
 | 5.2.4 | Deploy VCF Installer OVA with IP 10.0.10.3, GW 10.0.10.1, DNS 10.0.10.1 | Appliance deployed | VM powered on |
 | 5.2.5 | Wait for installer services to start (5-10 minutes) | Services ready | `https://vcf-installer.lab.dreamfold.dev` accessible |
 
@@ -312,7 +312,7 @@ Keycloak was deployed in Phase 1 by the `docker_services` role with the lab real
 | Step | Action | Expected Result |
 |------|--------|-----------------|
 | 6.4.1 | In vCenter → Administration → SSO → Configuration → Identity Provider, add OIDC provider | Provider configured |
-| 6.4.2 | Set Discovery Endpoint to `https://jumpbox.lab.dreamfold.dev:8443/realms/lab/.well-known/openid-configuration` | Metadata fetched |
+| 6.4.2 | Set Discovery Endpoint to `https://gateway.lab.dreamfold.dev:8443/realms/lab/.well-known/openid-configuration` | Metadata fetched |
 | 6.4.3 | Set Client ID to `vcenter`, provide client secret from Keycloak admin console | Credentials accepted |
 | 6.4.4 | Map Keycloak groups to vCenter roles | Role mappings created |
 | 6.4.5 | Test SSO login with `lab-admin` user | vCenter dashboard loads |
@@ -365,16 +365,16 @@ For AMD Ryzen/Threadripper physical hosts, also add: `monitor_control.enable_ful
 | 7.2.3 | Configure BGP: ASN 65001, neighbor 10.0.60.1 (ASN 65000), keepalive 60s, hold 180s | BGP configured | — |
 | 7.2.4 | Enable route redistribution (connected subnets, NAT) | Routes advertised | — |
 
-### 7.3 Configure BGP on Jumpbox (FRR)
+### 7.3 Configure BGP on Gateway (FRR)
 
 | Step | Action | Expected Result | Verification |
 |------|--------|-----------------|--------------|
-| 7.3.1 | SSH to jumpbox | CLI access | — |
+| 7.3.1 | SSH to gateway | CLI access | — |
 | 7.3.2 | Verify FRR BGP configuration deployed by Ansible | BGP configured | `vtysh -c 'show ip bgp summary'` |
 | 7.3.3 | Verify BGP adjacency established | Session state: Established | `vtysh -c 'show ip bgp summary'` shows Established |
 | 7.3.4 | Verify route exchange | Routes received from NSX | `vtysh -c 'show ip bgp'` shows VPC prefixes |
 
-#### Jumpbox FRR BGP configuration
+#### Gateway FRR BGP configuration
 
 ```text
 router bgp 65000
@@ -432,9 +432,9 @@ SNAT rule parameters:
 
 | Check | Command / Method | Expected Result |
 |-------|------------------|-----------------|
-| BGP adjacency | `vtysh -c 'show ip bgp summary'` on jumpbox | Established with 10.0.60.2 |
-| Routes from NSX | `vtysh -c 'show ip bgp'` on jumpbox | VPC/overlay prefixes received |
-| Routes from jumpbox | NSX Manager → Networking → Tier-0 → Routing Table | Infrastructure subnets received |
+| BGP adjacency | `vtysh -c 'show ip bgp summary'` on gateway | Established with 10.0.60.2 |
+| Routes from NSX | `vtysh -c 'show ip bgp'` on gateway | VPC/overlay prefixes received |
+| Routes from gateway | NSX Manager → Networking → Tier-0 → Routing Table | Infrastructure subnets received |
 | Edge cluster health | NSX Manager → System → Fabric → Edge Clusters | Both Edges Up |
 | Tier-0 status | NSX Manager → Networking → Tier-0 Gateways | Realised, interfaces Up |
 | VPC status | NSX Manager → VPC overview | vks-vpc shows Realised |
@@ -551,7 +551,7 @@ spec:
 | 8.5.1 | Login to VKS cluster using obtained kubeconfig | Authenticated | `kubectl get nodes` shows 6 nodes |
 | 8.5.2 | Deploy nginx test deployment | Pods running | `kubectl get pods` shows Running |
 | 8.5.3 | Expose via LoadBalancer service | External IP assigned | `kubectl get svc` shows EXTERNAL-IP |
-| 8.5.4 | Access nginx from jumpbox | Page loads | `curl http://<EXTERNAL-IP>` returns nginx welcome |
+| 8.5.4 | Access nginx from gateway | Page loads | `curl http://<EXTERNAL-IP>` returns nginx welcome |
 
 #### Test workload manifest
 
@@ -597,11 +597,11 @@ Final verification checklist before the lab is considered operational.
 
 | # | Check | Method | Expected Result | Pass |
 |---|-------|--------|-----------------|------|
-| 1 | External RDP access | RDP to jumpbox public IP | Desktop loads | ☐ |
+| 1 | External RDP access | RDP to gateway public IP | Desktop loads | ☐ |
 | 2 | DNS forward resolution | `dig @10.0.10.1 vcenter-mgmt.lab.dreamfold.dev` | Returns 10.0.10.4 | ☐ |
 | 3 | DNS reverse resolution | `dig @10.0.10.1 -x 10.0.10.4` | Returns vcenter-mgmt.lab.dreamfold.dev | ☐ |
-| 4 | NTP synchronisation | `chronyc sources` on jumpbox | Upstream servers reachable | ☐ |
-| 5 | CA health | `step ca health` on jumpbox | Returns "ok" | ☐ |
+| 4 | NTP synchronisation | `chronyc sources` on gateway | Upstream servers reachable | ☐ |
+| 5 | CA health | `step ca health` on gateway | Returns "ok" | ☐ |
 | 6 | Inter-VLAN routing | `ping 10.0.20.1` from an ESXi host | Success | ☐ |
 
 ### 9.2 VCF Platform
@@ -619,8 +619,8 @@ Final verification checklist before the lab is considered operational.
 
 | # | Check | Method | Expected Result | Pass |
 |---|-------|--------|-----------------|------|
-| 13 | BGP adjacency | `vtysh -c 'show ip bgp summary'` on jumpbox | Established | ☐ |
-| 14 | Route exchange | `vtysh -c 'show ip bgp'` on jumpbox | VPC prefixes received | ☐ |
+| 13 | BGP adjacency | `vtysh -c 'show ip bgp summary'` on gateway | Established | ☐ |
+| 14 | Route exchange | `vtysh -c 'show ip bgp'` on gateway | VPC prefixes received | ☐ |
 | 15 | Edge cluster health | NSX Manager → Edge Clusters | Both Edges Up | ☐ |
 | 16 | Tier-0 status | NSX Manager → Tier-0 Gateways | Realised | ☐ |
 | 17 | VPC status | NSX Manager → VPC | Realised | ☐ |
