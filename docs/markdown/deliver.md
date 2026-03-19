@@ -35,16 +35,18 @@ The following must be in place before starting Phase 1.
 | 2 | Ubuntu ISO available in vCD Content Hub (`ubuntu-24.04.2-live-server-amd64.iso`), ESXi vApp template available (`[baked]esxi-9.0.2-2514807`) | ☐ |
 | 3 | VCF Installer OVA (`VCF-SDDC-Manager-Appliance-9.0.2.0.25151285.ova`, 2.03 GB) — download from support.broadcom.com to operator laptop (formerly Cloud Builder; consolidated into SDDC Manager appliance in VCF 9.0) | ☐ |
 | 4 | RDP client installed on operator Mac — [Windows App](https://apps.apple.com/app/windows-app/id1295203466) from App Store | ☐ |
+| 5 | VCF offline depot accessible: `curl -s https://depot.vcf-gcp.broadcom.net` returns a response | ☐ |
+| 6 | Operator SSH key pair exists (`~/.ssh/id_ed25519.pub`), or will be generated in Phase 1 | ☐ |
 
 ## 3. Phase 0 — vApp Template (One-Time)
 
-> This phase is performed once to create a reusable baseline. The resulting catalog template persists indefinitely (no lease) and is used as the starting point for every rebuild.
+> This phase is performed once to create a reusable baseline. The resulting catalog template persists indefinitely (no lease) and is used as the starting point for every rebuild. Allow **30–45 minutes** for the full phase, depending on SCP transfer speed.
 
 ### 3.1 Create vCD vApp (Manual)
 
 | Step | Action | Expected Result |
 |------|--------|-----------------|
-| 3.1.1 | Create new vApp in vCloud Director | An empty vApp is created in the target VDC |
+| 3.1.1 | In vCloud Director, navigate to **Data Centers** > target VDC > **vApps** > **New vApp**. Name the vApp `vcf-lab` | An empty vApp is created in the target VDC |
 | 3.1.2 | Add routed network (public) to vApp | External connectivity is available via the public network |
 | 3.1.3 | Add isolated network: name `lab-trunk`, gateway CIDR `192.168.254.1/24`, tick **Allow Guest VLAN** | A trunk-capable internal network is available for VLAN traffic |
 
@@ -52,7 +54,7 @@ The following must be in place before starting Phase 1.
 
 | Step | Action | Expected Result | Verification |
 |------|--------|-----------------|--------------|
-| 3.2.1 | Create Ubuntu 24.04 VM from Content Hub ISO (2 vCPU, 10 GB RAM, 60 GB disk) with NIC1 on Public network, NIC2 on lab-trunk | The gateway VM is created with the specified configuration | The VM is visible in the vApp inventory |
+| 3.2.1 | In the vApp, click **Add VM** > **New**. Select Ubuntu 24.04 ISO from Content Hub (2 vCPU, 10 GB RAM, 60 GB disk). Assign NIC1 to the Public network and NIC2 to `lab-trunk` | The gateway VM is created with the specified configuration | The VM is visible in the vApp inventory |
 | 3.2.2 | Power on and complete Ubuntu installer via vCD console — set server name `gateway`, username `ubuntu`, password from 1Password "Lab Bootstrap" item | Ubuntu 24.04 is installed on the gateway VM | A login prompt appears on the vCD console |
 | 3.2.3 | Run `apt update && apt upgrade -y` to bring the OS up to date | All packages are updated to the latest versions | `apt list --upgradable` shows no pending updates |
 
@@ -68,8 +70,8 @@ The following must be in place before starting Phase 1.
 
 | Step | Action | Expected Result |
 |------|--------|-----------------|
-| 3.4.1 | Clone esxi-01 through esxi-04 from vApp template `[baked]esxi-9.0.2-2514807` (48 vCPU, 128 GB RAM, 40 GB boot Non-Volatile Memory Express (NVMe) + 200 GB vSAN NVMe), both NICs on `lab-trunk` | The four management ESXi VMs are cloning from the template |
-| 3.4.2 | Clone esxi-05 through esxi-07 (same spec), both NICs on `lab-trunk` | The three workload ESXi VMs are cloning from the template |
+| 3.4.1 | In the vApp, click **Add VM** > **From Template**. Select `[baked]esxi-9.0.2-2514807` from the catalog. Create esxi-01 through esxi-04 (48 vCPU, 128 GB RAM, 40 GB boot Non-Volatile Memory Express (NVMe) + 200 GB vSAN NVMe). Assign both NICs to `lab-trunk` | The four management ESXi VMs are cloning from the template |
+| 3.4.2 | Repeat for esxi-05 through esxi-07 (same spec), both NICs on `lab-trunk` | The three workload ESXi VMs are cloning from the template |
 
 ### 3.5 Power Off and Save to Catalog
 
@@ -140,8 +142,8 @@ ansible-galaxy collection install -r ansible/collections/requirements.yml
 | Step | Action | Expected Result | Verification |
 |------|--------|-----------------|--------------|
 | 4.2.1 | In vCD catalog, deploy vApp from template `[baseline]vcf-lab-8vm` | A vApp is created containing all 8 VMs | The vApp is visible with all VMs listed |
-| 4.2.2 | Read back MAC addresses from vCD for all 7 ESXi VMs (vmnic0), update `esxi_mac` in `ansible/inventory/hosts.yml` | MAC addresses are recorded for all 7 ESXi VMs | The inventory file is updated with the new MAC addresses |
-| 4.2.3 | Power on all 8 VMs | All 8 VMs are running | The gateway obtains a public IP via Dynamic Host Configuration Protocol (DHCP) |
+| 4.2.2 | For each ESXi VM in vCD, navigate to the VM > **Hardware** > **NICs** and note the MAC address of NIC 1 (vmnic0). Update the corresponding `esxi_mac` field in `ansible/inventory/hosts.yml` | MAC addresses are recorded for all 7 ESXi VMs | The inventory file is updated with the new MAC addresses |
+| 4.2.3 | Power on all 8 VMs (allow 5–10 minutes for all VMs to complete POST) | All 8 VMs are running | The gateway obtains a public IP via Dynamic Host Configuration Protocol (DHCP) |
 | 4.2.4 | Note gateway public IP: `ip addr show ens160` via vCD console | The public IP address is obtained | — |
 | 4.2.5 | Store gateway IP in 1Password: `op item edit "Lab Bootstrap" ip_address=<gateway-ip>` | The gateway IP is stored in 1Password | `op item get "Lab Bootstrap" --fields ip_address` returns the IP |
 | 4.2.6 | If no SSH key exists, generate one: `ssh-keygen -t ed25519` | An ed25519 key pair is created | `~/.ssh/id_ed25519.pub` exists |
@@ -151,7 +153,7 @@ ansible-galaxy collection install -r ansible/collections/requirements.yml
 
 ### 4.3 Configure Gateway (Automated)
 
-All gateway configuration (VLAN sub-interfaces, dnsmasq DNS/DHCP, chrony NTP, step-ca, XFCE/xrdp, IP masquerading, FRR BGP, Firefox, Keycloak) is automated by the `gateway` and `docker_services` Ansible roles:
+All gateway configuration (VLAN sub-interfaces, dnsmasq DNS/DHCP, chrony NTP, step-ca, XFCE/xrdp, IP masquerading, FRR BGP, Firefox, Keycloak) is automated by the `gateway` and `docker_services` Ansible roles. The playbook takes approximately **10–15 minutes** to complete:
 
 ```bash
 source .venv/bin/activate
@@ -182,12 +184,12 @@ ESXi hosts receive their management IP via DHCP from the gateway dnsmasq (config
 
 | Step | Action | Expected Result | Verification |
 |------|--------|-----------------|--------------|
-| 5.1.1 | On each host via Direct Console User Interface (DCUI): Troubleshooting Options → Enable SSH | SSH is enabled on the host | `ssh root@<ip>` connects successfully |
-| 5.1.2 | On each host via DCUI: set root password to match 1Password "Lab Bootstrap" item | The root password is set | SSH login with the bootstrap password succeeds |
+| 5.1.1 | On each host via Direct Console User Interface (DCUI): press **F2** > **Troubleshooting Options** > **Enable SSH** > **Enter** | SSH is enabled on the host | `ssh root@<ip>` connects successfully |
+| 5.1.2 | On each host via DCUI: press **F2** > **Configure Password** and set the root password to match 1Password "Lab Bootstrap" item | The root password is set | SSH login with the bootstrap password succeeds |
 
 ### 5.2 Prepare Hosts (Automated)
 
-Use the Ansible `esxi_prepare` role to configure all hosts. This sets hostname, DNS, NTP, root password, and prepares vSAN Express Storage Architecture (ESA) in a single operation.
+Use the Ansible `esxi_prepare` role to configure all hosts. This sets hostname, DNS, NTP, root password, and prepares vSAN Express Storage Architecture (ESA) in a single operation. The playbook takes approximately **5–10 minutes** to complete:
 
 ```bash
 cd ansible
@@ -244,8 +246,8 @@ In VCF 9.0, the SDDC Manager appliance doubles as the VCF Installer (Cloud Build
 
 | Step | Action | Expected Result | Verification |
 |------|--------|-----------------|--------------|
-| 6.2.1 | Upload OVA from gateway to esxi-01 datastore: `scp ~/vcf-installer.ova root@esxi-01:…` or ESXi Host Client | The OVA is available on the esxi-01 datastore | The datastore browser shows the OVA file |
-| 6.2.2 | Deploy VCF Installer OVA with IP 10.0.10.3, GW 10.0.10.1, DNS 10.0.10.1 | The VCF Installer appliance is deployed and powered on | The VM is powered on in the ESXi Host Client |
+| 6.2.1 | Upload OVA from gateway to esxi-01 datastore: `scp ~/vcf-installer.ova root@esxi-01.lab.dreamfold.dev:/vmfs/volumes/datastore1/` (alternatively, use ESXi Host Client > **Storage** > **Datastore browser** > **Upload**) | The OVA is available on the esxi-01 datastore | The datastore browser shows the OVA file |
+| 6.2.2 | Deploy VCF Installer OVA via ESXi Host Client: navigate to **Virtual Machines** > **Create / Register VM** > **Deploy a virtual machine from an OVF or OVA file**. Configure networking: IP `10.0.10.3`, subnet mask `255.255.255.0`, gateway `10.0.10.1`, DNS `10.0.10.1` | The VCF Installer appliance is deployed and powered on | The VM is powered on in the ESXi Host Client |
 | 6.2.3 | Wait for installer services to start (5-10 minutes) | All installer services are ready | `https://vcf-installer.lab.dreamfold.dev` is accessible |
 
 #### VCF Deployment Parameter Workbook
@@ -268,6 +270,8 @@ sudo sed -i 's/"jsonUpdatedTime":"[^"]*"/"jsonUpdatedTime":"'"$(date -u +%Y-%m-%
 
 ### 6.3 Run VCF Bringup
 
+> The bringup workflow takes approximately **2–3 hours** to complete end-to-end.
+
 | Step | Action | Expected Result | Verification |
 |------|--------|-----------------|--------------|
 | 6.3.1 | Access VCF Installer UI at `https://vcf-installer.lab.dreamfold.dev` | The VCF Installer login page is displayed | The browser loads the login page |
@@ -283,8 +287,8 @@ sudo sed -i 's/"jsonUpdatedTime":"[^"]*"/"jsonUpdatedTime":"'"$(date -u +%Y-%m-%
 
 | Step | Action | Expected Result | Verification |
 |------|--------|-----------------|--------------|
-| 6.4.1 | Deploy VCF Operations from SDDC Manager | VCF Operations is deployed successfully | `https://vcf-ops.lab.dreamfold.dev` is accessible |
-| 6.4.2 | Deploy VCF Automation from SDDC Manager | VCF Automation is deployed successfully | `https://vcf-auto.lab.dreamfold.dev` is accessible |
+| 6.4.1 | In SDDC Manager, navigate to **Lifecycle Management** > **Deploy** and deploy VCF Operations | VCF Operations is deployed successfully | `https://vcf-ops.lab.dreamfold.dev` is accessible |
+| 6.4.2 | In SDDC Manager, navigate to **Lifecycle Management** > **Deploy** and deploy VCF Automation | VCF Automation is deployed successfully | `https://vcf-auto.lab.dreamfold.dev` is accessible |
 | 6.4.3 | Remove VCF Installer VM (no longer needed) | Resources are reclaimed from the VCF Installer VM | The VM is deleted from the inventory |
 
 ### 6.5 Management Domain Verification
@@ -306,17 +310,17 @@ sudo sed -i 's/"jsonUpdatedTime":"[^"]*"/"jsonUpdatedTime":"'"$(date -u +%Y-%m-%
 
 | Step | Action | Expected Result | Verification |
 |------|--------|-----------------|--------------|
-| 7.1.1 | In SDDC Manager, navigate to Hosts → Commission | The host commission wizard opens | — |
-| 7.1.2 | Add esxi-05, esxi-06, esxi-07 to free pool | The three hosts begin commissioning | Task progress is visible in the SDDC Manager UI |
+| 7.1.1 | In SDDC Manager, navigate to **Inventory** > **Hosts** > **Commission Hosts** | The host commission wizard opens | — |
+| 7.1.2 | Add hosts `esxi-05.lab.dreamfold.dev`, `esxi-06.lab.dreamfold.dev`, `esxi-07.lab.dreamfold.dev` to the free pool. Use credentials from 1Password "ESXi Root" item, set `networkPoolName: mgmt-network-pool` and `storageType: VSAN` | The three hosts begin commissioning | Task progress is visible in the SDDC Manager UI |
 | 7.1.3 | Wait for host validation and commissioning | All three hosts are in the free pool | SDDC Manager shows 3 hosts available in the free pool |
 
 ### 7.2 Create Workload Domain
 
 | Step | Action | Expected Result | Verification |
 |------|--------|-----------------|--------------|
-| 7.2.1 | In SDDC Manager, navigate to Domains → Add Domain | The create domain wizard opens | — |
-| 7.2.2 | Configure workload domain with 3 hosts, vSAN storage | The domain configuration is accepted | Validation passes without errors |
-| 7.2.3 | Specify vcenter-wld (10.0.10.9) and nsx-mgr-wld (10.0.10.10) | The appliance configuration is accepted | — |
+| 7.2.1 | In SDDC Manager, navigate to **Inventory** > **Domains** > **Add Domain** | The create domain wizard opens | — |
+| 7.2.2 | Configure domain name `workload-domain`, cluster name `workload-cluster`, datastore name `workload-vsan-ds`, vSAN ESA enabled, 3 hosts | The domain configuration is accepted | Validation passes without errors |
+| 7.2.3 | Specify appliance FQDNs: `vcenter-wld.lab.dreamfold.dev` (10.0.10.9) and `nsx-mgr-wld.lab.dreamfold.dev` (10.0.10.10) | The appliance configuration is accepted | — |
 | 7.2.4 | Start domain creation | The domain deployment begins | Task progress is visible in the SDDC Manager UI |
 | 7.2.5 | Wait for workload domain deployment (60-90 minutes) | The workload domain is created | SDDC Manager shows the domain as Active |
 
@@ -336,9 +340,9 @@ Keycloak was deployed in Phase 1 by the `docker_services` role with the lab real
 
 | Step | Action | Expected Result |
 |------|--------|-----------------|
-| 7.4.1 | In SDDC Manager → Administration → Identity Providers, register Keycloak as an OIDC provider | The OIDC provider is configured in the Identity Broker |
+| 7.4.1 | In SDDC Manager, navigate to **Administration** > **Single Sign-On** > **Identity Providers** > **Add Identity Provider** > **OpenID Connect** | The OIDC provider is configured in the Identity Broker |
 | 7.4.2 | Set Discovery Endpoint to `https://gateway.lab.dreamfold.dev:8443/realms/lab/.well-known/openid-configuration` | The OIDC metadata is fetched from Keycloak |
-| 7.4.3 | Set Client ID and provide client secret from Keycloak admin console | The client credentials are accepted |
+| 7.4.3 | Set Client ID to `vcf-identity-broker`. Retrieve the client secret from the Keycloak admin console at `https://gateway.lab.dreamfold.dev:8443/admin/master/console/#/lab/clients` | The client credentials are accepted |
 | 7.4.4 | Map Keycloak groups to VCF roles (admin, read-only, etc.) | The role mappings are created |
 | 7.4.5 | Test SSO login with `lab-admin` user via management vCenter | The vCenter dashboard loads after SSO login |
 | 7.4.6 | Test SSO login with `lab-admin` user via NSX Manager | The NSX Manager dashboard loads after SSO login |
@@ -364,19 +368,19 @@ For AMD Ryzen/Threadripper physical hosts, also add: `monitor_control.enable_ful
 
 | Step | Action | Expected Result | Verification |
 |------|--------|-----------------|--------------|
-| 8.1.1 | In workload NSX Manager, navigate to System → Fabric → Edge Clusters | The Edge management page is displayed | — |
-| 8.1.2 | Deploy edge-01 (Large, 8 vCPU, 32 GB RAM) with management IP 10.0.10.20 | The edge-01 VM is deployed and powered on | `ping 10.0.10.20` succeeds |
-| 8.1.3 | Deploy edge-02 (Large) with management IP 10.0.10.21 | The edge-02 VM is deployed and powered on | `ping 10.0.10.21` succeeds |
-| 8.1.4 | Configure Edge Tunnel Endpoint (TEP) interfaces on VLAN 50 (10.0.50.20, 10.0.50.21) | TEP connectivity is established between the Edge nodes | The Edge transport node status shows Up |
-| 8.1.5 | Create Edge cluster with both Edge VMs | The Edge cluster is created with both Edge VMs | NSX Manager shows the Edge cluster as healthy |
+| 8.1.1 | In workload NSX Manager, navigate to **System** > **Fabric** > **Nodes** > **Edge Transport Nodes** > **Add Edge VM** | The Edge management page is displayed | — |
+| 8.1.2 | Deploy edge-01: form factor **Large** (8 vCPU, 32 GB RAM), management IP `10.0.10.20`, host placement on workload cluster, datastore `workload-vsan-ds` | The edge-01 VM is deployed and powered on | `ping 10.0.10.20` succeeds |
+| 8.1.3 | Deploy edge-02: form factor **Large**, management IP `10.0.10.21`, same host/datastore placement | The edge-02 VM is deployed and powered on | `ping 10.0.10.21` succeeds |
+| 8.1.4 | Configure Edge TEP interfaces: edge-01 TEP IP `10.0.50.20`, edge-02 TEP IP `10.0.50.21`, both on VLAN 50 | TEP connectivity is established between the Edge nodes | The Edge transport node status shows Up |
+| 8.1.5 | Navigate to **System** > **Fabric** > **Edge Clusters** > **Add Edge Cluster**. Name: `edge-cluster-01`, add both edge-01 and edge-02 | The Edge cluster is created with both Edge VMs | NSX Manager shows the Edge cluster as healthy |
 
 ### 8.2 Configure Tier-0 Gateway
 
 | Step | Action | Expected Result | Verification |
 |------|--------|-----------------|--------------|
-| 8.2.1 | Create Tier-0 gateway (Active-Standby, linked to Edge cluster) | The NSX Tier-0 Gateway is created | The gateway status shows Realised in NSX Manager |
-| 8.2.2 | Add uplink interface on VLAN 60, IP 10.0.60.2/24 | The uplink interface is configured | The interface status shows Up |
-| 8.2.3 | Configure BGP: ASN 65001, neighbor 10.0.60.1 (ASN 65000), keepalive 60s, hold 180s | BGP peering is configured on the Tier-0 Gateway | — |
+| 8.2.1 | Navigate to **Networking** > **Tier-0 Gateways** > **Add Tier-0 Gateway**. Name: `tier0-gateway`, HA mode: Active-Standby, linked to `edge-cluster-01` | The NSX Tier-0 Gateway is created | The gateway status shows Realised in NSX Manager |
+| 8.2.2 | On the Tier-0, add an uplink interface: IP `10.0.60.2/24`, connected segment on VLAN 60 | The uplink interface is configured | The interface status shows Up |
+| 8.2.3 | On the Tier-0, open the **BGP** tab. Set local ASN `65001`, add neighbor `10.0.60.1` with remote ASN `65000`, keepalive `60`, hold time `180` | BGP peering is configured on the Tier-0 Gateway | — |
 | 8.2.4 | Enable route redistribution (connected subnets, NAT) | Connected and NAT routes are advertised | — |
 
 ### 8.3 Configure BGP on Gateway (FRR)
@@ -407,15 +411,15 @@ router bgp 65000
 
 | Step | Action | Expected Result | Verification |
 |------|--------|-----------------|--------------|
-| 8.4.1 | Create Tier-1 gateway linked to Tier-0 | The NSX Tier-1 Gateway is created and linked to the Tier-0 | The gateway status shows Realised in NSX Manager |
+| 8.4.1 | Navigate to **Networking** > **Tier-1 Gateways** > **Add Tier-1 Gateway**. Name: `tier1-gateway`, linked to `tier0-gateway` | The NSX Tier-1 Gateway is created and linked to the Tier-0 | The gateway status shows Realised in NSX Manager |
 | 8.4.2 | Configure route advertisement (connected subnets, NAT IPs, LB VIPs) | Route advertisements are enabled | — |
 
 ### 8.5 Configure NSX VPC
 
 | Step | Action | Expected Result | Verification |
 |------|--------|-----------------|--------------|
-| 8.5.1 | Create VPC project in NSX Manager | The VPC project is created in NSX Manager | — |
-| 8.5.2 | Create VPC (vks-vpc) with centralised connectivity | The VPC is created with centralised connectivity | The VPC status shows Realised |
+| 8.5.1 | Navigate to **Networking** > **VPC** > **Projects** > **Add Project**. Name: `vks-project` | The VPC project is created in NSX Manager | — |
+| 8.5.2 | Within the project, create a VPC named `vks-vpc` with connectivity mode **Centralised** | The VPC is created with centralised connectivity | The VPC status shows Realised |
 | 8.5.3 | Configure external connectivity via Tier-0 | External routing is configured via the Tier-0 Gateway | — |
 | 8.5.4 | Configure Source Network Address Translation (SNAT) on Tier-0 for outbound VPC traffic | The SNAT rules are active | See SNAT steps below |
 
@@ -462,17 +466,17 @@ SNAT rule parameters:
 | Step | Action | Expected Result | Verification |
 |------|--------|-----------------|--------------|
 | 9.1.1 | In workload vCenter, navigate to Content Libraries | The content library management page is displayed | — |
-| 9.1.2 | Create subscribed library pointing to VMware Kubernetes Runtime (VKr) endpoint | The subscribed content library is created | The sync status shows Active |
+| 9.1.2 | Create subscribed library: name `vkr-content-library`, subscription URL `https://wp-content.vmware.com/v2/latest/lib.json` | The subscribed content library is created | The sync status shows Active |
 | 9.1.3 | Wait for initial sync to complete | VKr images are available in the library | At least one Kubernetes version is listed |
 
 ### 9.2 Enable Supervisor
 
 | Step | Action | Expected Result | Verification |
 |------|--------|-----------------|--------------|
-| 9.2.1 | In workload vCenter, navigate to Workload Management | The Supervisor setup wizard is displayed | — |
-| 9.2.2 | Select workload domain cluster | The workload cluster is selected | — |
-| 9.2.3 | Configure networking: NSX, management network, workload network | The networking stack is configured | — |
-| 9.2.4 | Configure storage: vSAN Default policy | The storage policy is configured | — |
+| 9.2.1 | In workload vCenter, click the hamburger menu > **Workload Management** > **Get Started** | The Supervisor setup wizard is displayed | — |
+| 9.2.2 | Select cluster `workload-cluster`, networking stack **NSX** | The workload cluster is selected | — |
+| 9.2.3 | Configure management network on VLAN 10, workload network linked to `vks-vpc` | The networking stack is configured | — |
+| 9.2.4 | Configure storage policy: `vsan-default-storage-policy` | The storage policy is configured | — |
 | 9.2.5 | Start Supervisor enablement | The Supervisor deployment begins | Task progress is visible in the vCenter UI |
 | 9.2.6 | Wait for Supervisor deployment (30-45 minutes) | The vSphere Supervisor is running | The Supervisor status shows Running |
 
@@ -481,17 +485,17 @@ SNAT rule parameters:
 | Step | Action | Expected Result | Verification |
 |------|--------|-----------------|--------------|
 | 9.3.1 | In workload vCenter, navigate to Workload Management → Namespaces | The namespace management page is displayed | — |
-| 9.3.2 | Create namespace "vks-workloads" | The vks-workloads namespace is created | The namespace status shows Active |
+| 9.3.2 | Create namespace with name `vks-workloads` | The vks-workloads namespace is created | The namespace status shows Active |
 | 9.3.3 | Assign VM classes: best-effort-small, best-effort-medium | The VM classes are assigned to the namespace | The assigned classes are listed under the namespace |
 | 9.3.4 | Assign storage policies: vSAN Default | The storage policy is assigned to the namespace | The assigned policy is listed under the namespace |
-| 9.3.5 | Assign content library: VKS Kubernetes releases | The content library is assigned to the namespace | The assigned library is listed under the namespace |
+| 9.3.5 | Assign content library: `vkr-content-library` | The content library is assigned to the namespace | The assigned library is listed under the namespace |
 
 ### 9.4 Deploy VKS Cluster
 
 | Step | Action | Expected Result | Verification |
 |------|--------|-----------------|--------------|
-| 9.4.1 | Connect to Supervisor API (`kubectl vsphere login`) | Authentication to the Supervisor API succeeds | A kubeconfig file is obtained |
-| 9.4.2 | Switch to vks-workloads namespace | The vks-workloads namespace context is active | `kubectl get ns` shows the namespace |
+| 9.4.1 | Connect to Supervisor API: `kubectl vsphere login --server=<supervisor-ip> --vsphere-username administrator@vsphere.local --insecure-skip-tls-verify` | Authentication to the Supervisor API succeeds | A kubeconfig file is obtained |
+| 9.4.2 | Switch to the vks-workloads namespace: `kubectl config use-context vks-workloads` | The vks-workloads namespace context is active | `kubectl get ns` shows the namespace |
 | 9.4.3 | Apply VKS cluster manifest (Cluster v1beta1) | VKS cluster creation is initiated | `kubectl get cluster` shows Provisioning |
 | 9.4.4 | Wait for control plane nodes (3x) | The control plane is ready with 3 nodes | `kubectl get machines` shows 3 Running |
 | 9.4.5 | Wait for worker nodes (3x) | All 3 worker nodes are ready | `kubectl get machines` shows 6 Running |
