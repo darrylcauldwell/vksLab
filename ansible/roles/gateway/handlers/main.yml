@@ -32,3 +32,9 @@
   ansible.builtin.service:
     name: step-ca
     state: restarted
+
+- name: restart gdm3
+  become: true
+  ansible.builtin.service:
+    name: gdm3
+    state: restarted

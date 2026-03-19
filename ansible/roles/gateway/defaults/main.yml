@@ -5,8 +5,8 @@ gateway_lab_network: "{{ lab_network_prefix }}.0.0/16"
 gateway_vlan_trunk_nic: ens34
 
 gateway_packages:
-  - xfce4
-  - xrdp
+  - ubuntu-desktop-minimal    # GNOME + GDM3 + Wayland
+  - gnome-remote-desktop      # Wayland-native RDP
   - dnsmasq
   - chrony
   - firefox
@@ -14,6 +14,8 @@ gateway_packages:
   - frr
   - jq
   - conky-all
+
+gateway_keyboard_layout: gb
 
 # Smallstep packages (installed from Smallstep apt repo)
 gateway_step_packages:

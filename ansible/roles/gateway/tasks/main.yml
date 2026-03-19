@@ -7,7 +7,7 @@
 #   - CA (step-ca) — internal TLS certificates for all lab components
 #   - NAT/masquerade — outbound internet for nested hosts via the public NIC
 #   - BGP (FRR) — peers with NSX Tier-0 for VKS pod/service route exchange
-#   - RDP (xrdp + XFCE) — remote desktop access for managing web UIs
+#   - RDP (GNOME + gnome-remote-desktop) — Wayland-native remote desktop for managing web UIs
 
 # systemd-resolved binds port 53, preventing dnsmasq from starting.
 # Disable it and point resolv.conf at upstream DNS so apt works.
@@ -99,21 +99,85 @@
     state: started
     enabled: true
 
-- name: Set XFCE as xrdp session
+- name: Configure GDM3 auto-login for ubuntu user
   become: true
   ansible.builtin.copy:
-    content: "xfce4-session\n"
-    dest: /home/ubuntu/.xsession
-    owner: ubuntu
-    group: ubuntu
+    content: |
+      [daemon]
+      AutomaticLoginEnable=true
+      AutomaticLogin=ubuntu
+      WaylandEnable=true
+    dest: /etc/gdm3/custom.conf
+    owner: root
+    group: root
     mode: "0644"
+  register: gdm_config
+  notify: restart gdm3
 
-- name: Enable and start xrdp
+- name: Set keyboard layout
   become: true
-  ansible.builtin.service:
-    name: xrdp
-    state: started
+  ansible.builtin.lineinfile:
+    path: /etc/default/keyboard
+    regexp: '^XKBLAYOUT='
+    line: 'XKBLAYOUT="{{ gateway_keyboard_layout }}"'
+    state: present
+
+# grdctl requires an active GNOME user session (D-Bus + XDG_RUNTIME_DIR).
+# GDM auto-login must be active first, so a reboot is needed between
+# GDM config and GRD config.
+- name: Reboot to start GNOME session
+  become: true
+  ansible.builtin.reboot:
+    reboot_timeout: 300
+  when: gdm_config is changed
+
+- name: Wait for GNOME session to be active
+  become: true
+  ansible.builtin.command: loginctl show-user ubuntu -p State --value
+  register: user_state
+  until: user_state.stdout == "active"
+  retries: 30
+  delay: 5
+  changed_when: false
+
+- name: Enable GRD RDP
+  become: true
+  become_user: ubuntu
+  ansible.builtin.command: grdctl rdp enable
+  environment:
+    XDG_RUNTIME_DIR: /run/user/1000
+    DBUS_SESSION_BUS_ADDRESS: unix:path=/run/user/1000/bus
+  changed_when: true
+
+- name: Set GRD RDP credentials
+  become: true
+  become_user: ubuntu
+  ansible.builtin.command: grdctl rdp set-credentials ubuntu VMware1!
+  environment:
+    XDG_RUNTIME_DIR: /run/user/1000
+    DBUS_SESSION_BUS_ADDRESS: unix:path=/run/user/1000/bus
+  changed_when: true
+
+- name: Disable GRD view-only mode
+  become: true
+  become_user: ubuntu
+  ansible.builtin.command: grdctl rdp disable-view-only
+  environment:
+    XDG_RUNTIME_DIR: /run/user/1000
+    DBUS_SESSION_BUS_ADDRESS: unix:path=/run/user/1000/bus
+  changed_when: true
+
+- name: Enable gnome-remote-desktop systemd user service
+  become: true
+  become_user: ubuntu
+  ansible.builtin.systemd:
+    name: gnome-remote-desktop
+    scope: user
     enabled: true
+    state: started
+  environment:
+    XDG_RUNTIME_DIR: /run/user/1000
+    DBUS_SESSION_BUS_ADDRESS: unix:path=/run/user/1000/bus
 
 # SSH config for all lab hosts — `ssh esxi-01` just works
 - name: Create .ssh directory
@@ -170,7 +234,7 @@
     group: ubuntu
     mode: "0644"
 
-- name: Create XFCE autostart directory
+- name: Create GNOME autostart directory
   become: true
   ansible.builtin.file:
     path: /home/ubuntu/.config/autostart
