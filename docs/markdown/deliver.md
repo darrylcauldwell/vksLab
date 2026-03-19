@@ -63,7 +63,7 @@ The following must be in place before starting Phase 1.
 | Step | Action | Expected Result | Verification |
 |------|--------|-----------------|--------------|
 | 3.3.1 | Download `VCF-SDDC-Manager-Appliance-9.0.2.0.25151285.ova` (2.03 GB) from support.broadcom.com to operator laptop | The OVA file is saved to the operator laptop | The file exists on the operator laptop |
-| 3.3.2 | Note public IP assigned by DHCP to NIC1 (ens160): `ip addr show ens160` | The public IP address is obtained | — |
+| 3.3.2 | Note public IP assigned by DHCP to NIC1 (ens33): `ip addr show ens33` | The public IP address is obtained | — |
 | 3.3.3 | SCP OVA from laptop to gateway: `scp VCF-SDDC-Manager-Appliance-9.0.2.0.25151285.ova ubuntu@<gateway-ip>:~/vcf-installer.ova` | The OVA file is transferred to the gateway | `ls -lh ~/vcf-installer.ova` shows 2.03 GB |
 
 ### 3.4 Clone ESXi VMs (Manual in vCD)
@@ -145,7 +145,7 @@ ansible-galaxy collection install -r ansible/collections/requirements.yml
 | 4.2.1 | In vCD catalog, deploy vApp from template `[baseline]vcf-9.0.2-lab-8vm` | A vApp is created containing all 8 VMs | The vApp is visible with all VMs listed |
 | 4.2.2 | For each ESXi VM in vCD, navigate to the VM > **Hardware** > **NICs** and note the MAC address of NIC 1 (vmnic0). Update the corresponding `esxi_mac` field in `ansible/inventory/hosts.yml` | MAC addresses are recorded for all 7 ESXi VMs | The inventory file is updated with the new MAC addresses |
 | 4.2.3 | Power on all 8 VMs (allow 5–10 minutes for all VMs to complete POST) | All 8 VMs are running | The gateway obtains a public IP via Dynamic Host Configuration Protocol (DHCP) |
-| 4.2.4 | Note gateway public IP: `ip addr show ens160` via vCD console | The public IP address is obtained | — |
+| 4.2.4 | Note gateway public IP: `ip addr show ens33` via vCD console | The public IP address is obtained | — |
 | 4.2.5 | Store gateway IP in 1Password: `op item edit "Lab Bootstrap" ip_address=<gateway-ip>` | The gateway IP is stored in 1Password | `op item get "Lab Bootstrap" --fields ip_address` returns the IP |
 | 4.2.6 | If no SSH key exists, generate one: `ssh-keygen -t ed25519` | An ed25519 key pair is created | `~/.ssh/id_ed25519.pub` exists |
 | 4.2.7 | Copy SSH key to gateway: `ssh-copy-id ubuntu@<gateway-ip>` | The SSH public key is deployed to the gateway | `ssh ubuntu@<gateway-ip>` connects without a password prompt |
@@ -170,8 +170,8 @@ ansible-playbook playbooks/phase1_foundation.yml
 | Gateway DNS | `dig @10.0.10.1 gateway.lab.dreamfold.dev` | The query returns 10.0.10.1 |
 | Gateway NTP | `chronyc sources` | Chrony shows upstream NTP servers synchronised |
 | Gateway CA | `step ca health` | The health check returns "ok" |
-| Management IP | `ip addr show ens192` on gateway | The interface shows 10.0.10.1/24 on the native (untagged) VLAN |
-| VLAN sub-interfaces | `ip addr show ens192.20` on gateway | The sub-interface shows 10.0.20.1/24 (vMotion) |
+| Management IP | `ip addr show ens34` on gateway | The interface shows 10.0.10.1/24 on the native (untagged) VLAN |
+| VLAN sub-interfaces | `ip addr show ens34.20` on gateway | The sub-interface shows 10.0.20.1/24 (vMotion) |
 | Inter-VLAN routing | `ping 10.0.20.1` from a host on VLAN 10 | The ping succeeds |
 | FRR BGP | `vtysh -c 'show ip bgp summary'` on gateway | The FRR BGP process is running and shows neighbour status |
 
@@ -663,7 +663,7 @@ This section covers the most common failures encountered during each deployment 
 | Symptom | Cause | Resolution |
 |---------|-------|------------|
 | vApp creation fails with storage quota error | The VDC storage policy quota is insufficient for the 8-VM vApp | Request a storage quota increase from the vCD provider administrator |
-| SCP transfer of the OVA stalls or times out | The vCD public network has bandwidth limits or the gateway VM is not fully booted | Verify the gateway has a public IP (`ip addr show ens160`), retry with `scp -C` for compression, or use `rsync --partial` for resumable transfers |
+| SCP transfer of the OVA stalls or times out | The vCD public network has bandwidth limits or the gateway VM is not fully booted | Verify the gateway has a public IP (`ip addr show ens33`), retry with `scp -C` for compression, or use `rsync --partial` for resumable transfers |
 | "Add to Catalog" fails or times out | The target storage policy does not have enough free capacity, or the catalog has a permissions issue | Verify the storage policy `ProvisioningStoragePolicy-provider01` has sufficient free space in the vCD provider portal |
 
 For additional troubleshooting, see [Operations Guide](operate.md) Section 4.

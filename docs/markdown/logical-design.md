@@ -124,16 +124,16 @@ The Ubuntu gateway is dual-homed:
 - **NIC1** (vCD public network): externally reachable via RDP/SSH
 - **NIC2** (vCD private network): connects to the internal lab fabric on the management VLAN
 
-All other lab VMs have a single NIC on the vCD private network. The gateway performs IP forwarding and inter-VLAN routing via VLAN sub-interfaces on ens192.
+All other lab VMs have a single NIC on the vCD private network. The gateway performs IP forwarding and inter-VLAN routing via VLAN sub-interfaces on ens34.
 
 ### Gateway Routing (FRR)
 
-The gateway has a trunk interface (ens192, Maximum Transmission Unit (MTU) 9000) on the vCD private network carrying all VCF VLANs via 802.1Q sub-interfaces. It provides:
+The gateway has a trunk interface (ens34, Maximum Transmission Unit (MTU) 9000) on the vCD private network carrying all VCF VLANs via 802.1Q sub-interfaces. It provides:
 
 - **Inter-VLAN routing** between management, vMotion, and other VCF networks via VLAN sub-interfaces
 - **BGP peering** with the NSX Tier-0 gateway for north-south routing from VPC workloads (via FRR)
 - **Default gateway** for nested ESXi management interfaces
-- **NAT** for outbound internet access via iptables masquerade on ens160
+- **NAT** for outbound internet access via iptables masquerade on ens33
 
 ### VLAN Segmentation Strategy
 
@@ -570,7 +570,7 @@ Infrastructure VLANs (10.0.10–60.0/24)
 4. Tier-0 gateway forwards via uplink on VLAN 60 to next-hop 10.0.60.1 (gateway)
    │
    ▼ NAT: source 10.0.x.x → gateway public IP (iptables masquerade)
-5. Gateway masquerades source IP via iptables and forwards via ens160 (public NIC) → internet
+5. Gateway masquerades source IP via iptables and forwards via ens33 (public NIC) → internet
 ```
 
 #### North-South: Internet → Pod (Ingress via LoadBalancer)
@@ -602,7 +602,7 @@ Infrastructure VLANs (10.0.10–60.0/24)
 | ESXi host → Edge VM | Geneve tunnel (VLAN 40 → VLAN 50) | NSX overlay, MTU 9000 required |
 | Edge VM → Tier-0 uplink | Standard Ethernet (VLAN 60) | Geneve decapsulated at Edge; MTU 1500 |
 | Tier-0 uplink → Gateway | Standard Ethernet (VLAN 60) | Routed L3, no encapsulation |
-| Gateway ens192.60 → ens160 | IP forwarding + iptables masquerade | NAT for internet-bound |
+| Gateway ens34.60 → ens33 | IP forwarding + iptables masquerade | NAT for internet-bound |
 
 ### Design Decisions
 

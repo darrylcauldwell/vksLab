@@ -75,7 +75,7 @@ date: "March 2026"
 
 | IP Address | Role |
 |------------|------|
-| 10.0.60.1 | Gateway ens192.60 (BGP neighbor) |
+| 10.0.60.1 | Gateway ens34.60 (BGP neighbor) |
 | 10.0.60.2 | NSX Tier-0 uplink interface |
 
 ## 3. Ubuntu Gateway Specification
@@ -96,14 +96,14 @@ date: "March 2026"
 
 See [Delivery Guide](deliver.md) for netplan configuration. Key parameters:
 
-- NIC1 (ens160): vCD public network, DHCP
-- NIC2 (ens192): vCD private network, 802.1Q trunk (MTU 9000)
-  - ens192: 10.0.10.1/24 (Management, native/untagged — ESXi DHCP works without VLAN config)
-  - ens192.20: 10.0.20.1/24 (vMotion, MTU 9000)
-  - ens192.30: 10.0.30.1/24 (vSAN, MTU 9000)
-  - ens192.40: 10.0.40.1/24 (Host Overlay, MTU 9000)
-  - ens192.50: 10.0.50.1/24 (Edge Overlay, MTU 9000)
-  - ens192.60: 10.0.60.1/24 (Edge Uplink / BGP, MTU 1500)
+- NIC1 (ens33): vCD public network, DHCP
+- NIC2 (ens34): vCD private network, 802.1Q trunk (MTU 9000)
+  - ens34: 10.0.10.1/24 (Management, native/untagged — ESXi DHCP works without VLAN config)
+  - ens34.20: 10.0.20.1/24 (vMotion, MTU 9000)
+  - ens34.30: 10.0.30.1/24 (vSAN, MTU 9000)
+  - ens34.40: 10.0.40.1/24 (Host Overlay, MTU 9000)
+  - ens34.50: 10.0.50.1/24 (Edge Overlay, MTU 9000)
+  - ens34.60: 10.0.60.1/24 (Edge Uplink / BGP, MTU 1500)
 - IP forwarding enabled — gateway is the inter-VLAN router
 - FRR provides BGP peering with NSX Tier-0
 
@@ -125,7 +125,7 @@ All VCF components point to 10.0.10.1 for DNS and NTP. systemd-resolved is disab
 
 **CA certificate distribution**: The step-ca root certificate is fetched from the gateway to the Ansible controller during Phase 1, then pushed to each ESXi host during Phase 2 via `ansible.builtin.copy` and imported with `esxcli security cert import`. See [Logical Design](logical-design.md) SVC-10 and "Certificate Distribution" for details.
 
-**DNS configuration**: dnsmasq listens on the VLAN 10 sub-interface (ens192.10) for lab DNS/DHCP. The gateway's own `/etc/resolv.conf` points to upstream DNS (192.19.189.20) — not through its own dnsmasq — so that package installation and external resolution work independently of dnsmasq state.
+**DNS configuration**: dnsmasq listens on ens34 (management VLAN 10, native/untagged) for lab DNS/DHCP. The gateway's own `/etc/resolv.conf` points to upstream DNS (192.19.189.20) — not through its own dnsmasq — so that package installation and external resolution work independently of dnsmasq state.
 
 ### Dynamic Host Configuration Protocol (DHCP) Reservations (VLAN 10)
 
@@ -312,14 +312,14 @@ After NSX networking is configured and BGP is established, the following routes 
 #### Gateway Route Table (`ip route` / `vtysh -c 'show ip bgp'`)
 
 ```text
-default via <public-gw> dev ens160              ← internet via public NIC
+default via <public-gw> dev ens33              ← internet via public NIC
 
-10.0.10.0/24 dev ens192.10 scope link           ← Management
-10.0.20.0/24 dev ens192.20 scope link           ← vMotion
-10.0.30.0/24 dev ens192.30 scope link           ← vSAN
-10.0.40.0/24 dev ens192.40 scope link           ← Host Overlay
-10.0.50.0/24 dev ens192.50 scope link           ← Edge Overlay
-10.0.60.0/24 dev ens192.60 scope link           ← Edge Uplink / BGP
+10.0.10.0/24 dev ens34 scope link              ← Management (native VLAN)
+10.0.20.0/24 dev ens34.20 scope link           ← vMotion
+10.0.30.0/24 dev ens34.30 scope link           ← vSAN
+10.0.40.0/24 dev ens34.40 scope link           ← Host Overlay
+10.0.50.0/24 dev ens34.50 scope link           ← Edge Overlay
+10.0.60.0/24 dev ens34.60 scope link           ← Edge Uplink / BGP
 
 # BGP routes (vtysh -c 'show ip bgp'):
 B>   192.168.0.0/16 [20/0] via 10.0.60.2           ← VKS pod CIDR (from NSX Tier-0)

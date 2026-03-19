@@ -1,7 +1,7 @@
 ---
 # Phase 1 — Gateway configuration
 # The gateway is the single entry point for the entire nested lab. It provides:
-#   - Inter-VLAN routing via VLAN sub-interfaces on ens192
+#   - Inter-VLAN routing via VLAN sub-interfaces on ens34
 #   - DNS (dnsmasq) for lab.dreamfold.dev with DHCP reservations for ESXi hosts
 #   - NTP (chrony) — all VCF components sync time from the gateway
 #   - CA (step-ca) — internal TLS certificates for all lab components
@@ -40,8 +40,8 @@
     name: "{{ gateway_packages }}"
     state: present
 
-# Netplan configures the public NIC (ens160, DHCP) and six VLAN sub-interfaces
-# on ens192 for management, vMotion, vSAN, host overlay, edge overlay, and
+# Netplan configures the public NIC (ens33, DHCP) and six VLAN sub-interfaces
+# on ens34 for management, vMotion, vSAN, host overlay, edge overlay, and
 # edge uplink networks. MTU 9000 on storage/overlay VLANs.
 - name: Deploy netplan configuration
   become: true
@@ -54,7 +54,7 @@
   register: netplan_result
 
 # Apply netplan immediately — VLAN sub-interfaces must be up before
-# dnsmasq (binds to ens192.10) and step-ca (listens on VLAN IPs).
+# dnsmasq (binds to ens34) and step-ca (listens on VLAN IPs).
 - name: Apply netplan now
   become: true
   ansible.builtin.command: netplan apply

@@ -1,8 +1,8 @@
 gateway_ip: "{{ lab_mgmt_prefix }}.1"
-gateway_private_nic: ens192
-gateway_public_nic: ens160
+gateway_private_nic: ens34
+gateway_public_nic: ens33
 gateway_lab_network: "{{ lab_network_prefix }}.0.0/16"
-gateway_vlan_trunk_nic: ens192
+gateway_vlan_trunk_nic: ens34
 
 gateway_packages:
   - xfce4
@@ -21,7 +21,7 @@ gateway_step_packages:
   - step-ca
 
 # VLAN sub-interface configuration
-# Management (VLAN 10) is the native/untagged VLAN on ens192 — no sub-interface.
+# Management (VLAN 10) is the native/untagged VLAN on ens34 — no sub-interface.
 # This allows ESXi hosts to DHCP without VLAN tagging on their management port group.
 gateway_vlan_interfaces:
   - {vlan: 20, description: vMotion, ip: "{{ lab_vmotion_prefix }}.1/24", mtu: 9000}

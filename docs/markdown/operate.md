@@ -350,7 +350,7 @@ op item list --vault "VKS Lab"
 | Symptom | Possible Cause | Resolution |
 |---------|---------------|------------|
 | Cannot resolve lab hostnames | dnsmasq not running | `sudo systemctl restart dnsmasq` on gateway |
-| Upstream DNS fails | Gateway external NIC issue | Check ens160 connectivity; verify upstream DNS servers |
+| Upstream DNS fails | Gateway external NIC issue | Check ens33 connectivity; verify upstream DNS servers |
 | Stale records | dnsmasq config not reloaded | Edit config, then `sudo systemctl restart dnsmasq` |
 | VCF bringup DNS timeouts | IPv6 AAAA query delays | Lab is IPv4-only; AAAA queries to upstream servers can cause resolution delays. If bringup fails with DNS timeouts, check `/var/log/syslog` for slow AAAA responses and consider adding `filter-AAAA` to dnsmasq config (requires dnsmasq compiled with `--enable-filter-aaaa`) |
 
@@ -361,7 +361,7 @@ op item list --vault "VKS Lab"
 | ESXi host not getting IP | MAC address mismatch | Verify MAC in vCD matches `dhcp-host` entry in `/etc/dnsmasq.d/lab.conf`; restart dnsmasq |
 | Host gets wrong IP | Duplicate DHCP reservation | Check for duplicate MAC entries in dnsmasq config |
 | DHCP lease expired | Host powered off too long | Restart dnsmasq; host will get new lease on next boot |
-| No DHCP offers | dnsmasq not listening on VLAN 10 | Verify dnsmasq is bound to ens192.10 (management VLAN sub-interface); check `dhcp-range` config |
+| No DHCP offers | dnsmasq not listening on VLAN 10 | Verify dnsmasq is bound to ens34 (management VLAN, native/untagged); check `dhcp-range` config |
 
 #### 1Password Issues
 
@@ -480,7 +480,7 @@ vCenter → Cluster → Monitor → vSAN → Performance
 
 ```bash
 # Check all VLAN sub-interfaces
-ip addr show | grep ens192
+ip addr show | grep ens34
 
 # Check routing table
 ip route
