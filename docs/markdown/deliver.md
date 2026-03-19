@@ -652,3 +652,85 @@ Final verification checklist before the lab is considered operational.
 | 20 | All nodes ready | `kubectl get nodes` on VKS cluster | All 6 nodes show Ready status | ☐ |
 | 21 | Test workload | `curl http://<nginx-lb-ip>` | The nginx welcome page is returned | ☐ |
 | 22 | Pod-to-external | `kubectl exec` into pod, `curl google.com` | A response is received from the external site | ☐ |
+
+## 11. Per-Phase Troubleshooting
+
+This section covers the most common failures encountered during each deployment phase. For ongoing operational troubleshooting procedures, see [Operations Guide](operate.md) Section 4.
+
+### 11.1 Phase 0 — vApp Template
+
+| Symptom | Cause | Resolution |
+|---------|-------|------------|
+| vApp creation fails with storage quota error | The VDC storage policy quota is insufficient for the 8-VM vApp | Request a storage quota increase from the vCD provider administrator |
+| SCP transfer of the OVA stalls or times out | The vCD public network has bandwidth limits or the gateway VM is not fully booted | Verify the gateway has a public IP (`ip addr show ens160`), retry with `scp -C` for compression, or use `rsync --partial` for resumable transfers |
+| "Add to Catalog" fails or times out | The target storage policy does not have enough free capacity, or the catalog has a permissions issue | Verify the storage policy `ProvisioningStoragePolicy-provider01` has sufficient free space in the vCD provider portal |
+
+For additional troubleshooting, see [Operations Guide](operate.md) Section 4.
+
+### 11.2 Phase 1 — Foundation
+
+| Symptom | Cause | Resolution |
+|---------|-------|------------|
+| Ansible SSH connection to gateway fails with "Permission denied" | The SSH key was not copied, or the gateway IP changed after reboot | Re-run `ssh-copy-id ubuntu@<gateway-ip>` and verify the IP matches the 1Password "Lab Bootstrap" item |
+| dnsmasq fails to start — port 53 already in use | `systemd-resolved` is binding port 53 on the gateway | The Ansible `gateway` role disables `systemd-resolved`; if running manually, stop it first: `sudo systemctl disable --now systemd-resolved` |
+| FRR service fails to start | The FRR configuration file has a syntax error, or the FRR package is not installed | Check FRR status with `sudo systemctl status frr` and review `/etc/frr/frr.conf` for syntax errors |
+| Keycloak container fails to start | The TLS certificates from step-ca have not been generated, or Docker is not running | Verify Docker is running (`sudo systemctl status docker`) and that certificates exist at `/etc/step-ca/certs/keycloak.crt` |
+
+For additional troubleshooting, see [Operations Guide](operate.md) Section 4.
+
+### 11.3 Phase 2 — Nested ESXi
+
+| Symptom | Cause | Resolution |
+|---------|-------|------------|
+| DHCP does not assign an IP to an ESXi host | The MAC address in `ansible/inventory/hosts.yml` does not match the vCD-assigned MAC | Read back the MAC from vCD (VM > **Hardware** > **NICs**) and update the inventory file, then restart dnsmasq on the gateway: `sudo systemctl restart dnsmasq` |
+| SSH to ESXi host is refused | SSH was not enabled via DCUI, or the ESXi firewall is blocking connections | Re-enable SSH via DCUI (**F2** > **Troubleshooting Options** > **Enable SSH**) |
+| NVMe device is not marked as SSD after running the playbook | The `esxi_prepare` role did not execute the SSD marking step, or the ESXi host was rebooted after preparation | Re-run `ansible-playbook playbooks/phase2_esxi.yml --limit <host>` and verify with `esxcli vsan storage list` |
+| vSAN ESA health check shows "disk not claimed" | The NVMe device was not tagged for vSAN use | Run `esxcli vsan storage tag add -d <device-id> -t capacityFlash` on the affected host |
+
+For additional troubleshooting, see [Operations Guide](operate.md) Section 4.
+
+### 11.4 Phase 3 — VCF Management Domain
+
+| Symptom | Cause | Resolution |
+|---------|-------|------------|
+| VCF Installer UI is not accessible at `https://vcf-installer.lab.dreamfold.dev` | The installer services are still starting (can take 5–10 minutes after power-on) | Wait for services to finish initialising. SSH to the installer and check: `systemctl status vmware-bringup` |
+| Bringup fails with HCL timestamp validation error | The embedded vSAN HCL file (`all.json`) is more than 90 days old | Patch the timestamp as described in Section 6.2 (Troubleshooting: vSAN HCL Timestamp Validation) |
+| Bringup stalls on DNS resolution — "AAAA record delay" | dnsmasq is returning AAAA (IPv6) records that cause lookup delays in the bringup workflow | Add `dns-option:no-aaaa` to the dnsmasq configuration on the gateway, then restart dnsmasq |
+| vSAN cluster creation fails with "FakeSCSIReservations not enabled" | The `Disk.FakeSCSIReservations` advanced setting was not applied on one or more management hosts | SSH to the affected host and run: `esxcli system settings advanced set -o /Disk/FakeSCSIReservations -i 1`, then reboot the host |
+| Bringup times out waiting for SDDC Manager deployment | The VCF Installer VM has insufficient resources or network connectivity issues | Verify the installer VM can ping all management hosts and the DNS server. Check `/var/log/vmware/vcf/bringup/` logs on the installer for specific errors |
+
+For additional troubleshooting, see [Operations Guide](operate.md) Section 4.
+
+### 11.5 Phase 4 — VCF Workload Domain
+
+| Symptom | Cause | Resolution |
+|---------|-------|------------|
+| Host commission validation fails — "host not reachable" | DNS or network connectivity issues between SDDC Manager and the workload hosts | Verify forward and reverse DNS records for esxi-05 through esxi-07, and confirm `ping` succeeds from the SDDC Manager appliance |
+| Domain creation fails — "insufficient hosts" | Fewer than 3 hosts are in the free pool, or one host failed commissioning | Check the SDDC Manager **Inventory** > **Hosts** page for failed hosts, resolve the issue, and re-commission |
+| Domain creation fails with IP conflict | The vCenter or NSX Manager IP (10.0.10.9 or 10.0.10.10) is already in use | Verify no other VM is using these IPs with `ping` from the gateway. Check dnsmasq DHCP leases for conflicts |
+
+For additional troubleshooting, see [Operations Guide](operate.md) Section 4.
+
+### 11.6 Phase 5 — NSX Networking
+
+| Symptom | Cause | Resolution |
+|---------|-------|------------|
+| Edge VM deployment fails with "PDPE1GB CPU instruction not available" | The nested ESXi host VM does not expose 1GB hugepage support | Add the VM Advanced Setting `featMask.vm.cpuid.PDPE1GB = Val:1` to each ESXi host VM in vCD, then power-cycle the host |
+| Edge OVF deployment fails with `VALIDATION_ERROR: CERTIFICATE_EXPIRED` | The NSX Edge OVF certificate has expired | Follow VMware KB 424034 to replace the expired OVF certificate, then retry Edge deployment |
+| BGP session is stuck in Active state (not Established) | Timer mismatch between FRR and NSX Tier-0, or the uplink VLAN segment is misconfigured | Verify both sides use keepalive `60` / hold `180`. Check that the Tier-0 uplink interface IP (`10.0.60.2`) and the FRR neighbor IP (`10.0.60.1`) are on the same VLAN 60 segment. Confirm with `vtysh -c 'show ip bgp summary'` on the gateway |
+| SNAT rules are not working — pods cannot reach external networks | The SNAT rules are not applied to the correct Tier-0 uplink interface, or the source CIDR does not match the VKS cluster CIDRs | Verify the SNAT rules in NSX Manager > **Networking** > **NAT** > `tier0-gateway`. Ensure the source CIDRs match `192.168.0.0/16` (pods) and `10.96.0.0/12` (services), and "Applied To" is set to the Tier-0 uplink interface |
+| Edge transport node status shows "Degraded" | TEP connectivity issue — the Edge TEP VLAN or IP is misconfigured | Verify Edge TEP IPs (`10.0.50.20`/`10.0.50.21`) are on VLAN 50, and that the gateway can ping both TEP addresses |
+
+For additional troubleshooting, see [Operations Guide](operate.md) Section 4.
+
+### 11.7 Phase 6 — VKS
+
+| Symptom | Cause | Resolution |
+|---------|-------|------------|
+| Content library sync fails — "unable to connect to subscription URL" | The gateway cannot reach `https://wp-content.vmware.com` due to DNS or firewall issues | Verify external DNS resolution from the gateway: `dig wp-content.vmware.com`. Ensure NAT/masquerading is active: `sudo iptables -t nat -L POSTROUTING` |
+| Supervisor enablement stalls at "Configuring" for more than 45 minutes | The NSX VPC or Edge cluster is unhealthy, preventing the Supervisor from creating its networking stack | Check NSX Manager for VPC and Edge cluster health. Verify the Tier-0 and Tier-1 gateways show Realised status. Review vCenter > **Workload Management** > **Supervisor** > **Events** for specific errors |
+| VKS cluster is stuck in "Provisioning" state | The VM class is not assigned to the namespace, or the content library does not contain a compatible Kubernetes version | Verify VM classes (best-effort-small, best-effort-medium) and the content library (`vkr-content-library`) are assigned to the `vks-workloads` namespace. Check `kubectl describe cluster vks-cluster-01` for event details |
+| LoadBalancer service has no EXTERNAL-IP (shows `<pending>`) | The NSX VPC load balancer is not provisioned, or SNAT rules prevent return traffic | Verify the VPC has an active load balancer. Check SNAT rules on the Tier-0 Gateway. Review `kubectl describe svc nginx-test` for events indicating the failure reason |
+| Pods are running but cannot reach external networks | SNAT rules are missing or the BGP route exchange is not working | Verify SNAT rules are Active in NSX Manager. Check BGP adjacency on the gateway (`vtysh -c 'show ip bgp summary'`). Test from inside a pod: `kubectl exec -it <pod> -- curl -v http://10.0.10.1` to confirm gateway reachability |
+
+For additional troubleshooting, see [Operations Guide](operate.md) Section 4.
