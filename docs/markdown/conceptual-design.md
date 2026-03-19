@@ -9,12 +9,12 @@ date: "March 2026"
 
 ## 1. Purpose & Objectives
 
-Demonstrate VMware Kubernetes Service (VKS) on VCF 9 with NSX VPC in a fully nested lab environment hosted on vCloud Director. The lab provides a self-contained platform for exploring Supervisor clusters, VKS cluster lifecycle, and NSX VPC networking — all within a single vApp.
+Demonstrate vSphere Kubernetes Services (VKS) on VMware Cloud Foundation (VCF) 9 with VCF Networking (NSX) VPC in a fully nested lab environment hosted on vCloud Director. The lab provides a self-contained platform for exploring vSphere Supervisor clusters, VKS cluster lifecycle, and NSX VPC networking — all within a single vApp.
 
 ## 2. Target Audience
 
 - VMware platform engineers evaluating VCF 9 + VKS
-- Network engineers exploring NSX VPC and BGP integration
+- Network engineers exploring NSX VPC and Border Gateway Protocol (BGP) integration
 - Anyone needing a portable nested VCF environment for testing
 
 ## 3. Key Capabilities
@@ -31,11 +31,11 @@ Demonstrate VMware Kubernetes Service (VKS) on VCF 9 with NSX VPC in a fully nes
 |-------|-------------|
 | R-001 | Lab MUST be hosted entirely within a single vCloud Director vApp |
 | R-002 | Lab MUST provide remote access via RDP to a management gateway |
-| R-003 | Lab MUST provide DNS, NTP, and CA services on the gateway |
+| R-003 | Lab MUST provide Domain Name System (DNS), Network Time Protocol (NTP), and Certificate Authority (CA) services on the gateway |
 | R-004 | Lab MUST deploy two VCF domains — management and workload |
 | R-005 | Lab MUST deploy a VKS cluster via Supervisor with NSX VPC networking |
-| R-006 | Lab MUST provide BGP peering between NSX Tier-0 and a virtual router for north-south routing |
-| R-007 | Lab SHOULD use vSAN ESA with FTT=1 for all clusters |
+| R-006 | Lab MUST provide BGP peering between NSX Tier-0 Gateway and a virtual router for north-south routing |
+| R-007 | Lab SHOULD use vSAN Express Storage Architecture (ESA) with Failures to Tolerate (FTT)=1 for all clusters |
 | R-008 | Lab SHOULD use NSX VPC with centralised Edge connectivity |
 | R-009 | All TLS certificates SHOULD be issued by the internal step-ca CA |
 | R-010 | Lab MAY be powered off, snapshot, and redeployed as a single vApp |
@@ -68,7 +68,7 @@ The lab is designed to be **disposable and reproducible**. The delivery guide en
 
 | ID    | Assumption |
 |-------|------------|
-| A-001 | The vCloud Director provider supports nested virtualisation and jumbo frames (MTU 9000) |
+| A-001 | The vCloud Director provider supports nested virtualisation and jumbo frames (Maximum Transmission Unit (MTU) 9000) |
 | A-002 | Sufficient vCD resources are available (338 vCPU, 906 GB RAM, 1.5 TB storage) |
 | A-003 | VCF offline depot is reachable at `depot.vcf-gcp.broadcom.net` |
 | A-004 | The lab.dreamfold.dev DNS zone is delegated or used internally only |
@@ -89,13 +89,13 @@ The lab requires DNS, NTP, and a certificate authority (CA). These services run 
 
 ### Layer 3 Routing
 
-A virtual router provides inter-VLAN routing across all VCF network segments. It also participates in BGP peering with the NSX Tier-0 gateway, enabling north-south connectivity from VPC workloads out through the lab to external networks.
+A virtual router provides inter-Virtual LAN (VLAN) routing across all VCF network segments. It also participates in BGP peering with the NSX Tier-0 Gateway via Free Range Routing (FRR), enabling north-south connectivity from VPC workloads out through the lab to external networks.
 
 ### VCF Domains
 
 Two VCF domains provide separation of concerns:
 
-- **Management domain** — hosts VCF management components (vCenter, SDDC Manager, NSX Manager, VCF Operations, VCF Automation)
+- **Management domain** — hosts VCF management components (vCenter, Software-Defined Data Center (SDDC) Manager, NSX Manager, VCF Operations, VCF Automation)
 - **Workload domain** — hosts the NSX Edge cluster, Supervisor, and VKS workloads
 
 ### VKS Cluster
@@ -105,32 +105,32 @@ A VKS cluster deployed via the Supervisor demonstrates Kubernetes lifecycle mana
 ## 9. Conceptual Architecture
 
 ```
-                         ┌──────────────────────────────────┐
-                         │          vCloud Director          │
-                         │            (vApp)                 │
-                         │                                   │
-    External Access ────►│  ┌──────────┐                     │
-                         │  │ Gateway  │                     │
-                         │  │ DNS/NTP  │                     │
-                         │  │ CA       │                     │
-                         │  └────┬─────┘                     │
-                         │       │                           │
-                         │  ┌────┴─────┐                     │
-                         │  │ Virtual  │                     │
-                         │  │ Router   │◄─── BGP ──┐         │
-                         │  └────┬─────┘           │         │
-                         │       │                 │         │
-                         │  ┌────┴──────────┐  ┌───┴──────┐  │
-                         │  │  Management   │  │ Workload │  │
-                         │  │  Domain       │  │ Domain   │  │
-                         │  │               │  │          │  │
-                         │  │  vCenter      │  │ vCenter  │  │
-                         │  │  SDDC Mgr     │  │ NSX Mgr  │  │
-                         │  │  NSX Mgr      │  │ Edges    │  │
-                         │  │  VCF Ops      │  │ VKS      │  │
-                         │  │  VCF Auto     │  │          │  │
-                         │  └───────────────┘  └──────────┘  │
-                         └──────────────────────────────────┘
+                         ┌─────────────────────────────────────┐
+                         │           vCloud Director            │
+                         │             (vApp)                   │
+                         │                                      │
+    External Access ────►│  ┌──────────┐                        │
+                         │  │ Gateway  │                        │
+                         │  │ DNS/NTP  │                        │
+                         │  │ CA       │                        │
+                         │  └────┬─────┘                        │
+                         │       │                              │
+                         │  ┌────┴─────┐                        │
+                         │  │ Virtual  │                        │
+                         │  │ Router   │◄─── BGP ──┐            │
+                         │  └────┬─────┘           │            │
+                         │       │                 │            │
+                         │  ┌────┴────────────┐  ┌─┴────────┐  │
+                         │  │  Management     │  │ Workload │  │
+                         │  │  Domain         │  │ Domain   │  │
+                         │  │                 │  │          │  │
+                         │  │  vCenter        │  │ vCenter  │  │
+                         │  │  SDDC Mgr       │  │ NSX Mgr  │  │
+                         │  │  NSX Mgr        │  │ Edges    │  │
+                         │  │  VCF Operations │  │ VKS      │  │
+                         │  │  VCF Automation │  │          │  │
+                         │  └─────────────────┘  └──────────┘  │
+                         └─────────────────────────────────────┘
 ```
 
 Functional blocks and relationships — no network details. See [Logical Design](logical-design.md) for topology.
