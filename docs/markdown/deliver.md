@@ -305,9 +305,9 @@ sudo sed -i 's/"jsonUpdatedTime":"[^"]*"/"jsonUpdatedTime":"'"$(date -u +%Y-%m-%
 
 | Step | Action | Expected Result | Verification |
 |------|--------|-----------------|--------------|
-| 8.1.1 | In SDDC Manager, navigate to Hosts → Commission | Commission wizard opens | — |
-| 8.1.2 | Add esxi-05, esxi-06, esxi-07 to free pool | Hosts commissioning | Task progress visible |
-| 8.1.3 | Wait for host validation and commissioning | Hosts in free pool | SDDC Manager shows 3 hosts available |
+| 7.1.1 | In SDDC Manager, navigate to Hosts → Commission | Commission wizard opens | — |
+| 7.1.2 | Add esxi-05, esxi-06, esxi-07 to free pool | Hosts commissioning | Task progress visible |
+| 7.1.3 | Wait for host validation and commissioning | Hosts in free pool | SDDC Manager shows 3 hosts available |
 
 ### 7.2 Create Workload Domain
 
