@@ -167,6 +167,14 @@
     DBUS_SESSION_BUS_ADDRESS: unix:path=/run/user/1000/bus
   changed_when: true
 
+# Skip grdctl tasks if RDP is already configured and listening — grdctl
+# hangs on re-runs when the GNOME session has stale D-Bus state (#63).
+- name: Check if GRD RDP is already listening
+  become: true
+  ansible.builtin.command: ss -tlnp sport = :3389
+  register: grd_listening
+  changed_when: false
+
 - name: Enable GRD RDP
   become: true
   become_user: ubuntu
@@ -175,6 +183,7 @@
     XDG_RUNTIME_DIR: /run/user/1000
     DBUS_SESSION_BUS_ADDRESS: unix:path=/run/user/1000/bus
   changed_when: true
+  when: "'3389' not in grd_listening.stdout"
 
 - name: Set GRD RDP credentials
   become: true
@@ -184,6 +193,7 @@
     XDG_RUNTIME_DIR: /run/user/1000
     DBUS_SESSION_BUS_ADDRESS: unix:path=/run/user/1000/bus
   changed_when: true
+  when: "'3389' not in grd_listening.stdout"
 
 - name: Disable GRD view-only mode
   become: true
@@ -193,6 +203,7 @@
     XDG_RUNTIME_DIR: /run/user/1000
     DBUS_SESSION_BUS_ADDRESS: unix:path=/run/user/1000/bus
   changed_when: true
+  when: "'3389' not in grd_listening.stdout"
 
 - name: Enable gnome-remote-desktop systemd user service
   become: true
@@ -205,6 +216,7 @@
   environment:
     XDG_RUNTIME_DIR: /run/user/1000
     DBUS_SESSION_BUS_ADDRESS: unix:path=/run/user/1000/bus
+  when: "'3389' not in grd_listening.stdout"
 
 # SSH config for all lab hosts — `ssh esxi-01` just works
 - name: Create .ssh directory
