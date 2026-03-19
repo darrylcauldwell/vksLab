@@ -53,9 +53,20 @@ All design decision tables must include these columns:
 
 Do not omit the justification or risk columns. A decision without rationale is not traceable; a decision without risk analysis is not complete.
 
-### Diagram Consistency
+### Diagrams
 
-ASCII diagrams must match the component names and terminology used in the surrounding prose. When renaming a component or term in prose, update every diagram that references it. Diagrams are approximate — alignment does not need to be pixel-perfect — but box labels, connection lines, and component names must be accurate.
+Diagrams use draw.io. Source files and SVG exports are stored in `docs/diagrams/`:
+
+| File type | Purpose |
+|-----------|---------|
+| `*.drawio` | Editable source (commit to git) |
+| `*.svg` | Export for markdown embedding and Pandoc/LaTeX PDF generation (commit to git) |
+
+**Rules**:
+- When editing a `.drawio` file, always re-export the corresponding `.svg` in the same commit
+- Embed in markdown using relative paths: `![Description](diagrams/filename.svg)`
+- Diagram labels and component names must match the terminology used in the surrounding prose — when renaming a component or term, update every diagram that references it
+- When replacing an ASCII diagram with a draw.io equivalent, remove the ASCII version in the same commit
 
 ### Cross-Document Link Integrity
 
