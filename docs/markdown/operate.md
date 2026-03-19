@@ -11,19 +11,19 @@ date: "March 2026"
 
 ### 1.1 Lab Power On Sequence (R-010, VCD-03)
 
-The lab must be powered on in a specific order to ensure service dependencies are met.
+The VMware Cloud Foundation (VCF) lab must be powered on in a specific order to ensure service dependencies are met.
 
 | Order | Component | Action | Wait For |
 |-------|-----------|--------|----------|
 | 1 | Gateway | Power on VM | SSH/RDP accessible |
-| 2 | Management ESXi hosts (esxi-01 to esxi-04) | Power on VMs | ESXi DCUI shows management IP |
+| 2 | Management ESXi hosts (esxi-01 to esxi-04) | Power on VMs | ESXi Direct Console User Interface (DCUI) shows management IP |
 | 3 | Wait for vSAN cluster | Automatic | vSAN health green in vCenter |
-| 4 | Management appliances auto-start | Automatic (HA/DRS) | vCenter, SDDC Manager, NSX Manager accessible |
+| 4 | Management appliances auto-start | Automatic (HA/DRS) | vCenter, Software-Defined Data Center (SDDC) Manager, VCF Networking (NSX) Manager accessible |
 | 5 | Workload ESXi hosts (esxi-05 to esxi-07) | Power on VMs | ESXi DCUI shows management IP |
 | 6 | Wait for workload vSAN | Automatic | vSAN health green |
 | 7 | Workload appliances auto-start | Automatic | Workload vCenter, NSX Manager accessible |
-| 8 | NSX Edge VMs | Verify running | BGP adjacency re-established |
-| 9 | Supervisor & VKS | Verify running | `kubectl get nodes` shows Ready |
+| 8 | NSX Edge VMs | Verify running | Border Gateway Protocol (BGP) adjacency re-established |
+| 9 | vSphere Supervisor & vSphere Kubernetes Services (VKS) | Verify running | `kubectl get nodes` shows Ready |
 
 ### 1.2 Lab Power Off Sequence (Safe Shutdown)
 
@@ -35,7 +35,7 @@ The lab must be powered on in a specific order to ensure service dependencies ar
 | 2 | VKS cluster | (Optional) Delete VKS cluster or leave powered off | Cluster nodes powered off |
 | 3 | Workload appliances | Shut down workload vCenter and NSX Manager | VMs powered off |
 | 4 | Workload ESXi hosts | Put in maintenance mode (evacuate VMs first), then shut down | Hosts in maintenance, then powered off |
-| 5 | Management appliances | Shut down VCF Ops, VCF Auto, NSX Manager, SDDC Manager, then vCenter (last) | All management VMs powered off |
+| 5 | Management appliances | Shut down VCF Operations, VCF Automation, NSX Manager, SDDC Manager, then vCenter (last) | All management VMs powered off |
 | 6 | Management ESXi hosts | Put in maintenance mode, then shut down | Hosts powered off |
 | 7 | Gateway | Power off (last) | VM stopped |
 
@@ -66,9 +66,9 @@ The lab must be powered on in a specific order to ensure service dependencies ar
 
 | Step | Action | Verification |
 |------|--------|-------------|
-| 1 | Deploy new nested ESXi VM with standard spec (48 vCPU, 128 GB RAM, 40 GB boot NVMe + 200 GB vSAN NVMe) | VM powered on |
+| 1 | Deploy new nested ESXi VM with standard spec (48 vCPU, 128 GB RAM, 40 GB boot Non-Volatile Memory Express (NVMe) + 200 GB vSAN NVMe) | VM powered on |
 | 2 | Configure networking (management access + trunk) | Management IP pingable |
-| 3 | Set hostname, DNS (10.0.10.1), NTP (10.0.10.1) | Services configured |
+| 3 | Set hostname, Domain Name System (DNS) (10.0.10.1), Network Time Protocol (NTP) (10.0.10.1) | Services configured |
 | 4 | Add DNS record to gateway dnsmasq | `dig` resolves new hostname |
 | 5 | Commission host in SDDC Manager | Host appears in free pool |
 | 6 | Expand the target domain cluster | Host added to cluster |
@@ -102,9 +102,9 @@ Use this procedure to verify Active-Standby failover behaviour or to test resili
 
 | Step | Action | Verification |
 |------|--------|-------------|
-| 1 | Identify active Edge | NSX Manager → System → Fabric → Edge Clusters → click cluster → note which Edge shows "Active" for Tier-0 |
+| 1 | Identify active Edge | NSX Manager → System → Fabric → Edge Clusters → click cluster → note which Edge shows "Active" for NSX Tier-0 Gateway |
 | 2 | Verify BGP adjacency before test | `vtysh -c 'show ip bgp summary'` on gateway → Established with 10.0.60.2 |
-| 3 | Start continuous ping from gateway | `ping -i 1 <VKS-LB-VIP>` (or any pod-reachable IP via SNAT) |
+| 3 | Start continuous ping from gateway | `ping -i 1 <VKS-LB-VIP>` (or any pod-reachable IP via Source Network Address Translation (SNAT)) |
 | 4 | Power off the active Edge VM | vCenter → right-click active Edge VM → Power Off |
 | 5 | Observe failover | NSX Manager → Edge Clusters → standby Edge promotes to Active (expect 2-4s) |
 | 6 | Monitor BGP re-establishment | `vtysh -c 'show ip bgp summary'` on gateway → watch for Established (expect 30-60s) |
@@ -148,7 +148,7 @@ For VCF components (vCenter, NSX Manager, SDDC Manager) that use certificates is
 | 2 | Upload to the component via its management UI or API | Certificate updated |
 | 3 | Restart the component's web service if required | UI accessible with new certificate |
 
-#### Root CA Certificate Rotation
+#### Root Certificate Authority (CA) Certificate Rotation
 
 If the step-ca root CA certificate approaches expiry or needs rotation:
 
@@ -205,13 +205,13 @@ SDDC Manager coordinates updates to vCenter, NSX Manager, SDDC Manager itself, a
 | 6 | Upgrade host transport nodes | Rolling upgrade, one host at a time |
 | 7 | Upgrade Edge cluster | Rolling upgrade, one Edge at a time |
 | 8 | Verify BGP adjacency after Edge upgrade | `vtysh -c 'show ip bgp summary'` on gateway |
-| 9 | Verify VPC and VKS connectivity | Test workload accessible |
+| 9 | Verify Virtual Private Cloud (VPC) and VKS connectivity | Test workload accessible |
 
 ### 2.4 VKS Kubernetes Version Upgrades
 
 | Step | Action | Notes |
 |------|--------|-------|
-| 1 | Sync content library | New VKr images appear |
+| 1 | Sync content library | New VMware Kubernetes Runtime (VKr) images appear |
 | 2 | Check available Kubernetes versions | `kubectl get tkr` (TanzuKubernetesRelease) |
 | 3 | Update cluster manifest with new version | Change `spec.topology.version` |
 | 4 | Apply updated manifest | `kubectl apply -f vks-cluster.yaml` |
@@ -297,7 +297,7 @@ op item list --vault "VKS Lab"
 | Symptom | Possible Cause | Resolution |
 |---------|---------------|------------|
 | Slow VM operations | CPU contention on physical host | Check vCD host resource utilisation; reduce concurrent workloads |
-| High vSAN latency | Nested disk I/O overhead | Expected for nested vSAN; reduce FTT if capacity allows |
+| High vSAN latency | Nested disk I/O overhead | Expected for nested vSAN; reduce Failures to Tolerate (FTT) if capacity allows |
 | vMotion timeouts | Network contention on trunk | Verify jumbo frame MTU end-to-end; check for frame drops |
 
 #### vSAN Issues
@@ -307,7 +307,7 @@ op item list --vault "VKS Lab"
 | vSAN health warnings | Disk group degraded | Check `esxcli vsan health cluster list`; rebuild disk group if needed |
 | Objects inaccessible | Insufficient hosts for FTT=1 | Ensure minimum 3 hosts (workload) or 4 hosts (management) are available |
 | Resync stuck | Insufficient bandwidth or capacity | Wait for resync; check vSAN capacity; consider reducing object count |
-| Network partition | VLAN 30 misconfigured | Verify vmk2 on VLAN 30 across all hosts; check gateway VLAN sub-interface |
+| Network partition | Virtual LAN (VLAN) 30 misconfigured | Verify vmk2 on VLAN 30 across all hosts; check gateway VLAN sub-interface |
 
 #### BGP Flapping
 
@@ -321,11 +321,11 @@ op item list --vault "VKS Lab"
 
 | Symptom | Possible Cause | Resolution |
 |---------|---------------|------------|
-| Transport node disconnected | Host TEP interface down | Check vmk3 (VLAN 40) on ESXi host; verify MTU 9000 end-to-end |
+| Transport node disconnected | Host Tunnel Endpoint (TEP) interface down | Check vmk3 (VLAN 40) on ESXi host; verify Maximum Transmission Unit (MTU) 9000 end-to-end |
 | Transport node config not realised | NSX Manager communication failure | Restart nsx-proxy on ESXi host: `/etc/init.d/nsx-proxy restart` |
 | VPC subnet not reachable | Tier-1 route advertisement disabled | NSX Manager → Tier-1 → Route Advertisement: enable connected subnets |
 | VPC to external connectivity broken | Tier-0 uplink down or NAT rule missing | Check Tier-0 uplink interface status; verify SNAT rule exists |
-| Distributed firewall blocking traffic | Default DFW rule set to deny | NSX Manager → Security → Distributed Firewall: check default rule |
+| Distributed Firewall (DFW) blocking traffic | Default DFW rule set to deny | NSX Manager → Security → Distributed Firewall: check default rule |
 
 #### Content Library Issues
 
@@ -354,7 +354,7 @@ op item list --vault "VKS Lab"
 | Stale records | dnsmasq config not reloaded | Edit config, then `sudo systemctl restart dnsmasq` |
 | VCF bringup DNS timeouts | IPv6 AAAA query delays | Lab is IPv4-only; AAAA queries to upstream servers can cause resolution delays. If bringup fails with DNS timeouts, check `/var/log/syslog` for slow AAAA responses and consider adding `filter-AAAA` to dnsmasq config (requires dnsmasq compiled with `--enable-filter-aaaa`) |
 
-#### DHCP Issues
+#### Dynamic Host Configuration Protocol (DHCP) Issues
 
 | Symptom | Possible Cause | Resolution |
 |---------|---------------|------------|
@@ -376,7 +376,7 @@ op item list --vault "VKS Lab"
 | Symptom | Possible Cause | Resolution |
 |---------|---------------|------------|
 | Cannot login via SSO | Keycloak container not running | `docker start keycloak`; check `docker logs keycloak` |
-| OIDC token validation failed | Clock skew between gateway and VCF components | Verify NTP sync on gateway (`chronyc tracking`) and VCF appliances; ensure time delta is under 5 seconds |
+| OpenID Connect (OIDC) token validation failed | Clock skew between gateway and VCF components | Verify NTP sync on gateway (`chronyc tracking`) and VCF appliances; ensure time delta is under 5 seconds |
 | OIDC token validation failed | TLS certificate expired on Keycloak | Renew certificate: `step ca renew /etc/step-ca/certs/keycloak.crt /etc/step-ca/certs/keycloak.key --force`; restart Keycloak container |
 | Users cannot authenticate | Realm misconfiguration or user disabled | Check Keycloak admin console → lab realm → Users; verify user is enabled and credentials are set |
 | vCenter rejects OIDC provider | Discovery endpoint unreachable from vCenter | Verify vCenter can resolve `gateway.lab.dreamfold.dev` and reach port 8443; check firewall/routing |
@@ -397,7 +397,7 @@ op item list --vault "VKS Lab"
 | Gateway dnsmasq | `/var/log/syslog` (filter: dnsmasq) | `journalctl -u dnsmasq` |
 | Gateway chrony | `/var/log/syslog` (filter: chronyd) | `journalctl -u chronyd` |
 | Gateway step-ca | `journalctl -u step-ca` | systemd journal |
-| FRR | `/var/log/frr/zebra.log`, `/var/log/frr/bgpd.log` | `journalctl` or file |
+| Free Range Routing (FRR) | `/var/log/frr/zebra.log`, `/var/log/frr/bgpd.log` | `journalctl` or file |
 | 1Password | Operator laptop | `op item list --vault Employee` |
 | Keycloak | Container stdout | `docker logs keycloak` |
 
@@ -429,7 +429,7 @@ esxcli vsan health cluster list
 # List vSAN storage devices and their status
 esxcli vsan storage list
 
-# Check vSAN disk group/pool status (ESA uses single pool)
+# Check vSAN disk group/pool status (Express Storage Architecture (ESA) uses single pool)
 esxcli vsan debug disk list
 
 # Check vSAN network connectivity (vmk2 on VLAN 30)
