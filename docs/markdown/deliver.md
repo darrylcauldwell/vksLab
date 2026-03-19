@@ -167,7 +167,8 @@ ansible-playbook playbooks/phase1_foundation.yml
 | Gateway DNS | `dig @10.0.10.1 gateway.lab.dreamfold.dev` | Returns 10.0.10.1 |
 | Gateway NTP | `chronyc sources` | Shows upstream servers |
 | Gateway CA | `step ca health` | Returns "ok" |
-| VLAN sub-interfaces | `ip addr show ens192.10` on gateway | Shows 10.0.10.1 |
+| Management IP | `ip addr show ens192` on gateway | Shows 10.0.10.1/24 on the native (untagged) interface |
+| VLAN sub-interfaces | `ip addr show ens192.20` on gateway | Shows 10.0.20.1/24 (vMotion sub-interface) |
 | Inter-VLAN routing | `ping 10.0.20.1` from a host on VLAN 10 | Success |
 | FRR BGP | `vtysh -c 'show ip bgp summary'` on gateway | FRR running |
 
@@ -270,7 +271,7 @@ sudo sed -i 's/"jsonUpdatedTime":"[^"]*"/"jsonUpdatedTime":"'"$(date -u +%Y-%m-%
 | Step | Action | Expected Result | Verification |
 |------|--------|-----------------|--------------|
 | 6.3.1 | Access VCF Installer UI at `https://vcf-installer.lab.dreamfold.dev` | Login page | Browser loads |
-| 6.3.2 | Upload deployment parameter workbook (JSON) | Parameters validated | No validation errors |
+| 6.3.2 | The `vcf_bringup` Ansible role validates and submits the deployment specification to the VCF Installer API | Parameters validated | No validation errors |
 | 6.3.3 | Start bringup workflow | Deployment begins | Progress bar advancing |
 | 6.3.4 | Wait for vCenter deployment | vCenter Server deployed | `https://vcenter-mgmt.lab.dreamfold.dev` accessible |
 | 6.3.5 | Wait for VDS and vSAN configuration | Networking and storage configured | vSAN health green in vCenter |
