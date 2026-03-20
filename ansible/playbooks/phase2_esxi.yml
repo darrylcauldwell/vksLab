@@ -23,7 +23,13 @@
       register: blank_check
       failed_when: false
       changed_when: false
-      no_log: true
+
+    - name: Show blank check results
+      ansible.builtin.debug:
+        msg: "{{ item.item }}: rc={{ item.rc }} stderr={{ item.stderr | default('') }}"
+      loop: "{{ blank_check.results }}"
+      loop_control:
+        label: "{{ item.item }}"
 
     - name: Set bootstrap password on hosts with blank password
       ansible.builtin.shell: >
