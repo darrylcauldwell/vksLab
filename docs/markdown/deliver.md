@@ -118,13 +118,6 @@ op item create --vault Employee --category login --title "NSX Manager" \
 op item create --vault Employee --category login --title "Keycloak Admin" \
   password='VMware1!VMware1!' username=admin
 
-# Update existing items to standard lab password (if items already exist)
-op item edit "Lab Bootstrap" password='VMware1!VMware1!'
-op item edit "ESXi Root" password='VMware1!VMware1!'
-op item edit "vCenter SSO" password='VMware1!VMware1!'
-op item edit "SDDC Manager" password='VMware1!VMware1!'
-op item edit "NSX Manager" password='VMware1!VMware1!'
-op item edit "Keycloak Admin" password='VMware1!VMware1!'
 ```
 
 Verify: `op item list --vault Employee` shows all 6 items.
