@@ -8,12 +8,15 @@
 # What this playbook does:
 #   1. Reads /var/lib/misc/dnsmasq.leases on the gateway
 #   2. Extracts MAC addresses from leases in the dynamic DHCP range (.100-.199)
-#   3. Asserts that exactly 7 hosts were found
+#   3. Asserts that at least 7 hosts were found (trims to 7 most recent if more)
 #   4. Writes static dhcp-host reservations into /etc/dnsmasq.d/lab.conf
 #   5. Restarts dnsmasq so hosts pick up their static IPs (.11-.17)
 #   6. Waits for all 7 hosts to be reachable on port 443 (ESXi management)
 #
-# Idempotent: if reservations already exist, skips discovery and verifies connectivity.
+# Idempotent: if reservations already exist AND hosts are reachable on static IPs,
+# skips discovery and verifies connectivity only. On rebuild, if reservations exist
+# but hosts are unreachable on static IPs, the playbook clears stale reservations
+# and re-discovers MACs from fresh DHCP leases.
 #
 # Usage:
 #   cd ansible
@@ -40,33 +43,73 @@
       changed_when: false
       failed_when: false
 
+    - name: Check if first ESXi host is reachable on its static IP
+      ansible.builtin.command:
+        cmd: nc -z -w 5 {{ esxi_hosts[0].ip }} 443
+      register: first_host_reachable
+      changed_when: false
+      failed_when: false
+      when: reservations_exist.rc == 0
+
+    - name: Clear stale reservations on rebuild
+      when:
+        - reservations_exist.rc == 0
+        - first_host_reachable.rc != 0
+      block:
+        - name: Remove stale DHCP reservation block
+          ansible.builtin.blockinfile:
+            path: /etc/dnsmasq.d/lab.conf
+            marker: "# {mark} ANSIBLE MANAGED — ESXi DHCP reservations (phase1b)"
+            state: absent
+
+        - name: Restart dnsmasq after clearing stale reservations
+          ansible.builtin.service:
+            name: dnsmasq
+            state: restarted
+
     - name: Discover and write MAC reservations
-      when: reservations_exist.rc != 0
+      when: >-
+        reservations_exist.rc != 0 or
+        (reservations_exist.rc == 0 and first_host_reachable.rc != 0)
       block:
         - name: Read dnsmasq lease file
           ansible.builtin.slurp:
             src: /var/lib/misc/dnsmasq.leases
           register: lease_file
 
-        - name: Extract MACs from dynamic-range leases
+        - name: Extract MACs from dynamic-range leases (newest first)
           ansible.builtin.set_fact:
             discovered_macs: >-
               {{ (lease_file.content | b64decode).splitlines()
                  | select('search', lab_mgmt_prefix ~ '\\.1[0-9][0-9] ')
+                 | sort(reverse=true)
                  | map('regex_replace', '^\\S+\\s+(\\S+)\\s+.*$', '\\1')
                  | unique
                  | list }}
 
-        - name: Verify exactly 7 ESXi hosts found
+        - name: Verify at least 7 ESXi hosts found
           ansible.builtin.assert:
             that:
-              - discovered_macs | length == 7
+              - discovered_macs | length >= esxi_hosts | length
             fail_msg: >-
-              Expected 7 ESXi hosts in dynamic DHCP range
+              Expected at least {{ esxi_hosts | length }} ESXi hosts in dynamic DHCP range
               ({{ lab_mgmt_prefix }}.100-199), found {{ discovered_macs | length }}.
               Ensure all 7 ESXi VMs are powered on and have obtained a DHCP lease.
               Check leases: cat /var/lib/misc/dnsmasq.leases
-            success_msg: "Found 7 ESXi MACs in DHCP leases"
+            success_msg: "Found {{ discovered_macs | length }} ESXi MACs in DHCP leases (need {{ esxi_hosts | length }})"
+
+        - name: Warn if extra leases found
+          ansible.builtin.debug:
+            msg: >-
+              WARNING: Found {{ discovered_macs | length }} MACs but only need {{ esxi_hosts | length }}.
+              Using the {{ esxi_hosts | length }} most recent leases. Extra leases may be stale
+              entries from a previous deployment or non-ESXi devices.
+          when: discovered_macs | length > esxi_hosts | length
+
+        - name: Trim to expected host count (most recent leases)
+          ansible.builtin.set_fact:
+            discovered_macs: "{{ discovered_macs[:esxi_hosts | length] }}"
+          when: discovered_macs | length > esxi_hosts | length
 
         - name: Display MAC-to-host assignments
           ansible.builtin.debug:

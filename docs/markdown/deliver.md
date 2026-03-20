@@ -152,6 +152,18 @@ ansible-galaxy collection install -r ansible/collections/requirements.yml
 
 > **Note**: vCD assigns new MAC addresses each time a vApp is deployed from a template. MAC discovery is automated in §4.3a — no manual lookup is required.
 
+### 4.2a Reset ESXi System Configuration (Manual in vCD)
+
+ESXi hosts deployed from the vApp template carry stale configuration from the previous deployment (hostname, MAC-based network mapping, UUID). Resetting the system configuration via the Direct Console User Interface (DCUI) provides a clean baseline before MAC discovery.
+
+| Step | Action | Expected Result | Verification |
+|------|--------|-----------------|--------------|
+| 4.2a.1 | For each ESXi VM (esxi-01 through esxi-07), open the VM console in vCD | The DCUI is displayed | — |
+| 4.2a.2 | Press **F2** > **Reset System Configuration** > **F11** to confirm | The host begins resetting its configuration | The DCUI shows a reset progress indicator |
+| 4.2a.3 | Wait for the host to reboot and obtain a new DHCP lease (1–2 minutes per host) | The host reboots and obtains an IP in the `.100–.199` dynamic range | The DCUI shows a management IP in the dynamic range |
+
+> **Note**: Reset System Configuration clears the hostname, UUID, and network configuration from the template. It also resets the root password to blank and disables SSH/ESXi Shell — both are re-enabled in §5.1.
+
 ### 4.3 Configure Gateway (Automated)
 
 All gateway configuration (VLAN sub-interfaces, dnsmasq DNS/DHCP, chrony NTP, step-ca, GNOME/gnome-remote-desktop, IP masquerading, FRR BGP, Firefox, Keycloak) is automated by the `gateway` and `docker_services` Ansible roles. The playbook takes approximately **10–15 minutes** to complete:
@@ -175,14 +187,14 @@ The playbook:
 
 1. Reads `/var/lib/misc/dnsmasq.leases` on the gateway
 2. Extracts MAC addresses from leases in the dynamic range (`.100–.199`)
-3. Asserts that exactly 7 MACs are present (fails with a clear message if not)
+3. Asserts that at least 7 MACs are present (trims to 7 most recent if more are found)
 4. Writes `dhcp-host` reservations to `/etc/dnsmasq.d/lab.conf` via `blockinfile`
 5. Restarts dnsmasq to apply the static reservations
 6. Waits for all 7 hosts to be reachable on port 443 (ESXi management) on their static IPs
 
 > **Note**: The order in which MACs are assigned to hosts is arbitrary — all ESXi VMs are identical spec ("cattle not pets"), so any MAC-to-host mapping is valid. The first 4 MACs are assigned to management hosts (esxi-01 through esxi-04), the remaining 3 to workload hosts (esxi-05 through esxi-07).
 
-The playbook is idempotent: if reservations already exist, it skips discovery and verifies connectivity only.
+The playbook is idempotent: if reservations already exist and hosts are reachable on their static IPs, it skips discovery and verifies connectivity only. On rebuild, if reservations exist but hosts are unreachable on static IPs (e.g. after Reset System Configuration in §4.2a), the playbook clears stale reservations and re-discovers MACs from fresh DHCP leases.
 
 ### 4.4 Foundation Verification
 
@@ -209,7 +221,7 @@ ESXi hosts receive their management IP via DHCP from the gateway dnsmasq (config
 | Step | Action | Expected Result | Verification |
 |------|--------|-----------------|--------------|
 | 5.1.1 | On each host via Direct Console User Interface (DCUI): press **F2** > **Troubleshooting Options** > **Enable SSH** > **Enter** | SSH is enabled on the host | `ssh root@<ip>` connects successfully |
-| 5.1.2 | On each host via DCUI: press **F2** > **Configure Password** and set the root password to match 1Password "Lab Bootstrap" item | The root password is set | SSH login with the bootstrap password succeeds |
+| 5.1.2 | On each host via DCUI: press **F2** > **Configure Password** and set the root password to match 1Password "Lab Bootstrap" item. After Reset System Configuration (§4.2a), the password is blank — set it here | The root password is set | SSH login with the bootstrap password succeeds |
 
 ### 5.2 Prepare Hosts (Automated)
 
