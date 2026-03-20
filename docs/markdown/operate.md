@@ -236,21 +236,21 @@ SDDC Manager coordinates updates to vCenter, NSX Manager, SDDC Manager itself, a
 
 ### 2.6 1Password Secret Store
 
-Lab credentials are stored in a 1Password vault ("VKS Lab") on the operator's laptop. Ansible retrieves them at runtime via the `community.general.onepassword` lookup plugin.
+Lab credentials are stored in the operator's 1Password vault ("Employee"). Ansible retrieves them at runtime via the `community.general.onepassword` lookup plugin.
 
 #### Password Rotation
 
 When VCF rotates a password (e.g., ESXi root password via SDDC Manager), update the corresponding 1Password item to keep secrets in sync:
 
 ```bash
-op item edit "ESXi Root" --vault "VKS Lab" password='<new-password>'
+op item edit "ESXi Root" --vault Employee password='<new-password>'
 ```
 
 #### Verify Access
 
 ```bash
 # Confirm 1Password CLI can read lab secrets
-op item list --vault "VKS Lab"
+op item list --vault Employee
 ```
 
 ### 2.7 Platform Services Lifecycle
@@ -421,7 +421,7 @@ VKS Standard Packages (cert-manager, Contour, Harbor, Velero) are updated via th
 | Symptom | Possible Cause | Resolution |
 |---------|---------------|------------|
 | Cannot read secrets | Not signed in to 1Password CLI | `eval $(op signin)` |
-| Vault not found | Wrong vault name | `op vault list` to verify vault name matches `VKS Lab` |
+| Vault not found | Wrong vault name | `op vault list` to verify vault name matches `Employee` |
 | Ansible lookup fails | 1Password CLI not installed | `brew install --cask 1password-cli` |
 
 #### Keycloak Issues
@@ -647,7 +647,7 @@ kubectl get events --sort-by=.lastTimestamp
 
 ### 5.1 Current Resource Allocation
 
-Refer to [Physical Design](physical-design.md) Section 10 for the canonical vCD resource requirements and nested appliance resource tables. Use those tables as the baseline when assessing capacity.
+Refer to [Physical Design](physical-design.md) Section 9 for the canonical vCD resource requirements and nested appliance resource tables. Use those tables as the baseline when assessing capacity.
 
 ### 5.2 Scaling Guidance
 

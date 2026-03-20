@@ -277,7 +277,7 @@ Three nested ESXi hosts form the workload domain cluster. This is the minimum fo
 - **Mode**: vSAN Express Storage Architecture (ESA) — single storage pool, NVMe-based, simplified management
 - **Storage policy**: Failures to Tolerate = 1 (RAID-1 mirroring)
 - Each host contributes one Non-Volatile Memory Express (NVMe) storage device to a single storage pool (no separate cache/capacity tiers)
-- Nested environments require a mock Hardware Compatibility List (HCL) vSphere Installation Bundle (VIB) and NVMe devices marked as SSD
+- Nested environments require NVMe devices marked as SSD (VCF 9.0.1+ includes a built-in vSAN ESA Hardware Compatibility List (HCL) bypass — the mock HCL vSphere Installation Bundle (VIB) is no longer required)
 
 #### Storage Policy: "vSAN Default"
 
@@ -384,7 +384,7 @@ Inside each ESXi host, a vSphere Distributed Switch (VDS), created during VCF br
 |------|-------------|-----------------|----------------------|-------------------|
 | C-001 | ESX-01 | All ESXi hosts run as nested VMs on vCloud Director | Enables full VCF stack without dedicated hardware | Risk: Significant performance overhead from nested virtualisation. Mitigation: Acceptable for lab; not for benchmarking |
 | R-004 | ESX-02 | 4 hosts for management domain, 3 hosts for workload domain | Minimum for vSAN FTT=1; 4 management hosts provide headroom for management appliances | Risk: No N+1 redundancy. Mitigation: Lab-grade — host failure tolerated via vSAN RAID-1 |
-| R-007 | ESX-03 | vSAN ESA (Express Storage Architecture) with FTT=1 | Single storage pool eliminates cache/capacity tier management; NVMe-based; ESA is the VMware-recommended architecture for vSAN 8+ | Risk: Nested NVMe requires mock HCL VIB and SSD marking. Mitigation: Automated via Ansible esxi_prepare role; FakeSCSIReservations setting handles nested SCSI |
+| R-007 | ESX-03 | vSAN ESA (Express Storage Architecture) with FTT=1 | Single storage pool eliminates cache/capacity tier management; NVMe-based; ESA is the VMware-recommended architecture for vSAN 8+ | Risk: Nested NVMe requires SSD marking and FakeSCSIReservations. Mitigation: Automated via Ansible esxi_prepare role; VCF 9.0.1+ includes built-in HCL bypass for nested environments |
 | C-001 | ESX-04 | Two vNICs per host — access (management) and trunk (all other VLANs) | Separates management from data traffic while minimising vNIC count | Risk: Single trunk NIC is a bandwidth bottleneck. Mitigation: Acceptable for lab traffic volumes |
 
 ## 6. VCF Domain Architecture

@@ -129,21 +129,21 @@ All VCF components point to 10.0.10.1 for DNS and NTP. systemd-resolved is disab
 
 ### Dynamic Host Configuration Protocol (DHCP) Reservations (VLAN 10)
 
-ESXi hosts receive their management IP via DHCP with static MAC→IP reservations. MAC addresses are assigned when creating the ESXi VMs in vCloud Director.
+ESXi hosts receive their management IP via DHCP with static MAC→IP reservations. MAC addresses are discovered automatically by the `phase1b_discover_macs.yml` playbook, which reads dnsmasq dynamic leases and writes static reservations — see [Delivery Guide](deliver.md) §4.3a.
 
-| MAC Address | Hostname | IP Address |
-|-------------|----------|------------|
-| 00:50:56:xx:xx:01 | esxi-01 | 10.0.10.11 |
-| 00:50:56:xx:xx:02 | esxi-02 | 10.0.10.12 |
-| 00:50:56:xx:xx:03 | esxi-03 | 10.0.10.13 |
-| 00:50:56:xx:xx:04 | esxi-04 | 10.0.10.14 |
-| 00:50:56:xx:xx:05 | esxi-05 | 10.0.10.15 |
-| 00:50:56:xx:xx:06 | esxi-06 | 10.0.10.16 |
-| 00:50:56:xx:xx:07 | esxi-07 | 10.0.10.17 |
+| Hostname | IP Address |
+|----------|------------|
+| esxi-01 | 10.0.10.11 |
+| esxi-02 | 10.0.10.12 |
+| esxi-03 | 10.0.10.13 |
+| esxi-04 | 10.0.10.14 |
+| esxi-05 | 10.0.10.15 |
+| esxi-06 | 10.0.10.16 |
+| esxi-07 | 10.0.10.17 |
 
-> Replace `xx:xx` placeholders with actual MAC addresses from vCD after VM creation.
+> MAC addresses are assigned by vCD when deploying VMs from template and vary on each rebuild. The Phase 1b playbook discovers them from dnsmasq leases — no manual lookup required.
 
-## 5. Nested ESXi Host Specification
+## 4. Nested ESXi Host Specification
 
 > Implements ESX-01 (nested VMs on vCD), ESX-02 (4+3 host split), ESX-03 (vSAN ESA), ESX-04 (two-vNIC model). See [Logical Design](logical-design.md) Section 5.
 
@@ -188,13 +188,13 @@ ESXi hosts receive their management IP via DHCP with static MAC→IP reservation
 - **Mode**: vSAN Express Storage Architecture (ESA)
 - **Storage policy**: Failures to Tolerate (FTT) = 1 (RAID-1 mirroring)
 - Each host: 1x 200 GB NVMe storage device in a single storage pool (no separate cache tier)
-- Nested ESXi preparation: NVMe devices marked as SSD, mock Hardware Compatibility List (HCL) vSphere Installation Bundle (VIB) installed, FakeSCSIReservations enabled
+- Nested ESXi preparation: NVMe devices marked as SSD, FakeSCSIReservations enabled (VCF 9.0.1+ includes a built-in vSAN ESA Hardware Compatibility List (HCL) bypass — no mock HCL vSphere Installation Bundle (VIB) required)
 
 ### vSAN Usable Capacity
 
 With FTT=1 RAID-1, each object is mirrored — raw capacity is halved for data protection. vSAN ESA also requires operational reserve for rebalancing and component rebuilds.
 
-> **Note on ESA slack space**: vSAN ESA does not require the 30% slack space reservation that OSA recommended. ESA's single-pool architecture with inline dedup/compression handles space management more efficiently. VMware recommends maintaining **~25% free space** for operational headroom — primarily for component rebuilds after host failure and temporary space during lifecycle operations. The 70% utilisation threshold in the scaling guidance (Section 10.1) reflects this.
+> **Note on ESA slack space**: vSAN ESA does not require the 30% slack space reservation that OSA recommended. ESA's single-pool architecture with inline dedup/compression handles space management more efficiently. VMware recommends maintaining **~25% free space** for operational headroom — primarily for component rebuilds after host failure and temporary space during lifecycle operations. The 70% utilisation threshold in the scaling guidance (Section 9.1) reflects this.
 
 #### Management Domain Storage
 
@@ -205,7 +205,7 @@ With FTT=1 RAID-1, each object is mirrored — raw capacity is halved for data p
 | Usable after RAID | ~400 GB | 800 GB ÷ 2 |
 | Operational reserve (25%) | ~100 GB | Rebalancing, rebuilds, lifecycle headroom |
 | Available for VM data | ~300 GB | After reserve |
-| Appliance allocation | ~1,100 GB (thin) | See Section 6 + resource table (thin-provisioned — actual consumption is 30-50% of allocated) |
+| Appliance allocation | ~1,100 GB (thin) | See Section 5 + resource table (thin-provisioned — actual consumption is 30-50% of allocated) |
 
 > Appliance disks are thin-provisioned. The allocated total far exceeds raw capacity, but actual vSAN consumption is much lower due to thin provisioning plus ESA inline dedup/compression. Monitor via vCenter → vSAN → Capacity.
 
@@ -223,7 +223,7 @@ With FTT=1 RAID-1, each object is mirrored — raw capacity is halved for data p
 
 > The workload domain is the tighter storage constraint. VKS PersistentVolumes compete with NSX Edge VMs and the Supervisor control plane for vSAN capacity. Monitor vSAN capacity utilisation closely — see [Operations Guide](operate.md) Section 5.
 
-## 6. VCF Management Domain
+## 5. VCF Management Domain
 
 > Implements VCF-01 (domain separation), VCF-03 (VCF Operations/Automation in mgmt domain), VCF-04 (installer-driven bringup). See [Logical Design](logical-design.md) Section 6.
 
@@ -249,7 +249,7 @@ Before running the VCF Installer:
 
 See [Delivery Guide](deliver.md) Phase 3 for the step-by-step bringup procedure.
 
-## 7. VCF Workload Domain
+## 6. VCF Workload Domain
 
 > Implements VCF-01 (domain separation) and VCF-02 (single-node NSX Manager). See [Logical Design](logical-design.md) Section 6.
 
@@ -262,7 +262,7 @@ See [Delivery Guide](deliver.md) Phase 3 for the step-by-step bringup procedure.
 
 See [Delivery Guide](deliver.md) Phase 4 for the host commissioning and domain creation procedure.
 
-## 8. NSX Edge Cluster
+## 7. NSX Edge Cluster
 
 > Implements NSX-01 (two-node Large Edge cluster), NSX-02 (Active-Standby Tier-0 with BGP), NSX-03 (centralised Virtual Private Cloud (VPC)), NSX-04 (source NAT). See [Logical Design](logical-design.md) Section 7.
 
@@ -281,7 +281,7 @@ Edge VMs are sized as **Large** (8 vCPU, 32 GB RAM) to support VKS workloads.
 |---------|-------|
 | Name | tier0-gateway |
 | HA Mode | Active-Standby |
-| Edge Cluster | workload-edge-cluster |
+| Edge Cluster | edge-cluster-01 |
 | Uplink Interface | 10.0.60.2/24 on VLAN 60 |
 | BGP ASN | 65001 |
 | BGP Neighbor | 10.0.60.1 (Gateway FRR, ASN 65000) |
@@ -350,7 +350,7 @@ GET https://nsx-mgr-wld.lab.dreamfold.dev/policy/api/v1/infra/tier-0s/tier0-gate
 
 > **Expected route count**: ~6 BGP routes from gateway (one per VLAN SVI) plus connected/redistributed routes from Tier-1. The exact count depends on how many VPC subnets are created by the Supervisor and VKS.
 
-## 9. VKS Cluster Specification
+## 8. VKS Cluster Specification
 
 > Implements VKS-01 (Supervisor with NSX), VKS-02 (3+3 node topology), VKS-03 (subscribed content library), VKS-04 (best-effort-medium VM class). See [Logical Design](logical-design.md) Section 8.
 
@@ -429,7 +429,7 @@ A subscribed content library provides VKr images. The library syncs from VMware'
 
 > **Note**: Platform services PVCs add ~172 Gi to vSAN consumption on the workload domain. This is within the vSAN capacity but makes storage the tighter constraint. Monitor vSAN capacity utilisation closely — see [Operations Guide](operate.md) Section 5.
 
-## 10. Resource Summary Tables
+## 9. Resource Summary Tables
 
 ### vCD Resource Requirements
 
@@ -459,7 +459,7 @@ These run inside the nested environment and consume resources from the ESXi host
 
 > **Note**: The nested appliance resources are consumed from the 896 GB RAM and 1,400 GB storage provisioned to the ESXi VMs. The remaining ~662 GB RAM is available for VKS workloads and Supervisor VMs.
 
-### 10.1 Capacity Headroom Analysis
+### 9.1 Capacity Headroom Analysis
 
 #### Management Domain Headroom
 
