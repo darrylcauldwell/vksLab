@@ -144,14 +144,13 @@ ansible-galaxy collection install -r ansible/collections/requirements.yml
 | Step | Action | Expected Result | Verification |
 |------|--------|-----------------|--------------|
 | 4.2.1 | In vCD catalog, deploy vApp from template `[baseline]vcf-9.0.2-lab-8vm` | A vApp is created containing all 8 VMs | The vApp is visible with all VMs listed |
-| 4.2.2 | For each ESXi VM in vCD, navigate to the VM > **Hardware** > **NICs** and note the MAC address of NIC 1 (vmnic0). Update the corresponding `esxi_mac` field in `ansible/inventory/hosts.yml` | MAC addresses are recorded for all 7 ESXi VMs | The inventory file is updated with the new MAC addresses |
-| 4.2.3 | Power on all 8 VMs (allow 5–10 minutes for all VMs to complete POST) | All 8 VMs are running | The gateway obtains a public IP via Dynamic Host Configuration Protocol (DHCP) |
-| 4.2.4 | Note gateway public IP: `ip addr show ens33` via vCD console | The public IP address is obtained | — |
-| 4.2.5 | Store gateway IP in 1Password: `op item edit "Lab Bootstrap" ip_address=<gateway-ip>` | The gateway IP is stored in 1Password | `op item get "Lab Bootstrap" --fields ip_address` returns the IP |
-| 4.2.6 | If no SSH key exists, generate one: `ssh-keygen -t ed25519` | An ed25519 key pair is created | `~/.ssh/id_ed25519.pub` exists |
-| 4.2.7 | Copy SSH key to gateway: `ssh-copy-id ubuntu@<gateway-ip>` | The SSH public key is deployed to the gateway | `ssh ubuntu@<gateway-ip>` connects without a password prompt |
+| 4.2.2 | Power on all 8 VMs (allow 5–10 minutes for all VMs to complete POST) | All 8 VMs are running | The gateway obtains a public IP via Dynamic Host Configuration Protocol (DHCP) |
+| 4.2.3 | Note gateway public IP: `ip addr show ens33` via vCD console | The public IP address is obtained | — |
+| 4.2.4 | Store gateway IP in 1Password: `op item edit "Lab Bootstrap" ip_address=<gateway-ip>` | The gateway IP is stored in 1Password | `op item get "Lab Bootstrap" --fields ip_address` returns the IP |
+| 4.2.5 | If no SSH key exists, generate one: `ssh-keygen -t ed25519` | An ed25519 key pair is created | `~/.ssh/id_ed25519.pub` exists |
+| 4.2.6 | Copy SSH key to gateway: `ssh-copy-id ubuntu@<gateway-ip>` | The SSH public key is deployed to the gateway | `ssh ubuntu@<gateway-ip>` connects without a password prompt |
 
-> **Note**: vCD assigns new MAC addresses each time a vApp is deployed from a template. The MAC update in step 4.2.2 is required on every rebuild so that DHCP reservations match.
+> **Note**: vCD assigns new MAC addresses each time a vApp is deployed from a template. MAC discovery is automated in §4.3a — no manual lookup is required.
 
 ### 4.3 Configure Gateway (Automated)
 
@@ -162,6 +161,28 @@ source .venv/bin/activate
 cd ansible
 ansible-playbook playbooks/phase1_foundation.yml
 ```
+
+### 4.3a Discover ESXi MACs (Automated)
+
+After the gateway is configured (§4.3), the 7 ESXi VMs will have obtained dynamic DHCP addresses in the `.100–.199` range. The `phase1b_discover_macs.yml` playbook reads these leases, maps each MAC to a static reservation (esxi-01 through esxi-07), writes the reservations into the dnsmasq config, and restarts dnsmasq so the hosts pick up their static IPs (`.11–.17`).
+
+```bash
+cd ansible
+ansible-playbook playbooks/phase1b_discover_macs.yml
+```
+
+The playbook:
+
+1. Reads `/var/lib/misc/dnsmasq.leases` on the gateway
+2. Extracts MAC addresses from leases in the dynamic range (`.100–.199`)
+3. Asserts that exactly 7 MACs are present (fails with a clear message if not)
+4. Writes `dhcp-host` reservations to `/etc/dnsmasq.d/lab.conf` via `blockinfile`
+5. Restarts dnsmasq to apply the static reservations
+6. Waits for all 7 hosts to be reachable on port 443 (ESXi management) on their static IPs
+
+> **Note**: The order in which MACs are assigned to hosts is arbitrary — all ESXi VMs are identical spec ("cattle not pets"), so any MAC-to-host mapping is valid. The first 4 MACs are assigned to management hosts (esxi-01 through esxi-04), the remaining 3 to workload hosts (esxi-05 through esxi-07).
+
+The playbook is idempotent: if reservations already exist, it skips discovery and verifies connectivity only.
 
 ### 4.4 Foundation Verification
 
@@ -183,7 +204,7 @@ ansible-playbook playbooks/phase1_foundation.yml
 
 ### 5.1 Configure ESXi Hosts (Manual)
 
-ESXi hosts receive their management IP via DHCP from the gateway dnsmasq (configured in Phase 1). MAC addresses were recorded during Phase 1 template deployment (§4.2.2).
+ESXi hosts receive their management IP via DHCP from the gateway dnsmasq (configured in Phase 1). MAC addresses are discovered automatically by the Phase 1b playbook (§4.3a).
 
 | Step | Action | Expected Result | Verification |
 |------|--------|-----------------|--------------|
@@ -832,7 +853,7 @@ For additional troubleshooting, see [Operations Guide](operate.md) Section 4.
 
 | Symptom | Cause | Resolution |
 |---------|-------|------------|
-| DHCP does not assign an IP to an ESXi host | The MAC address in `ansible/inventory/hosts.yml` does not match the vCD-assigned MAC | Read back the MAC from vCD (VM > **Hardware** > **NICs**) and update the inventory file, then restart dnsmasq on the gateway: `sudo systemctl restart dnsmasq` |
+| DHCP does not assign a static IP to an ESXi host | The Phase 1b playbook did not run, or the host had no dynamic lease when discovery ran | Re-run `ansible-playbook playbooks/phase1b_discover_macs.yml` from the `ansible/` directory. If the host has no dynamic lease, verify it is powered on and connected to the `lab-trunk` network, then check `cat /var/lib/misc/dnsmasq.leases` on the gateway |
 | SSH to ESXi host is refused | SSH was not enabled via DCUI, or the ESXi firewall is blocking connections | Re-enable SSH via DCUI (**F2** > **Troubleshooting Options** > **Enable SSH**) |
 | NVMe device is not marked as SSD after running the playbook | The `esxi_prepare` role did not execute the SSD marking step, or the ESXi host was rebooted after preparation | Re-run `ansible-playbook playbooks/phase2_esxi.yml --limit <host>` and verify with `esxcli vsan storage list` |
 | vSAN ESA health check shows "disk not claimed" | The NVMe device was not tagged for vSAN use | Run `esxcli vsan storage tag add -d <device-id> -t capacityFlash` on the affected host |

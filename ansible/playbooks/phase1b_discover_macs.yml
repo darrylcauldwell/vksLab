@@ -1,0 +1,103 @@
+---
+# Phase 1b — Discover ESXi MACs from dnsmasq dynamic leases
+#
+# Prerequisites:
+#   - Phase 1 complete (gateway configured with dnsmasq)
+#   - All 7 ESXi VMs powered on and booted (they obtain dynamic IPs in .100-.199)
+#
+# What this playbook does:
+#   1. Reads /var/lib/misc/dnsmasq.leases on the gateway
+#   2. Extracts MAC addresses from leases in the dynamic DHCP range (.100-.199)
+#   3. Asserts that exactly 7 hosts were found
+#   4. Writes static dhcp-host reservations into /etc/dnsmasq.d/lab.conf
+#   5. Restarts dnsmasq so hosts pick up their static IPs (.11-.17)
+#   6. Waits for all 7 hosts to be reachable on port 443 (ESXi management)
+#
+# Idempotent: if reservations already exist, skips discovery and verifies connectivity.
+#
+# Usage:
+#   cd ansible
+#   ansible-playbook playbooks/phase1b_discover_macs.yml
+
+- name: Phase 1b — Discover ESXi MACs
+  hosts: gateways
+  gather_facts: false
+  become: true
+  vars:
+    esxi_hosts:
+      - { hostname: esxi-01, ip: "{{ lab_mgmt_prefix }}.11" }
+      - { hostname: esxi-02, ip: "{{ lab_mgmt_prefix }}.12" }
+      - { hostname: esxi-03, ip: "{{ lab_mgmt_prefix }}.13" }
+      - { hostname: esxi-04, ip: "{{ lab_mgmt_prefix }}.14" }
+      - { hostname: esxi-05, ip: "{{ lab_mgmt_prefix }}.15" }
+      - { hostname: esxi-06, ip: "{{ lab_mgmt_prefix }}.16" }
+      - { hostname: esxi-07, ip: "{{ lab_mgmt_prefix }}.17" }
+  tasks:
+    - name: Check if MAC reservations already exist
+      ansible.builtin.command:
+        cmd: grep -q 'BEGIN ANSIBLE MANAGED.*ESXi DHCP reservations' /etc/dnsmasq.d/lab.conf
+      register: reservations_exist
+      changed_when: false
+      failed_when: false
+
+    - name: Discover and write MAC reservations
+      when: reservations_exist.rc != 0
+      block:
+        - name: Read dnsmasq lease file
+          ansible.builtin.slurp:
+            src: /var/lib/misc/dnsmasq.leases
+          register: lease_file
+
+        - name: Extract MACs from dynamic-range leases
+          ansible.builtin.set_fact:
+            discovered_macs: >-
+              {{ (lease_file.content | b64decode).splitlines()
+                 | select('search', lab_mgmt_prefix ~ '\\.1[0-9][0-9] ')
+                 | map('regex_replace', '^\\S+\\s+(\\S+)\\s+.*$', '\\1')
+                 | unique
+                 | list }}
+
+        - name: Verify exactly 7 ESXi hosts found
+          ansible.builtin.assert:
+            that:
+              - discovered_macs | length == 7
+            fail_msg: >-
+              Expected 7 ESXi hosts in dynamic DHCP range
+              ({{ lab_mgmt_prefix }}.100-199), found {{ discovered_macs | length }}.
+              Ensure all 7 ESXi VMs are powered on and have obtained a DHCP lease.
+              Check leases: cat /var/lib/misc/dnsmasq.leases
+            success_msg: "Found 7 ESXi MACs in DHCP leases"
+
+        - name: Display MAC-to-host assignments
+          ansible.builtin.debug:
+            msg: "{{ esxi_hosts[idx].hostname }} ({{ esxi_hosts[idx].ip }}) <- {{ item }}"
+          loop: "{{ discovered_macs }}"
+          loop_control:
+            index_var: idx
+
+        - name: Build reservation entries
+          ansible.builtin.set_fact:
+            reservation_entries: "{{ reservation_entries | default([]) + ['dhcp-host=' ~ discovered_macs[idx] ~ ',' ~ item.hostname ~ ',' ~ item.ip] }}"
+          loop: "{{ esxi_hosts }}"
+          loop_control:
+            index_var: idx
+
+        - name: Write static DHCP reservations to dnsmasq config
+          ansible.builtin.blockinfile:
+            path: /etc/dnsmasq.d/lab.conf
+            marker: "# {mark} ANSIBLE MANAGED — ESXi DHCP reservations (phase1b)"
+            block: "{{ reservation_entries | join('\n') }}"
+
+        - name: Restart dnsmasq to apply static reservations
+          ansible.builtin.service:
+            name: dnsmasq
+            state: restarted
+
+    - name: Wait for ESXi hosts to be reachable on static IPs
+      ansible.builtin.wait_for:
+        host: "{{ item.ip }}"
+        port: 443
+        timeout: 300
+      loop: "{{ esxi_hosts }}"
+      loop_control:
+        label: "{{ item.hostname }} ({{ item.ip }})"
