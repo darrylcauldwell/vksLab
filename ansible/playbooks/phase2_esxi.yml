@@ -43,7 +43,20 @@
       loop_control:
         label: "{{ item }}"
       changed_when: false
-      no_log: true
+      register: verify_check
+
+    - name: Show verification failures
+      ansible.builtin.debug:
+        msg: "{{ item.item }}: {{ item.stderr | default(item.msg | default('unknown error')) }}"
+      loop: "{{ verify_check.results | rejectattr('rc', 'eq', 0) | list }}"
+      loop_control:
+        label: "{{ item.item }}"
+      when: verify_check.results | rejectattr('rc', 'eq', 0) | list | length > 0
+
+    - name: Fail if any host verification failed
+      ansible.builtin.assert:
+        that: verify_check.results | rejectattr('rc', 'eq', 0) | list | length == 0
+        fail_msg: "Bootstrap password verification failed on one or more hosts — see above"
 
     - name: Bootstrap summary
       ansible.builtin.debug:
