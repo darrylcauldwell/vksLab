@@ -216,15 +216,7 @@ The playbook is idempotent: if reservations already exist and hosts are reachabl
 
 > Phase 2 implements R-004, R-007 via ESX-01 through ESX-04 and NET-03, NET-04.
 
-### 5.1 Verify ESXi Host Access
-
-SSH and the root password were already configured in §4.2a (steps 4.2a.4–4.2a.5). Verify connectivity before proceeding:
-
-| Step | Action | Expected Result | Verification |
-|------|--------|-----------------|--------------|
-| 5.1.1 | Verify SSH access to each host: `ssh root@esxi-01.lab.dreamfold.dev` (repeat for esxi-02 through esxi-07) | SSH connects with the bootstrap password | A login prompt or shell is displayed |
-
-### 5.2 Prepare Hosts (Automated)
+### 5.1 Prepare Hosts (Automated)
 
 Use the Ansible `esxi_prepare` role to configure all hosts. This sets hostname, DNS, NTP, root password, and prepares vSAN Express Storage Architecture (ESA) in a single operation. The playbook takes approximately **5–10 minutes** to complete:
 
