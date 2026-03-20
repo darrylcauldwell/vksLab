@@ -174,13 +174,13 @@ See [Logical Design](logical-design.md) for phase details and [Delivery Guide](d
 |------|-------------|-----------------|-------------------------------|-------------|
 | R-001 | Lab hosted in single vCD vApp | VCD-01, VCD-02 | Phase 0 — vApp creation (§3.1) | vApp visible in vCD console |
 | R-002 | Remote access via RDP gateway | NET-01, SVC-06 | Phase 0 — gateway deploy (§3.2) | RDP connection on port 3389 |
-| R-003 | DNS, NTP, CA on gateway | NET-05, SVC-01, SVC-03, SVC-04, SVC-05 | Phase 1 — gateway config (§4.3) | `dig`, `chronyc sources`, `step ca health` |
+| R-003 | DNS, NTP, CA on gateway | NET-05, SVC-01, SVC-03, SVC-04, SVC-05 | Phase 1 — gateway config (§4.4) | `dig`, `chronyc sources`, `step ca health` |
 | R-004 | Two VCF domains (mgmt + wld) | NET-03, NET-04, ESX-02, VCF-01, VCF-02, VCF-03, VCF-04 | Phase 3 (§6) + Phase 4 (§7) | SDDC Manager shows both domains Active |
 | R-005 | VKS cluster via Supervisor with NSX VPC | VKS-01, VKS-02, VKS-03, VKS-04, VKS-05, VKS-06, VKS-07, VKS-08 | Phase 6 — Supervisor + VKS (§9) | `kubectl get nodes` shows 6 Ready |
 | R-006 | BGP peering between NSX and gateway | NET-02, NSX-01, NSX-02 | Phase 5 — BGP config (§8.2–8.3) | `sudo vtysh -c 'show ip bgp summary'` — Established |
 | R-007 | vSAN ESA with FTT=1 | ESX-03 | Phase 2 — ESXi prep (§5.2) | `esxcli vsan health cluster list` green |
 | R-008 | NSX VPC centralised Edge | NSX-03, NSX-04 | Phase 5 — VPC config (§8.5) | VPC shows Realised in NSX Manager |
-| R-009 | TLS certs from internal step-ca | SVC-02 | Phase 1 — CA setup (§4.3) + cert distribution (§5.2) | `step ca health`; certs valid on components |
+| R-009 | TLS certs from internal step-ca | SVC-02 | Phase 1 — CA setup (§4.4) + cert distribution (§5.2) | `step ca health`; certs valid on components |
 | R-010 | vApp snapshot/redeploy | VCD-03 | Operate Guide — snapshot SOP (§1.3) | Snapshot restore + power-on completes successfully |
 | R-011 | AppArmor RuntimeDefault for VKS pods | VKS-05 | Phase 6 — AppArmor verification (§9.5) | `kubectl get pod -o jsonpath` confirms RuntimeDefault |
 | R-012 | Shared-services VKS cluster for platform infrastructure | VKS-09, VKS-14 | Phase 7 — shared-services cluster deployment (§10.1) | `kubectl get nodes` on vks-services-01 shows 6 Ready |
@@ -197,7 +197,7 @@ See [Logical Design](logical-design.md) for phase details and [Delivery Guide](d
 | C-002 | Nested virtualisation accepted | ESX-01, ESX-03 |
 | C-003 | Single-site topology | VCF-01 |
 | C-004 | Lab-grade only — not production | VCF-02, VKS-04 |
-| C-005 | Internet access for VKS/VCF sync | Deliver Guide §4.3 (gateway NAT/masquerade via Ansible gateway role) |
+| C-005 | Internet access for VKS/VCF sync | Deliver Guide §4.4 (gateway NAT/masquerade via Ansible gateway role) |
 
 ### Assumption Verification
 
@@ -206,4 +206,4 @@ See [Logical Design](logical-design.md) for phase details and [Delivery Guide](d
 | A-001 | vCD supports nested virtualisation and jumbo frames | Deploy test VM, enable nested virt flag, ping with MTU 9000 | Deliver Guide §3.1 (vApp network creation) |
 | A-002 | Sufficient vCD resources (338 vCPU, 906 GB RAM, 1.5 TB) | Check vCD tenant quota before deployment | Deliver Guide §2 prerequisites #1 |
 | A-003 | VCF offline depot reachable | `curl -s https://depot.vcf-gcp.broadcom.net` from gateway | Deliver Guide §2 prerequisites #5 |
-| A-004 | lab.dreamfold.dev DNS zone delegated or internal-only | Verify zone delegation or confirm internal-only use | Deliver Guide §4.3 (dnsmasq authoritative zone config) |
+| A-004 | lab.dreamfold.dev DNS zone delegated or internal-only | Verify zone delegation or confirm internal-only use | Deliver Guide §4.4 (dnsmasq authoritative zone config) |
