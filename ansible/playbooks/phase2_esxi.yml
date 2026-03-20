@@ -31,6 +31,13 @@
       ansible.builtin.debug:
         msg: "{{ 'Password set from blank to bootstrap credential' if blank_test is not unreachable else 'Already has password — skipping bootstrap' }}"
 
+- name: Phase 2 — Clear unreachable state from bootstrap play
+  hosts: esxi
+  gather_facts: false
+  tasks:
+    - name: Clear host errors from bootstrap play
+      ansible.builtin.meta: clear_host_errors
+
 - name: Phase 2 — Prepare ESXi hosts
   hosts: esxi
   gather_facts: false
