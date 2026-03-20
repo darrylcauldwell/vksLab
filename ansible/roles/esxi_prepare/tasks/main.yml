@@ -1,39 +1,11 @@
 ---
-# ESXi host preparation — clean template state, configure for VCF bringup
-
-# --- Template clone fixes ---
-
-# Cloned ESXi VMs inherit the template's vmk0 MAC in esx.conf.
-# FollowHardwareMac makes ESXi use the actual vNIC MAC assigned by vCD.
-- name: Enable FollowHardwareMac
-  ansible.builtin.shell: >
-    esxcli system settings advanced set -o /Net/FollowHardwareMac -i 1
-  changed_when: true
-
-# Clones share the template's system UUID — causes identity conflicts in vCenter.
-# Remove the UUID so ESXi generates a unique one on next boot.
-- name: Check if system UUID needs regeneration
-  ansible.builtin.shell: >
-    esxcli system uuid get
-  register: current_uuid
-  changed_when: false
-
-- name: Record UUID for change detection
-  ansible.builtin.set_fact:
-    esxi_needs_reboot: false
-
-- name: Remove duplicate system UUID from esx.conf
-  ansible.builtin.shell: |
-    sed -i 's#/system/uuid.*##' /etc/vmware/esx.conf
-    /sbin/auto-backup.sh
-  register: uuid_result
-  changed_when: true
-  when: current_uuid.stdout | length > 0
-
-- name: Mark host for reboot
-  ansible.builtin.set_fact:
-    esxi_needs_reboot: true
-  when: uuid_result is changed
+# ESXi host preparation — configure for VCF bringup
+#
+# Prerequisites:
+#   - Reset System Configuration (§4.3) has already cleared stale template
+#     state (hostname, UUID, MAC mapping, root password).
+#   - Phase 1b MAC discovery has assigned static IPs.
+#   - Phase 2 bootstrap play has set the root password.
 
 # --- Identity ---
 
@@ -243,22 +215,6 @@
   changed_when: cert_result.rc == 0
   when: esxi_ca_cert_path is defined and esxi_ca_cert_path | length > 0
 
-# --- Reboot if UUID was regenerated ---
-# UUID and FollowHardwareMac changes require a reboot to take effect.
-# The reboot also ensures all settings are persisted cleanly.
-
-- name: Reboot ESXi host
-  ansible.builtin.shell: >
-    nohup sh -c 'sleep 2 && reboot' &
-  when: esxi_needs_reboot | default(false)
-  changed_when: true
-
-- name: Wait for ESXi host to come back
-  ansible.builtin.wait_for_connection:
-    delay: 30
-    timeout: 300
-  when: esxi_needs_reboot | default(false)
-
 # --- Validation ---
 
 - name: Verify connectivity to gateway
@@ -288,4 +244,3 @@
   register: final_uuid
   changed_when: false
   failed_when: final_uuid.stdout | length == 0
-  failed_when: cert_cn_check.rc != 0
