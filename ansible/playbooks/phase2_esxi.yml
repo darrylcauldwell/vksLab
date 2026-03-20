@@ -13,24 +13,33 @@
   gather_facts: false
   become: true
   tasks:
-    - name: Set bootstrap password on ESXi hosts with blank password
+    - name: Check which ESXi hosts have blank passwords
       ansible.builtin.shell: >
         sshpass -p '' ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5
-        root@{{ hostvars[item]['ansible_host'] }}
-        "esxcli system account set -i root -p '{{ bootstrap_password }}' -c '{{ bootstrap_password }}'"
+        root@{{ hostvars[item]['ansible_host'] }} echo ok
       loop: "{{ groups['esxi'] }}"
       loop_control:
         label: "{{ item }}"
-      register: bootstrap_result
-      ignore_errors: true
+      register: blank_check
+      failed_when: false
+      changed_when: false
       no_log: true
 
-    - name: Bootstrap results
-      ansible.builtin.debug:
-        msg: "{{ item.item }}: {{ 'password set from blank' if item.rc | default(1) == 0 else 'already has password — skipped' }}"
-      loop: "{{ bootstrap_result.results }}"
+    - name: Set bootstrap password on hosts with blank password
+      ansible.builtin.shell: >
+        sshpass -p '' ssh -o StrictHostKeyChecking=no
+        root@{{ item.item }}
+        "esxcli system account set -i root -p '{{ bootstrap_password }}' -c '{{ bootstrap_password }}'"
+      loop: "{{ blank_check.results | selectattr('rc', 'eq', 0) | list }}"
       loop_control:
         label: "{{ item.item }}"
+      no_log: true
+
+    - name: Bootstrap summary
+      ansible.builtin.debug:
+        msg: >-
+          {{ blank_check.results | selectattr('rc', 'eq', 0) | list | length }} host(s) bootstrapped,
+          {{ blank_check.results | rejectattr('rc', 'eq', 0) | list | length }} already had password.
 
 - name: Phase 2 — Prepare ESXi hosts
   hosts: esxi
