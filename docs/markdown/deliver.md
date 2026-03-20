@@ -200,17 +200,19 @@ The playbook is idempotent: if reservations already exist and hosts are reachabl
 
 ### 4.4 Foundation Verification
 
-| Check | Command / Method | Expected Result |
-|-------|------------------|-----------------|
-| Gateway external access | RDP to gateway public IP | The GNOME desktop is accessible via RDP |
-| Gateway DNS | `dig @10.0.10.1 gateway.lab.dreamfold.dev` | The query returns 10.0.10.1 |
-| Gateway NTP | `chronyc sources` | Chrony shows upstream NTP servers synchronised |
-| Gateway CA | `step ca health` | The health check returns "ok" |
-| Management IP | `ip addr show ens34` on gateway | The interface shows 10.0.10.1/24 on the native (untagged) VLAN |
-| VLAN sub-interfaces | `ip addr show ens34.20` on gateway | The sub-interface shows 10.0.20.1/24 (vMotion) |
-| Inter-VLAN routing | `ping 10.0.20.1` from a host on VLAN 10 | The ping succeeds |
-| FRR service | `sudo systemctl status frr` on gateway | FRR is active (running) |
-| FRR BGP config | `sudo vtysh -c 'show running-config'` on gateway | The `router bgp 65000` block is present with neighbor 10.0.60.2 (BGP adjacency establishes in Phase 5 when the NSX Tier-0 is configured) |
+The `phase1_foundation.yml` playbook runs automated verification checks at the end of the play. All checks below except RDP are validated automatically — the playbook will fail with a clear message if any check does not pass.
+
+| Check | Automated | Expected Result |
+|-------|-----------|-----------------|
+| Gateway external access | **Manual** — RDP to gateway public IP | The GNOME desktop is accessible via RDP |
+| Gateway DNS | Yes | Forward lookup of `gateway.lab.dreamfold.dev` returns the gateway IP |
+| Gateway NTP | Yes | Chrony shows a synchronised upstream source |
+| Gateway CA | Yes | `step ca health` returns "ok" |
+| Management IP | Yes | `ens34` has the expected management CIDR |
+| VLAN sub-interfaces | Yes | All 5 VLAN sub-interfaces have their expected CIDRs |
+| Inter-VLAN routing | Yes | Ping to vMotion gateway succeeds |
+| FRR service | Yes | FRR is active |
+| FRR BGP config | Yes | `router bgp 65000` block is present (BGP adjacency establishes in Phase 5 when the NSX Tier-0 is configured) |
 
 ## 5. Phase 2 — Nested ESXi
 

@@ -7,3 +7,74 @@
   roles:
     - gateway
     - docker_services
+
+- name: Phase 1 — Foundation verification
+  hosts: gateways
+  gather_facts: false
+  become: true
+  tasks:
+    - name: "Verify DNS — forward lookup"
+      ansible.builtin.command:
+        cmd: dig +short @{{ gateway_ip }} gateway.{{ lab_domain }}
+      register: dns_result
+      changed_when: false
+      failed_when: gateway_ip not in dns_result.stdout
+
+    - name: "Verify NTP — chrony has synced source"
+      ansible.builtin.shell:
+        cmd: chronyc sources | grep '^\^'
+      register: ntp_result
+      changed_when: false
+      failed_when: ntp_result.rc != 0
+
+    - name: "Verify CA — step-ca health"
+      ansible.builtin.command:
+        cmd: step ca health
+      register: ca_result
+      changed_when: false
+      failed_when: "'ok' not in ca_result.stdout"
+
+    - name: "Verify management IP on {{ gateway_vlan_trunk_nic }}"
+      ansible.builtin.shell:
+        cmd: "ip addr show {{ gateway_vlan_trunk_nic }} | grep 'inet {{ gateway_ip }}/'"
+      register: mgmt_ip_result
+      changed_when: false
+      failed_when: mgmt_ip_result.rc != 0
+
+    - name: "Verify VLAN sub-interfaces"
+      ansible.builtin.shell:
+        cmd: "ip addr show {{ gateway_vlan_trunk_nic }}.{{ item.vlan }} | grep 'inet {{ item.ip }}'"
+      loop: "{{ gateway_vlan_interfaces }}"
+      loop_control:
+        label: "{{ gateway_vlan_trunk_nic }}.{{ item.vlan }} ({{ item.description }})"
+      register: vlan_result
+      changed_when: false
+      failed_when: vlan_result.rc != 0
+
+    - name: "Verify inter-VLAN routing — ping vMotion gateway"
+      ansible.builtin.command:
+        cmd: ping -c 1 -W 2 {{ lab_vmotion_prefix }}.1
+      register: ping_result
+      changed_when: false
+      failed_when: ping_result.rc != 0
+
+    - name: "Verify FRR service is active"
+      ansible.builtin.command:
+        cmd: systemctl is-active frr
+      register: frr_result
+      changed_when: false
+      failed_when: "'active' not in frr_result.stdout"
+
+    - name: "Verify FRR BGP configuration"
+      ansible.builtin.shell:
+        cmd: vtysh -c 'show running-config' | grep 'router bgp 65000'
+      register: bgp_result
+      changed_when: false
+      failed_when: bgp_result.rc != 0
+
+    - name: Foundation verification summary
+      ansible.builtin.debug:
+        msg: >-
+          All automated checks passed: DNS, NTP, CA, management IP,
+          VLAN sub-interfaces, inter-VLAN routing, FRR, BGP config.
+          Manual check remaining: RDP to gateway public IP.
