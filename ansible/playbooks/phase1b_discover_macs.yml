@@ -129,10 +129,28 @@
             marker: "# {mark} ANSIBLE MANAGED — ESXi DHCP reservations (phase1b)"
             block: "{{ reservation_entries | join('\n') }}"
 
+        - name: Extract dynamic IPs for discovered MACs
+          ansible.builtin.shell: |
+            grep '{{ item }}' /var/lib/misc/dnsmasq.leases | sort -rn | head -1 | awk '{print $3}'
+          loop: "{{ discovered_macs }}"
+          register: dynamic_ips
+          changed_when: false
+
         - name: Restart dnsmasq to apply static reservations
           ansible.builtin.service:
             name: dnsmasq
             state: restarted
+
+        - name: Restart management network on each ESXi host to force DHCP renewal
+          ansible.builtin.shell: >
+            sshpass -p '' ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10
+            root@{{ item.stdout }}
+            "esxcli network ip interface set -e false -i vmk0; esxcli network ip interface set -e true -i vmk0"
+          loop: "{{ dynamic_ips.results }}"
+          loop_control:
+            label: "{{ esxi_hosts[idx].hostname }} ({{ item.stdout }} -> {{ esxi_hosts[idx].ip }})"
+            index_var: idx
+          ignore_errors: true
 
     - name: Wait for ESXi hosts to be reachable on static IPs
       ansible.builtin.wait_for:
