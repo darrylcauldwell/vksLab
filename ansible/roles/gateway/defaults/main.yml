@@ -22,6 +22,10 @@ gateway_step_packages:
   - step-cli
   - step-ca
 
+# VS Code (installed from Microsoft apt repo)
+gateway_vscode_packages:
+  - code
+
 # VLAN sub-interface configuration
 # Management (VLAN 10) is the native/untagged VLAN on ens34 — no sub-interface.
 # This allows ESXi hosts to DHCP without VLAN tagging on their management port group.

@@ -120,6 +120,7 @@ See [Delivery Guide](deliver.md) for netplan configuration. Key parameters:
 | Routing | Free Range Routing (FRR) (zebra + bgpd) | Inter-VLAN routing, BGP peering with NSX Tier-0 (ASN 65000) |
 | Remote access | gnome-remote-desktop | Wayland-native RDP on port 3389; GDM3 auto-login |
 | Web browser | Firefox | Access vCenter, NSX Manager, SDDC Manager UIs |
+| Code editor | VS Code | Microsoft apt repo, installed during Phase 1 gateway configuration |
 
 All VCF components point to 10.0.10.1 for DNS and NTP. systemd-resolved is disabled on the gateway to free port 53 for dnsmasq.
 

@@ -391,6 +391,35 @@
     state: present
     update_cache: true
 
+# VS Code provides an IDE on the gateway for editing Ansible playbooks,
+# VKS manifests, and troubleshooting — accessible via RDP.
+- name: Add Microsoft VS Code apt repository key
+  become: true
+  ansible.builtin.get_url:
+    url: https://packages.microsoft.com/keys/microsoft.asc
+    dest: /etc/apt/keyrings/microsoft.asc
+    mode: "0644"
+
+- name: Add Microsoft VS Code apt repository
+  become: true
+  ansible.builtin.copy:
+    content: |
+      Types: deb
+      URIs: https://packages.microsoft.com/repos/code
+      Suites: stable
+      Components: main
+      Architectures: amd64
+      Signed-By: /etc/apt/keyrings/microsoft.asc
+    dest: /etc/apt/sources.list.d/vscode.sources
+    mode: "0644"
+
+- name: Install VS Code
+  become: true
+  ansible.builtin.apt:
+    name: "{{ gateway_vscode_packages }}"
+    state: present
+    update_cache: true
+
 # Derived deterministically from bootstrap_password so reruns always
 # produce the same value — safe to overwrite on every run.
 - name: Write step-ca password
