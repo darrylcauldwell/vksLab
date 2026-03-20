@@ -104,21 +104,27 @@ brew install --cask 1password-cli
 #   Settings → Developer → enable "Integrate with 1Password CLI"
 # After this, op commands authenticate via Touch ID — no manual signin needed.
 
-# Bootstrap password — simple, typed manually into vCD console and ESXi DCUI
+# Create 1Password items (first time only)
 op item create --vault Employee --category login --title "Lab Bootstrap" \
-  password='VMware1!'
-
-# Runtime passwords — complex, injected by Ansible (never typed manually)
+  password='VMware1!VMware1!' username=ubuntu
 op item create --vault Employee --category login --title "ESXi Root" \
-  --generate-password='20,letters,digits,symbols' username=root
+  password='VMware1!VMware1!' username=root
 op item create --vault Employee --category login --title "vCenter SSO" \
-  --generate-password='20,letters,digits,symbols' username='administrator@vsphere.local'
+  password='VMware1!VMware1!' username='administrator@vsphere.local'
 op item create --vault Employee --category login --title "SDDC Manager" \
-  --generate-password='20,letters,digits,symbols' username='admin@local'
+  password='VMware1!VMware1!' username='admin@local'
 op item create --vault Employee --category login --title "NSX Manager" \
-  --generate-password='20,letters,digits,symbols' username=admin
+  password='VMware1!VMware1!' username=admin
 op item create --vault Employee --category login --title "Keycloak Admin" \
-  --generate-password='20,letters,digits,symbols' username=admin
+  password='VMware1!VMware1!' username=admin
+
+# Update existing items to standard lab password (if items already exist)
+op item edit "Lab Bootstrap" password='VMware1!VMware1!'
+op item edit "ESXi Root" password='VMware1!VMware1!'
+op item edit "vCenter SSO" password='VMware1!VMware1!'
+op item edit "SDDC Manager" password='VMware1!VMware1!'
+op item edit "NSX Manager" password='VMware1!VMware1!'
+op item edit "Keycloak Admin" password='VMware1!VMware1!'
 ```
 
 Verify: `op item list --vault Employee` shows all 6 items.
