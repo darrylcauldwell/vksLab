@@ -5,17 +5,17 @@ vcf_wld_password: "{{ sddc_admin_password }}"
 vcf_wld_hosts:
   - fqdn: "esxi-05.{{ lab_domain }}"
     username: root
-    password: "{{ esxi_root_password }}"
+    password: "{{ bootstrap_password }}"
     networkPoolName: mgmt-network-pool
     storageType: VSAN
   - fqdn: "esxi-06.{{ lab_domain }}"
     username: root
-    password: "{{ esxi_root_password }}"
+    password: "{{ bootstrap_password }}"
     networkPoolName: mgmt-network-pool
     storageType: VSAN
   - fqdn: "esxi-07.{{ lab_domain }}"
     username: root
-    password: "{{ esxi_root_password }}"
+    password: "{{ bootstrap_password }}"
     networkPoolName: mgmt-network-pool
     storageType: VSAN
 

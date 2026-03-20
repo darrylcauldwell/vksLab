@@ -60,16 +60,16 @@ vcf_bringup_spec:
     - hostname: "esxi-01.{{ lab_domain }}"
       ip: "{{ lab_mgmt_prefix }}.11"
       username: root
-      password: "{{ esxi_root_password }}"
+      password: "{{ bootstrap_password }}"
     - hostname: "esxi-02.{{ lab_domain }}"
       ip: "{{ lab_mgmt_prefix }}.12"
       username: root
-      password: "{{ esxi_root_password }}"
+      password: "{{ bootstrap_password }}"
     - hostname: "esxi-03.{{ lab_domain }}"
       ip: "{{ lab_mgmt_prefix }}.13"
       username: root
-      password: "{{ esxi_root_password }}"
+      password: "{{ bootstrap_password }}"
     - hostname: "esxi-04.{{ lab_domain }}"
       ip: "{{ lab_mgmt_prefix }}.14"
       username: root
-      password: "{{ esxi_root_password }}"
+      password: "{{ bootstrap_password }}"

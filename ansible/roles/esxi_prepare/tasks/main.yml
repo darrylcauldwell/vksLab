@@ -145,12 +145,6 @@
 
 # --- Services and security ---
 
-- name: Set root password to runtime credential
-  ansible.builtin.shell: >
-    echo 'root:{{ esxi_root_password }}' | chpasswd
-  no_log: true
-  changed_when: true
-
 # SSH must auto-start — VCF Installer requires it, not just current session
 - name: Enable SSH service auto-start
   ansible.builtin.shell: >
