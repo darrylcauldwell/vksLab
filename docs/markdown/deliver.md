@@ -128,6 +128,9 @@ Verify: `op item list --vault Employee` shows all 6 items.
 Ansible runs from the operator's laptop (not the gateway) and connects to lab hosts via SSH ProxyJump through the gateway.
 
 ```bash
+# Install sshpass (required for password-based SSH to ESXi hosts)
+brew install hudochenkov/sshpass/sshpass
+
 # Create and activate virtual environment (from repo root)
 python3 -m venv .venv
 source .venv/bin/activate
