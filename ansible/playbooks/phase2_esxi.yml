@@ -70,6 +70,47 @@
           {{ blank_check.results | selectattr('rc', 'eq', 0) | list | length }} host(s) bootstrapped,
           {{ blank_check.results | rejectattr('rc', 'eq', 0) | list | length }} already had password.
 
+- name: Phase 2 — Regenerate SSL certificates (one host at a time)
+  hosts: esxi
+  gather_facts: false
+  serial: 1
+  tasks:
+    - name: Set hostname and FQDN
+      ansible.builtin.shell: >
+        esxcli system hostname set
+        --fqdn={{ inventory_hostname }}.{{ esxi_domain }}
+      register: hostname_result
+      changed_when: hostname_result.rc == 0
+
+    - name: Regenerate SSL certificate and restart hostd
+      ansible.builtin.shell: >
+        /sbin/generate-certificates &&
+        /etc/init.d/hostd restart &&
+        /etc/init.d/vpxa restart
+      changed_when: true
+
+    - name: Reset SSH connection
+      ansible.builtin.meta: reset_connection
+
+    - name: Wait for SSH to come back
+      ansible.builtin.wait_for_connection:
+        delay: 10
+        timeout: 120
+
+    - name: Wait for hostd to be ready
+      ansible.builtin.shell: >
+        vim-cmd hostsvc/hostsummary > /dev/null 2>&1
+      register: hostd_ready
+      until: hostd_ready.rc == 0
+      retries: 20
+      delay: 5
+      changed_when: false
+
+    - name: Verify certificate CN matches FQDN
+      ansible.builtin.shell: >
+        openssl x509 -in /etc/vmware/ssl/rui.crt -noout -subject | grep -q {{ inventory_hostname }}.{{ esxi_domain }}
+      changed_when: false
+
 - name: Phase 2 — Prepare ESXi hosts
   hosts: esxi
   gather_facts: false
