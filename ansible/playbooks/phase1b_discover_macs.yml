@@ -72,20 +72,18 @@
         reservations_exist.rc != 0 or
         (reservations_exist.rc == 0 and first_host_reachable.rc != 0)
       block:
-        - name: Read dnsmasq lease file
-          ansible.builtin.slurp:
-            src: /var/lib/misc/dnsmasq.leases
-          register: lease_file
-
         - name: Extract MACs from dynamic-range leases (newest first)
+          ansible.builtin.shell: |
+            grep '{{ lab_mgmt_prefix }}\.1[0-9][0-9] ' /var/lib/misc/dnsmasq.leases \
+              | sort -rn \
+              | awk '{print $2}' \
+              | awk '!seen[$0]++'
+          register: mac_output
+          changed_when: false
+
+        - name: Set discovered MACs fact
           ansible.builtin.set_fact:
-            discovered_macs: >-
-              {{ (lease_file.content | b64decode).splitlines()
-                 | select('search', lab_mgmt_prefix ~ '\\.1[0-9][0-9] ')
-                 | sort(reverse=true)
-                 | map('regex_replace', '^\\S+\\s+(\\S+)\\s+.*$', '\\1')
-                 | unique
-                 | list }}
+            discovered_macs: "{{ mac_output.stdout_lines }}"
 
         - name: Verify at least 7 ESXi hosts found
           ansible.builtin.assert:
