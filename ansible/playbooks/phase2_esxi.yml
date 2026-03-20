@@ -13,11 +13,6 @@
   gather_facts: false
   become: true
   tasks:
-    - name: Ensure sshpass is installed on gateway
-      ansible.builtin.apt:
-        name: sshpass
-        state: present
-
     - name: Set bootstrap password on ESXi hosts with blank password
       ansible.builtin.shell: >
         sshpass -p '' ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5

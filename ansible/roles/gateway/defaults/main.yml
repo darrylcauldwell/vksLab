@@ -14,6 +14,7 @@ gateway_packages:
   - frr
   - jq
   - conky-all
+  - sshpass                     # Used by Phase 2 bootstrap to set ESXi passwords
 
 gateway_keyboard_layout: gb
 
