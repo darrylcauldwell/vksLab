@@ -161,8 +161,10 @@ ESXi hosts deployed from the vApp template carry stale configuration from the pr
 | 4.2a.1 | For each ESXi VM (esxi-01 through esxi-07), open the VM console in vCD | The DCUI is displayed | — |
 | 4.2a.2 | Press **F2** > **Reset System Configuration** > **F11** to confirm | The host begins resetting its configuration | The DCUI shows a reset progress indicator |
 | 4.2a.3 | Wait for the host to reboot and obtain a new DHCP lease (1–2 minutes per host) | The host reboots and obtains an IP in the `.100–.199` dynamic range | The DCUI shows a management IP in the dynamic range |
+| 4.2a.4 | On each host via DCUI: press **F2** > **Troubleshooting Options** > **Enable SSH** > **Enter** | SSH is enabled on the host | — |
+| 4.2a.5 | On each host via DCUI: press **F2** > **Configure Password** and set the root password to match 1Password "Lab Bootstrap" item (password is blank after reset) | The root password is set | — |
 
-> **Note**: Reset System Configuration clears the hostname, UUID, and network configuration from the template. It also resets the root password to blank and disables SSH/ESXi Shell — both are re-enabled in §5.1.
+> **Note**: Reset System Configuration clears the hostname, UUID, and network configuration from the template. It also resets the root password to blank and disables SSH/ESXi Shell. Steps 4.2a.4–4.2a.5 re-enable SSH and set the password immediately so that Phase 1b (§4.3a) and Phase 2 (§5.2) can connect via Ansible.
 
 ### 4.3 Configure Gateway (Automated)
 
@@ -214,14 +216,13 @@ The playbook is idempotent: if reservations already exist and hosts are reachabl
 
 > Phase 2 implements R-004, R-007 via ESX-01 through ESX-04 and NET-03, NET-04.
 
-### 5.1 Configure ESXi Hosts (Manual)
+### 5.1 Verify ESXi Host Access
 
-ESXi hosts receive their management IP via DHCP from the gateway dnsmasq (configured in Phase 1). MAC addresses are discovered automatically by the Phase 1b playbook (§4.3a).
+SSH and the root password were already configured in §4.2a (steps 4.2a.4–4.2a.5). Verify connectivity before proceeding:
 
 | Step | Action | Expected Result | Verification |
 |------|--------|-----------------|--------------|
-| 5.1.1 | On each host via Direct Console User Interface (DCUI): press **F2** > **Troubleshooting Options** > **Enable SSH** > **Enter** | SSH is enabled on the host | `ssh root@<ip>` connects successfully |
-| 5.1.2 | On each host via DCUI: press **F2** > **Configure Password** and set the root password to match 1Password "Lab Bootstrap" item. After Reset System Configuration (§4.2a), the password is blank — set it here | The root password is set | SSH login with the bootstrap password succeeds |
+| 5.1.1 | Verify SSH access to each host: `ssh root@esxi-01.lab.dreamfold.dev` (repeat for esxi-02 through esxi-07) | SSH connects with the bootstrap password | A login prompt or shell is displayed |
 
 ### 5.2 Prepare Hosts (Automated)
 
