@@ -25,10 +25,14 @@
 
 - name: Restart hostd to pick up new certificate
   ansible.builtin.shell: >
-    /etc/init.d/hostd restart && /etc/init.d/vpxa restart
+    nohup sh -c 'sleep 2 && /etc/init.d/hostd restart && /etc/init.d/vpxa restart' &
   changed_when: true
 
-# Brief pause for hostd to finish restarting
+- name: Wait for SSH to come back after hostd restart
+  ansible.builtin.wait_for_connection:
+    delay: 10
+    timeout: 120
+
 - name: Wait for hostd to be ready
   ansible.builtin.shell: >
     vim-cmd hostsvc/hostsummary > /dev/null 2>&1
