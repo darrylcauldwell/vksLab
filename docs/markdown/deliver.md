@@ -165,9 +165,8 @@ ESXi hosts deployed from the vApp template carry stale configuration from the pr
 | 4.2a.2 | Press **F2** > **Reset System Configuration** > **F11** to confirm | The host begins resetting its configuration | The DCUI shows a reset progress indicator |
 | 4.2a.3 | Wait for the host to reboot and obtain a new DHCP lease (1–2 minutes per host) | The host reboots and obtains an IP in the `.100–.199` dynamic range | The DCUI shows a management IP in the dynamic range |
 | 4.2a.4 | On each host via DCUI: press **F2** > **Troubleshooting Options** > **Enable SSH** > **Enter** | SSH is enabled on the host | — |
-| 4.2a.5 | On each host via DCUI: press **F2** > **Configure Password** and set the root password to match 1Password "Lab Bootstrap" item (password is blank after reset) | The root password is set | — |
 
-> **Note**: Reset System Configuration clears the hostname, UUID, and network configuration from the template. It also resets the root password to blank and disables SSH/ESXi Shell. Steps 4.2a.4–4.2a.5 re-enable SSH and set the password immediately so that Phase 1b (§4.3a) and Phase 2 (§5.2) can connect via Ansible.
+> **Note**: Reset System Configuration clears the hostname, UUID, and network configuration from the template. It also resets the root password to blank and disables SSH/ESXi Shell. Step 4.2a.4 re-enables SSH for Ansible connectivity. The root password is set automatically by the Phase 2 playbook (§5.1) — no manual password configuration is needed.
 
 ### 4.3 Configure Gateway (Automated)
 
@@ -223,7 +222,9 @@ The `phase1_foundation.yml` playbook runs automated verification checks at the e
 
 ### 5.1 Prepare Hosts (Automated)
 
-Use the Ansible `esxi_prepare` role to configure all hosts. This sets hostname, DNS, NTP, root password, and prepares vSAN Express Storage Architecture (ESA) in a single operation. The playbook takes approximately **5–10 minutes** to complete:
+The playbook first bootstraps the root password on each host. After Reset System Configuration (§4.2a), the root password is blank — the bootstrap play connects with a blank password and sets it to the 1Password "Lab Bootstrap" credential. On re-runs where the password is already set, this step is skipped automatically.
+
+The `esxi_prepare` role then configures all hosts — hostname, DNS, NTP, root password (upgraded to the runtime credential from 1Password "ESXi Root"), and vSAN Express Storage Architecture (ESA) preparation. The playbook takes approximately **5–10 minutes** to complete:
 
 ```bash
 cd ansible

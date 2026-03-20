@@ -1,6 +1,36 @@
 ---
 # Phase 2 — Nested ESXi Host Preparation
-# Configures hostname, DNS, NTP, password, vSAN ESA, and CA cert on all ESXi hosts
+#
+# Bootstrap play: after Reset System Configuration (§4.2a), ESXi root password
+# is blank. This play connects with a blank password and sets it to the bootstrap
+# password from 1Password. On re-runs where the password is already set, the
+# blank-password connection fails and the play is skipped gracefully.
+#
+# Prepare play: configures hostname, DNS, NTP, password, vSAN ESA, and CA cert.
+
+- name: Phase 2 — Bootstrap ESXi passwords
+  hosts: esxi
+  gather_facts: false
+  vars:
+    ansible_password: ""
+    ansible_ssh_extra_args: "-o PubkeyAuthentication=no"
+  ignore_unreachable: true
+  tasks:
+    - name: Test blank password connectivity
+      ansible.builtin.raw: echo ok
+      register: blank_test
+      changed_when: false
+
+    - name: Set root password to bootstrap credential
+      ansible.builtin.raw: >
+        echo 'root:{{ bootstrap_password }}' | chpasswd
+      no_log: true
+      when: blank_test is not unreachable
+
+    - name: Bootstrap result
+      ansible.builtin.debug:
+        msg: "{{ 'Password set from blank to bootstrap credential' if blank_test is not unreachable else 'Already has password — skipping bootstrap' }}"
+
 - name: Phase 2 — Prepare ESXi hosts
   hosts: esxi
   gather_facts: false
