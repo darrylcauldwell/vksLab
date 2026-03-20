@@ -23,7 +23,7 @@
 
     - name: Set root password to bootstrap credential
       ansible.builtin.raw: >
-        echo 'root:{{ bootstrap_password }}' | chpasswd
+        esxcli system account set -i root -p '{{ bootstrap_password }}' -c '{{ bootstrap_password }}'
       no_log: true
       when: blank_test is not unreachable
 
