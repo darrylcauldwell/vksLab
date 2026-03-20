@@ -1,0 +1,56 @@
+---
+# Included by phase2_esxi.yml — runs once per ESXi host from the gateway.
+# Sets hostname, regenerates SSL cert, restarts hostd, waits for recovery.
+# All commands run via sshpass to avoid Ansible SSH connection issues
+# during hostd restarts.
+
+- name: "{{ esxi_host }} — Set hostname and FQDN"
+  ansible.builtin.shell: >
+    sshpass -p '{{ bootstrap_password }}' ssh {{ ssh_opts }}
+    root@{{ hostvars[esxi_host]['ansible_host'] }}
+    "esxcli system hostname set --fqdn={{ esxi_host }}.{{ lab_domain }}"
+  no_log: true
+  changed_when: true
+
+- name: "{{ esxi_host }} — Regenerate SSL certificate"
+  ansible.builtin.shell: >
+    sshpass -p '{{ bootstrap_password }}' ssh {{ ssh_opts }}
+    root@{{ hostvars[esxi_host]['ansible_host'] }}
+    "/sbin/generate-certificates"
+  no_log: true
+  changed_when: true
+
+- name: "{{ esxi_host }} — Restart hostd and vpxa"
+  ansible.builtin.shell: >
+    sshpass -p '{{ bootstrap_password }}' ssh {{ ssh_opts }}
+    root@{{ hostvars[esxi_host]['ansible_host'] }}
+    "nohup sh -c 'sleep 1 && /etc/init.d/hostd restart && /etc/init.d/vpxa restart' > /dev/null 2>&1 &"
+  no_log: true
+  changed_when: true
+
+- name: "{{ esxi_host }} — Wait for hostd to recover"
+  ansible.builtin.shell: >
+    sshpass -p '{{ bootstrap_password }}' ssh {{ ssh_opts }}
+    root@{{ hostvars[esxi_host]['ansible_host'] }}
+    "vim-cmd hostsvc/hostsummary > /dev/null 2>&1"
+  register: hostd_check
+  until: hostd_check.rc == 0
+  retries: 30
+  delay: 5
+  changed_when: false
+  no_log: true
+
+- name: "{{ esxi_host }} — Verify certificate CN matches FQDN"
+  ansible.builtin.shell: >
+    sshpass -p '{{ bootstrap_password }}' ssh {{ ssh_opts }}
+    root@{{ hostvars[esxi_host]['ansible_host'] }}
+    "openssl x509 -in /etc/vmware/ssl/rui.crt -noout -subject"
+  register: cert_subject
+  no_log: true
+  changed_when: false
+
+- name: "{{ esxi_host }} — Assert certificate CN"
+  ansible.builtin.assert:
+    that: "esxi_host ~ '.' ~ lab_domain in cert_subject.stdout"
+    fail_msg: "Certificate CN does not match {{ esxi_host }}.{{ lab_domain }}: {{ cert_subject.stdout }}"
+    success_msg: "{{ cert_subject.stdout | trim }}"

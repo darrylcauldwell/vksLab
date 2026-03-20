@@ -7,9 +7,17 @@
 #   - Phase 1b MAC discovery has assigned static IPs.
 #   - Phase 2 bootstrap play has set the root password.
 
-# --- Identity ---
-# Hostname, SSL cert, and hostd restart are handled in the serial play
-# in phase2_esxi.yml (one host at a time to avoid SSH connection drops).
+# --- Pre-flight: ensure hostd is responsive ---
+# Identity tasks (hostname, SSL cert, hostd restart) run in a prior play
+# from the gateway via sshpass. Verify hostd is ready before we continue.
+- name: Verify hostd is ready
+  ansible.builtin.shell: >
+    vim-cmd hostsvc/hostsummary > /dev/null 2>&1
+  register: hostd_gate
+  until: hostd_gate.rc == 0
+  retries: 15
+  delay: 5
+  changed_when: false
 
 # --- DNS ---
 
