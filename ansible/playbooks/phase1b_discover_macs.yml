@@ -143,7 +143,7 @@
 
         - name: Restart management network on each ESXi host to force DHCP renewal
           ansible.builtin.shell: >
-            sshpass -p '' ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10
+            sshpass -p '' ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10
             root@{{ item.stdout }}
             "esxcli network ip interface set -e false -i vmk0; esxcli network ip interface set -e true -i vmk0"
           loop: "{{ dynamic_ips.results }}"
