@@ -2,37 +2,40 @@
 # Phase 2 — Nested ESXi Host Preparation
 #
 # Bootstrap play: after Reset System Configuration (§4.2a), ESXi root password
-# is blank. This play connects with a blank password and sets it to the bootstrap
-# password from 1Password. On re-runs where the password is already set, the
-# blank-password connection fails and the play is skipped gracefully.
+# is blank. This play runs on the gateway and uses sshpass to connect to each
+# ESXi host with a blank password and set it to the bootstrap credential from
+# 1Password. Hosts that already have a password are skipped (ignore_errors).
 #
 # Prepare play: configures hostname, DNS, NTP, password, vSAN ESA, and CA cert.
 
-- name: Phase 2 — Bootstrap ESXi passwords
-  hosts: esxi
+- name: Phase 2 — Bootstrap ESXi passwords (via gateway)
+  hosts: gateways
   gather_facts: false
-  vars:
-    ansible_password: ""
-    ansible_ssh_extra_args: "-o PubkeyAuthentication=no"
-  ignore_unreachable: true
+  become: true
   tasks:
-    - name: Test blank password connectivity
-      ansible.builtin.raw: echo ok
-      register: blank_test
-      changed_when: false
+    - name: Ensure sshpass is installed on gateway
+      ansible.builtin.apt:
+        name: sshpass
+        state: present
 
-    - name: Set root password to bootstrap credential
-      ansible.builtin.raw: >
-        esxcli system account set -i root -p '{{ bootstrap_password }}' -c '{{ bootstrap_password }}'
+    - name: Set bootstrap password on ESXi hosts with blank password
+      ansible.builtin.shell: >
+        sshpass -p '' ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5
+        root@{{ hostvars[item]['ansible_host'] }}
+        "esxcli system account set -i root -p '{{ bootstrap_password }}' -c '{{ bootstrap_password }}'"
+      loop: "{{ groups['esxi'] }}"
+      loop_control:
+        label: "{{ item }}"
+      register: bootstrap_result
+      ignore_errors: true
       no_log: true
-      when: blank_test is not unreachable
 
-    - name: Bootstrap result
+    - name: Bootstrap results
       ansible.builtin.debug:
-        msg: "{{ 'Password set from blank to bootstrap credential' if blank_test is not unreachable else 'Already has password — skipping bootstrap' }}"
-
-    - name: Clear unreachable state for next play
-      ansible.builtin.meta: clear_host_errors
+        msg: "{{ item.item }}: {{ 'password set from blank' if item.rc | default(1) == 0 else 'already has password — skipped' }}"
+      loop: "{{ bootstrap_result.results }}"
+      loop_control:
+        label: "{{ item.item }}"
 
 - name: Phase 2 — Prepare ESXi hosts
   hosts: esxi
