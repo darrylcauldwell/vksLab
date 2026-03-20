@@ -3,50 +3,59 @@
 # Sets hostname, regenerates SSL cert, restarts hostd, waits for recovery.
 # All commands run via sshpass to avoid Ansible SSH connection issues
 # during hostd restarts.
+#
+# Password is passed via SSHPASS env var (not CLI arg) so it doesn't
+# appear in Ansible's command output on failure.
 
 - name: "{{ esxi_host }} — Set hostname and FQDN"
   ansible.builtin.shell: >
-    sshpass -p '{{ bootstrap_password }}' ssh {{ ssh_opts }}
+    sshpass -e ssh {{ ssh_opts }}
     root@{{ hostvars[esxi_host]['ansible_host'] }}
     "esxcli system hostname set --fqdn={{ esxi_host }}.{{ lab_domain }}"
-  no_log: true
-  changed_when: true
+  environment:
+    SSHPASS: "{{ bootstrap_password }}"
+  register: hostname_result
+  changed_when: hostname_result.rc == 0
 
 - name: "{{ esxi_host }} — Regenerate SSL certificate"
   ansible.builtin.shell: >
-    sshpass -p '{{ bootstrap_password }}' ssh {{ ssh_opts }}
+    sshpass -e ssh {{ ssh_opts }}
     root@{{ hostvars[esxi_host]['ansible_host'] }}
     "/sbin/generate-certificates"
-  no_log: true
+  environment:
+    SSHPASS: "{{ bootstrap_password }}"
   changed_when: true
 
 - name: "{{ esxi_host }} — Restart hostd and vpxa"
   ansible.builtin.shell: >
-    sshpass -p '{{ bootstrap_password }}' ssh {{ ssh_opts }}
+    sshpass -e ssh {{ ssh_opts }}
     root@{{ hostvars[esxi_host]['ansible_host'] }}
     "nohup sh -c 'sleep 1 && /etc/init.d/hostd restart && /etc/init.d/vpxa restart' > /dev/null 2>&1 &"
-  no_log: true
+  environment:
+    SSHPASS: "{{ bootstrap_password }}"
   changed_when: true
 
 - name: "{{ esxi_host }} — Wait for hostd to recover"
   ansible.builtin.shell: >
-    sshpass -p '{{ bootstrap_password }}' ssh {{ ssh_opts }}
+    sshpass -e ssh {{ ssh_opts }}
     root@{{ hostvars[esxi_host]['ansible_host'] }}
     "vim-cmd hostsvc/hostsummary > /dev/null 2>&1"
+  environment:
+    SSHPASS: "{{ bootstrap_password }}"
   register: hostd_check
   until: hostd_check.rc == 0
   retries: 30
   delay: 5
   changed_when: false
-  no_log: true
 
 - name: "{{ esxi_host }} — Verify certificate CN matches FQDN"
   ansible.builtin.shell: >
-    sshpass -p '{{ bootstrap_password }}' ssh {{ ssh_opts }}
+    sshpass -e ssh {{ ssh_opts }}
     root@{{ hostvars[esxi_host]['ansible_host'] }}
     "openssl x509 -in /etc/vmware/ssl/rui.crt -noout -subject"
+  environment:
+    SSHPASS: "{{ bootstrap_password }}"
   register: cert_subject
-  no_log: true
   changed_when: false
 
 - name: "{{ esxi_host }} — Assert certificate CN"
