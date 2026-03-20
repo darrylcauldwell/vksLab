@@ -78,7 +78,7 @@
     - name: Set hostname and FQDN
       ansible.builtin.shell: >
         esxcli system hostname set
-        --fqdn={{ inventory_hostname }}.{{ esxi_domain }}
+        --fqdn={{ inventory_hostname }}.{{ lab_domain }}
       register: hostname_result
       changed_when: hostname_result.rc == 0
 
@@ -108,7 +108,7 @@
 
     - name: Verify certificate CN matches FQDN
       ansible.builtin.shell: >
-        openssl x509 -in /etc/vmware/ssl/rui.crt -noout -subject | grep -q {{ inventory_hostname }}.{{ esxi_domain }}
+        openssl x509 -in /etc/vmware/ssl/rui.crt -noout -subject | grep -q {{ inventory_hostname }}.{{ lab_domain }}
       changed_when: false
 
 - name: Phase 2 — Prepare ESXi hosts
