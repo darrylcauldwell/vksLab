@@ -529,6 +529,18 @@
 # FRR BGP peers with the NSX Tier-0 gateway on the edge uplink VLAN (60).
 # The gateway advertises infrastructure routes; NSX advertises VKS pod/service
 # CIDRs back. This enables pod-to-external and external-to-pod connectivity.
+
+# FRR defaults to integrated config mode when frr.conf exists — it reads
+# only frr.conf and ignores per-daemon files (bgpd.conf, zebra.conf).
+# Remove it so FRR uses the per-daemon config files we deploy.
+- name: Remove FRR integrated config file
+  become: true
+  ansible.builtin.file:
+    path: /etc/frr/frr.conf
+    state: absent
+  notify: restart frr
+  tags: routing
+
 - name: Deploy FRR daemons configuration
   become: true
   ansible.builtin.template:
