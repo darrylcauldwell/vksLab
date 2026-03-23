@@ -40,7 +40,7 @@
   tasks:
     - name: "Verify DNS — forward lookup"
       ansible.builtin.command:
-        cmd: dig +short @{{ gateway_ip }} gateway.{{ lab_domain }}
+        cmd: dig +short @127.0.0.1 gateway.{{ lab_domain }}
       register: dns_result
       changed_when: false
       failed_when: gateway_ip not in dns_result.stdout
