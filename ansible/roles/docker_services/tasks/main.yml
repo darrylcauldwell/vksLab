@@ -113,6 +113,66 @@
 # for vCenter and NSX Manager. vCenter/NSX OIDC configuration is manual
 # (post Phase 3/4) as those components don't exist yet.
 
+# KC_BOOTSTRAP_ADMIN_PASSWORD only works on first boot. On re-runs the
+# password in 1Password may differ from what Keycloak stored. Try to
+# obtain a token first; if it fails (401), the container is recreated
+# with the current password.
+- name: Try to obtain Keycloak admin access token
+  ansible.builtin.uri:
+    url: "https://127.0.0.1:{{ keycloak_port }}/realms/master/protocol/openid-connect/token"
+    method: POST
+    body_format: form-urlencoded
+    body:
+      grant_type: password
+      username: admin
+      password: "{{ keycloak_admin_password }}"
+      client_id: admin-cli
+    validate_certs: false
+    status_code: [200, 401]
+  register: kc_token_attempt
+  no_log: true
+
+# If the admin password doesn't match, destroy and recreate the container
+# with its data volume so bootstrap credentials take effect again.
+- name: Remove Keycloak container (password mismatch)
+  become: true
+  ansible.builtin.shell: >
+    docker stop {{ keycloak_container_name }} &&
+    docker rm {{ keycloak_container_name }} &&
+    docker volume rm keycloak-data
+  when: kc_token_attempt.status == 401
+  no_log: true
+
+- name: Recreate Keycloak container with current password
+  become: true
+  ansible.builtin.shell: >
+    docker run -d
+    --name {{ keycloak_container_name }}
+    --restart unless-stopped
+    -p {{ keycloak_port }}:8443
+    -e KC_BOOTSTRAP_ADMIN_USERNAME=admin
+    -e KC_BOOTSTRAP_ADMIN_PASSWORD='{{ keycloak_admin_password }}'
+    -e KC_HOSTNAME={{ keycloak_hostname }}
+    -e KC_HTTPS_CERTIFICATE_FILE=/opt/keycloak/conf/server.crt
+    -e KC_HTTPS_CERTIFICATE_KEY_FILE=/opt/keycloak/conf/server.key
+    -v {{ keycloak_cert_path }}:/opt/keycloak/conf/server.crt:ro
+    -v {{ keycloak_key_path }}:/opt/keycloak/conf/server.key:ro
+    -v keycloak-data:/opt/keycloak/data
+    {{ keycloak_image }} start
+  when: kc_token_attempt.status == 401
+  no_log: true
+
+- name: Wait for Keycloak to be ready after recreate
+  ansible.builtin.uri:
+    url: "https://127.0.0.1:{{ keycloak_port }}/realms/master"
+    validate_certs: false
+    status_code: [200]
+  register: kc_health_retry
+  until: kc_health_retry.status == 200
+  retries: 60
+  delay: 5
+  when: kc_token_attempt.status == 401
+
 - name: Obtain Keycloak admin access token
   ansible.builtin.uri:
     url: "https://127.0.0.1:{{ keycloak_port }}/realms/master/protocol/openid-connect/token"
