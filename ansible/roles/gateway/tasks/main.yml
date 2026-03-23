@@ -116,6 +116,17 @@
     line: 'enabled=0'
     state: present
 
+# xrdp may be pre-installed in the vApp template. It conflicts with
+# gnome-remote-desktop by binding port 3389 first. Remove it entirely.
+- name: Remove xrdp if present
+  become: true
+  ansible.builtin.apt:
+    name:
+      - xrdp
+      - xorgxrdp
+    state: absent
+    purge: true
+
 # Ubuntu's 61-gdm.rules detects VMware's virtual GPU and forces Xorg,
 # disabling Wayland. Override with an empty file so GDM respects
 # WaylandEnable=true in custom.conf.
