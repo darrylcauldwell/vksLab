@@ -173,7 +173,8 @@
   delay: 5
   when: kc_token_attempt.status == 401
 
-- name: Obtain Keycloak admin access token
+# Fresh token before realm operations (admin-cli tokens expire after 60s)
+- name: Obtain token for realm setup
   ansible.builtin.uri:
     url: "https://127.0.0.1:{{ keycloak_port }}/realms/master/protocol/openid-connect/token"
     method: POST
@@ -218,6 +219,26 @@
     status_code: [201]
   when: realm_check.status == 404
 
+# Fresh token before user creation (previous token may have expired)
+- name: Obtain token for user creation
+  ansible.builtin.uri:
+    url: "https://127.0.0.1:{{ keycloak_port }}/realms/master/protocol/openid-connect/token"
+    method: POST
+    body_format: form-urlencoded
+    body:
+      grant_type: password
+      username: admin
+      password: "{{ keycloak_admin_password }}"
+      client_id: admin-cli
+    validate_certs: false
+  register: kc_token_response
+  no_log: true
+
+- name: Update Keycloak token fact
+  ansible.builtin.set_fact:
+    kc_token: "{{ kc_token_response.json.access_token }}"
+  no_log: true
+
 - name: Create Keycloak users
   ansible.builtin.uri:
     url: "https://127.0.0.1:{{ keycloak_port }}/admin/realms/{{ keycloak_realm }}/users"
@@ -237,8 +258,8 @@
     status_code: [201, 409]
   loop: "{{ keycloak_users }}"
 
-# Refresh token — the initial token may have expired during user creation
-- name: Refresh Keycloak admin access token
+# Fresh token before OIDC client creation
+- name: Obtain token for OIDC client creation
   ansible.builtin.uri:
     url: "https://127.0.0.1:{{ keycloak_port }}/realms/master/protocol/openid-connect/token"
     method: POST
