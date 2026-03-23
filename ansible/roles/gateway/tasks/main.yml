@@ -158,6 +158,97 @@
       - xorgxrdp
     state: present
 
+# Mark GNOME Initial Setup as complete so the welcome wizard is skipped
+- name: Create gnome-initial-setup-done flag
+  become: true
+  ansible.builtin.copy:
+    content: "yes"
+    dest: /home/ubuntu/.config/gnome-initial-setup-done
+    owner: ubuntu
+    group: ubuntu
+    mode: "0644"
+
+# Set GNOME dock favourites so Firefox and Terminal are one click away
+- name: Set GNOME favourite apps
+  become: true
+  become_user: ubuntu
+  ansible.builtin.command: >
+    dconf write /org/gnome/shell/favorite-apps
+    "['firefox_firefox.desktop', 'org.gnome.Terminal.desktop', 'org.gnome.Nautilus.desktop']"
+  changed_when: false
+
+# --- zsh + Oh My Zsh + Powerlevel10k ---
+
+- name: Set zsh as default shell for ubuntu
+  become: true
+  ansible.builtin.user:
+    name: ubuntu
+    shell: /usr/bin/zsh
+
+- name: Install Oh My Zsh
+  become: true
+  become_user: ubuntu
+  ansible.builtin.command:
+    cmd: sh -c "RUNZSH=no CHSH=no sh -"
+    stdin: "{{ lookup('url', 'https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh', split_lines=false) }}"
+    creates: /home/ubuntu/.oh-my-zsh/oh-my-zsh.sh
+
+- name: Install Powerlevel10k theme
+  become: true
+  become_user: ubuntu
+  ansible.builtin.git:
+    repo: https://github.com/romkatv/powerlevel10k.git
+    dest: /home/ubuntu/.oh-my-zsh/custom/themes/powerlevel10k
+    depth: 1
+    version: master
+
+- name: Install zsh-autosuggestions Oh My Zsh plugin
+  become: true
+  become_user: ubuntu
+  ansible.builtin.file:
+    src: /usr/share/zsh-autosuggestions
+    dest: /home/ubuntu/.oh-my-zsh/custom/plugins/zsh-autosuggestions
+    state: link
+
+- name: Install zsh-syntax-highlighting Oh My Zsh plugin
+  become: true
+  become_user: ubuntu
+  ansible.builtin.file:
+    src: /usr/share/zsh-syntax-highlighting
+    dest: /home/ubuntu/.oh-my-zsh/custom/plugins/zsh-syntax-highlighting
+    state: link
+
+- name: Configure .zshrc
+  become: true
+  ansible.builtin.copy:
+    content: |
+      # Path to your Oh My Zsh installation
+      export ZSH="$HOME/.oh-my-zsh"
+
+      # Powerlevel10k theme (clean Git-aware prompt)
+      ZSH_THEME="powerlevel10k/powerlevel10k"
+
+      # Dev plugins
+      plugins=(git zsh-autosuggestions zsh-syntax-highlighting)
+
+      source $ZSH/oh-my-zsh.sh
+
+      # Reload Powerlevel10k config
+      [[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
+    dest: /home/ubuntu/.zshrc
+    owner: ubuntu
+    group: ubuntu
+    mode: "0644"
+
+- name: Deploy Powerlevel10k configuration
+  become: true
+  ansible.builtin.copy:
+    src: p10k.zsh
+    dest: /home/ubuntu/.p10k.zsh
+    owner: ubuntu
+    group: ubuntu
+    mode: "0644"
+
 # xrdp needs access to the TLS certificate used by the RDP listener
 - name: Add xrdp user to ssl-cert group
   become: true
@@ -174,7 +265,7 @@
     content: |
       [Desktop Entry]
       Name=Xrdp Session
-      Exec=env -u SESSION_MANAGER -u DBUS_SESSION_BUS_ADDRESS gnome-session
+      Exec=env -u SESSION_MANAGER -u DBUS_SESSION_BUS_ADDRESS gnome-session --session=ubuntu
       Type=Application
     dest: /etc/xrdp/xsession.desktop
     owner: root

@@ -14,6 +14,10 @@ gateway_packages:
   - jq
   - conky-all
   - sshpass                     # Used by Phase 2 bootstrap to set ESXi passwords
+  - zsh
+  - git                          # Required for Oh My Zsh and plugin installs
+  - zsh-autosuggestions
+  - zsh-syntax-highlighting
 
 gateway_keyboard_layout: gb
 
