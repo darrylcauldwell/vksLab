@@ -12,6 +12,8 @@
   hosts: gateways
   gather_facts: false
   become: true
+  vars_files:
+    - ../roles/gateway/defaults/main.yml
   tasks:
     - name: "Verify DNS — forward lookup"
       ansible.builtin.command:
