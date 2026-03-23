@@ -2,6 +2,9 @@
 # Phase 1 — Docker services on gateway
 # Keycloak is the external OIDC identity provider. It integrates with the
 # VCF Identity Broker, which in turn unifies logons for vCenter and NSX Manager.
+#
+# Tags:
+#   keycloak — all Keycloak tasks (Docker, container, realm, users, OIDC clients)
 
 - name: Install Docker Engine
   become: true
@@ -9,6 +12,7 @@
     name: docker.io
     state: present
     update_cache: true
+  tags: keycloak
 
 - name: Ensure Docker service is running
   become: true
@@ -16,6 +20,7 @@
     name: docker
     state: started
     enabled: true
+  tags: keycloak
 
 - name: Add ubuntu user to docker group
   become: true
@@ -23,6 +28,7 @@
     name: ubuntu
     groups: docker
     append: true
+  tags: keycloak
 
 # --- Keycloak TLS certificate ---
 # Issued from step-ca (configured by gateway role). Keycloak serves HTTPS
@@ -34,6 +40,7 @@
     path: /etc/step-ca/certs
     state: directory
     mode: "0755"
+  tags: keycloak
 
 - name: Issue Keycloak TLS certificate from step-ca
   become: true
@@ -49,6 +56,7 @@
       --provisioner lab-admin
       --provisioner-password-file /root/.step-ca-password
     creates: "{{ keycloak_cert_path }}"
+  tags: keycloak
 
 - name: Make certificate files readable by Keycloak container (UID 1000)
   become: true
@@ -58,6 +66,7 @@
   loop:
     - "{{ keycloak_cert_path }}"
     - "{{ keycloak_key_path }}"
+  tags: keycloak
 
 # --- Keycloak container ---
 # Runs with HTTPS on port 8443, data persisted in a Docker volume.
@@ -70,6 +79,7 @@
   register: kc_inspect
   failed_when: false
   changed_when: false
+  tags: keycloak
 
 - name: Run Keycloak container
   become: true
@@ -89,6 +99,7 @@
     {{ keycloak_image }} start
   when: kc_inspect.rc != 0
   no_log: true
+  tags: keycloak
 
 - name: Ensure Keycloak container is running
   become: true
@@ -97,6 +108,7 @@
   changed_when: "'already started' not in kc_start.stderr"
   failed_when: false
   when: kc_inspect.rc == 0
+  tags: keycloak
 
 - name: Wait for Keycloak to be ready
   ansible.builtin.uri:
@@ -107,6 +119,7 @@
   until: kc_health.status == 200
   retries: 60
   delay: 5
+  tags: keycloak
 
 # --- Keycloak realm and users ---
 # Creates the "lab" realm with admin and operator users, plus OIDC clients
@@ -131,6 +144,7 @@
     status_code: [200, 401]
   register: kc_token_attempt
   no_log: true
+  tags: keycloak
 
 # If the admin password doesn't match, destroy and recreate the container
 # with its data volume so bootstrap credentials take effect again.
@@ -142,6 +156,7 @@
     docker volume rm keycloak-data
   when: kc_token_attempt.status == 401
   no_log: true
+  tags: keycloak
 
 - name: Recreate Keycloak container with current password
   become: true
@@ -161,6 +176,7 @@
     {{ keycloak_image }} start
   when: kc_token_attempt.status == 401
   no_log: true
+  tags: keycloak
 
 - name: Wait for Keycloak to be ready after recreate
   ansible.builtin.uri:
@@ -172,6 +188,7 @@
   retries: 60
   delay: 5
   when: kc_token_attempt.status == 401
+  tags: keycloak
 
 # Fresh token before realm operations (admin-cli tokens expire after 60s)
 - name: Obtain token for realm setup
@@ -187,11 +204,13 @@
     validate_certs: false
   register: kc_token_response
   no_log: true
+  tags: keycloak
 
 - name: Set Keycloak token fact
   ansible.builtin.set_fact:
     kc_token: "{{ kc_token_response.json.access_token }}"
   no_log: true
+  tags: keycloak
 
 - name: Check if lab realm exists
   ansible.builtin.uri:
@@ -202,6 +221,7 @@
     validate_certs: false
     status_code: [200, 404]
   register: realm_check
+  tags: keycloak
 
 - name: Create lab realm
   ansible.builtin.uri:
@@ -218,6 +238,7 @@
     validate_certs: false
     status_code: [201]
   when: realm_check.status == 404
+  tags: keycloak
 
 # Fresh token before user creation (previous token may have expired)
 - name: Obtain token for user creation
@@ -233,11 +254,13 @@
     validate_certs: false
   register: kc_token_response
   no_log: true
+  tags: keycloak
 
 - name: Update Keycloak token fact
   ansible.builtin.set_fact:
     kc_token: "{{ kc_token_response.json.access_token }}"
   no_log: true
+  tags: keycloak
 
 - name: Create Keycloak users
   ansible.builtin.uri:
@@ -257,6 +280,7 @@
     validate_certs: false
     status_code: [201, 409]
   loop: "{{ keycloak_users }}"
+  tags: keycloak
 
 # Fresh token before OIDC client creation
 - name: Obtain token for OIDC client creation
@@ -272,11 +296,13 @@
     validate_certs: false
   register: kc_token_response
   no_log: true
+  tags: keycloak
 
 - name: Update Keycloak token fact
   ansible.builtin.set_fact:
     kc_token: "{{ kc_token_response.json.access_token }}"
   no_log: true
+  tags: keycloak
 
 # OIDC client for VCF Identity Broker. After Phase 3, configure the
 # Identity Broker in SDDC Manager to use this client (see delivery guide §6.4).
@@ -298,3 +324,4 @@
     validate_certs: false
     status_code: [201, 409]
   loop: "{{ keycloak_oidc_clients }}"
+  tags: keycloak

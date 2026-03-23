@@ -1,5 +1,28 @@
 ---
 # Phase 1 — Foundation: gateway services, Docker containers, routing, BGP
+#
+# Run everything:
+#   ansible-playbook playbooks/phase1_foundation.yml
+#
+# Run only specific sections:
+#   ansible-playbook playbooks/phase1_foundation.yml --tags keycloak
+#   ansible-playbook playbooks/phase1_foundation.yml --tags shell
+#   ansible-playbook playbooks/phase1_foundation.yml --tags verify
+#
+# Available tags:
+#   packages  — apt upgrade + package install
+#   network   — netplan VLAN sub-interfaces
+#   dns       — dnsmasq configuration
+#   ntp       — chrony configuration
+#   desktop   — GNOME settings, dconf, conky
+#   shell     — zsh, Oh My Zsh, Powerlevel10k
+#   xrdp      — xrdp + gnome-remote-desktop disable
+#   repos     — third-party apt repositories + installs
+#   routing   — IP forwarding, NAT, FRR/BGP
+#   ca        — step-ca, certificates, Firefox policy
+#   keycloak  — Docker, Keycloak container, realm, users, OIDC clients
+#   verify    — foundation verification checks
+
 - name: Phase 1 — Configure gateway
   hosts: gateways
   gather_facts: true
@@ -21,6 +44,7 @@
       register: dns_result
       changed_when: false
       failed_when: gateway_ip not in dns_result.stdout
+      tags: verify
 
     - name: "Verify NTP — chrony has synced source"
       ansible.builtin.shell:
@@ -28,6 +52,7 @@
       register: ntp_result
       changed_when: false
       failed_when: ntp_result.rc != 0
+      tags: verify
 
     - name: "Verify CA — step-ca health"
       ansible.builtin.command:
@@ -35,6 +60,7 @@
       register: ca_result
       changed_when: false
       failed_when: "'ok' not in ca_result.stdout"
+      tags: verify
 
     - name: "Verify management IP on {{ gateway_vlan_trunk_nic }}"
       ansible.builtin.shell:
@@ -42,6 +68,7 @@
       register: mgmt_ip_result
       changed_when: false
       failed_when: mgmt_ip_result.rc != 0
+      tags: verify
 
     - name: "Verify VLAN sub-interfaces"
       ansible.builtin.shell:
@@ -52,6 +79,7 @@
       register: vlan_result
       changed_when: false
       failed_when: vlan_result.rc != 0
+      tags: verify
 
     - name: "Verify inter-VLAN routing — ping vMotion gateway"
       ansible.builtin.command:
@@ -59,6 +87,7 @@
       register: ping_result
       changed_when: false
       failed_when: ping_result.rc != 0
+      tags: verify
 
     - name: "Verify FRR service is active"
       ansible.builtin.command:
@@ -66,6 +95,7 @@
       register: frr_result
       changed_when: false
       failed_when: "'active' not in frr_result.stdout"
+      tags: verify
 
     - name: "Verify FRR BGP configuration"
       ansible.builtin.shell:
@@ -73,6 +103,7 @@
       register: bgp_result
       changed_when: false
       failed_when: bgp_result.rc != 0
+      tags: verify
 
     - name: Foundation verification summary
       ansible.builtin.debug:
@@ -80,3 +111,4 @@
           All automated checks passed: DNS, NTP, CA, management IP,
           VLAN sub-interfaces, inter-VLAN routing, FRR, BGP config.
           Manual check remaining: RDP to gateway public IP.
+      tags: verify

@@ -8,6 +8,18 @@
 #   - NAT/masquerade — outbound internet for nested hosts via the public NIC
 #   - BGP (FRR) — peers with NSX Tier-0 for VKS pod/service route exchange
 #   - RDP (GNOME + xrdp) — remote desktop for managing web UIs
+#
+# Tags:
+#   packages  — apt upgrade + package install
+#   network   — netplan VLAN sub-interfaces
+#   dns       — dnsmasq configuration
+#   ntp       — chrony configuration
+#   desktop   — GNOME settings, dconf, conky
+#   shell     — zsh, Oh My Zsh, Powerlevel10k
+#   xrdp      — xrdp + gnome-remote-desktop disable
+#   repos     — third-party apt repositories + installs
+#   routing   — IP forwarding, NAT, FRR/BGP
+#   ca        — step-ca, certificates, Firefox policy
 
 # systemd-resolved binds port 53, preventing dnsmasq from starting.
 # Disable it and point resolv.conf at upstream DNS so apt works.
@@ -17,6 +29,7 @@
     name: systemd-resolved
     state: stopped
     enabled: false
+  tags: [packages, dns]
 
 - name: Configure resolv.conf for upstream DNS
   become: true
@@ -29,12 +42,14 @@
     owner: root
     group: root
     mode: "0644"
+  tags: [packages, dns]
 
 - name: Upgrade all packages to latest versions
   become: true
   ansible.builtin.apt:
     upgrade: dist
     update_cache: true
+  tags: packages
 
 # dist-upgrade can leave dpkg in a partially configured state (e.g.
 # kernel updates triggering needrestart). Fix before installing packages.
@@ -42,12 +57,14 @@
   become: true
   ansible.builtin.command: dpkg --configure -a
   changed_when: false
+  tags: packages
 
 - name: Install required packages
   become: true
   ansible.builtin.apt:
     name: "{{ gateway_packages }}"
     state: present
+  tags: packages
 
 # Netplan configures the public NIC (ens33, DHCP) and six VLAN sub-interfaces
 # on ens34 for management, vMotion, vSAN, host overlay, edge overlay, and
@@ -61,6 +78,7 @@
     group: root
     mode: "0600"
   register: netplan_result
+  tags: network
 
 # Apply netplan immediately — VLAN sub-interfaces must be up before
 # dnsmasq (binds to ens34) and step-ca (listens on VLAN IPs).
@@ -68,6 +86,7 @@
   become: true
   ansible.builtin.command: netplan apply
   when: netplan_result.changed
+  tags: network
 
 # dnsmasq provides forward/reverse DNS for all lab hosts and DHCP on VLAN 10
 # with static MAC→IP reservations. ESXi hosts PXE/DHCP boot and receive their
@@ -81,6 +100,7 @@
     group: root
     mode: "0644"
   notify: restart dnsmasq
+  tags: dns
 
 # chrony serves NTP to all lab components. VCF bringup validates time sync
 # across all ESXi hosts — clock skew >1s causes validation failure.
@@ -93,6 +113,7 @@
     group: root
     mode: "0644"
   notify: restart chrony
+  tags: ntp
 
 - name: Enable and start dnsmasq
   become: true
@@ -100,6 +121,7 @@
     name: dnsmasq
     state: started
     enabled: true
+  tags: dns
 
 - name: Enable and start chrony
   become: true
@@ -107,6 +129,7 @@
     name: chrony
     state: started
     enabled: true
+  tags: ntp
 
 # apport crash reporter is noisy on a lab appliance — stale GNOME sessions
 # after reboots trigger "System program problem detected" dialogs on RDP login.
@@ -116,6 +139,7 @@
     name: apport
     state: stopped
     enabled: false
+  tags: desktop
 
 - name: Ensure apport stays disabled across reboots
   become: true
@@ -124,6 +148,7 @@
     regexp: '^enabled='
     line: 'enabled=0'
     state: present
+  tags: desktop
 
 # --- RDP via xrdp ---
 #
@@ -141,6 +166,7 @@
   become: true
   ansible.builtin.command: systemctl set-default graphical.target
   changed_when: false
+  tags: xrdp
 
 - name: Set keyboard layout
   become: true
@@ -149,6 +175,7 @@
     regexp: '^XKBLAYOUT='
     line: 'XKBLAYOUT="{{ gateway_keyboard_layout }}"'
     state: present
+  tags: xrdp
 
 - name: Install xrdp
   become: true
@@ -157,6 +184,7 @@
       - xrdp
       - xorgxrdp
     state: present
+  tags: xrdp
 
 # Mark GNOME Initial Setup as complete so the welcome wizard is skipped
 - name: Ensure .config directory exists for ubuntu user
@@ -167,6 +195,7 @@
     owner: ubuntu
     group: ubuntu
     mode: "0755"
+  tags: desktop
 
 - name: Create gnome-initial-setup-done flag
   become: true
@@ -176,6 +205,7 @@
     owner: ubuntu
     group: ubuntu
     mode: "0644"
+  tags: desktop
 
 # Set GNOME dock favourites via dconf profile (dconf write needs a D-Bus
 # session which doesn't exist during Ansible). A system db override applies
@@ -188,6 +218,7 @@
       system-db:local
     dest: /etc/dconf/profile/user
     mode: "0644"
+  tags: desktop
 
 - name: Create dconf local database directory
   become: true
@@ -195,6 +226,7 @@
     path: /etc/dconf/db/local.d
     state: directory
     mode: "0755"
+  tags: desktop
 
 - name: Set GNOME favourite apps via dconf system database
   become: true
@@ -205,11 +237,13 @@
     dest: /etc/dconf/db/local.d/01-favorites
     mode: "0644"
   register: dconf_favorites
+  tags: desktop
 
 - name: Update dconf system database
   become: true
   ansible.builtin.command: dconf update
   when: dconf_favorites.changed
+  tags: desktop
 
 # --- zsh + Oh My Zsh + Powerlevel10k ---
 
@@ -218,6 +252,7 @@
   ansible.builtin.user:
     name: ubuntu
     shell: /usr/bin/zsh
+  tags: shell
 
 - name: Download Oh My Zsh installer
   become: true
@@ -225,6 +260,7 @@
     url: https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh
     dest: /tmp/install-ohmyzsh.sh
     mode: "0755"
+  tags: shell
 
 - name: Install Oh My Zsh
   become: true
@@ -236,6 +272,7 @@
     HOME: /home/ubuntu
     RUNZSH: "no"
     CHSH: "no"
+  tags: shell
 
 - name: Install Powerlevel10k theme
   become: true
@@ -247,6 +284,7 @@
     version: master
   environment:
     HOME: /home/ubuntu
+  tags: shell
 
 - name: Install zsh-autosuggestions Oh My Zsh plugin
   become: true
@@ -256,6 +294,7 @@
     state: link
     owner: ubuntu
     group: ubuntu
+  tags: shell
 
 - name: Install zsh-syntax-highlighting Oh My Zsh plugin
   become: true
@@ -265,6 +304,7 @@
     state: link
     owner: ubuntu
     group: ubuntu
+  tags: shell
 
 - name: Configure .zshrc
   become: true
@@ -287,6 +327,7 @@
     owner: ubuntu
     group: ubuntu
     mode: "0644"
+  tags: shell
 
 - name: Deploy Powerlevel10k configuration
   become: true
@@ -296,6 +337,7 @@
     owner: ubuntu
     group: ubuntu
     mode: "0644"
+  tags: shell
 
 # xrdp needs access to the TLS certificate used by the RDP listener
 - name: Add xrdp user to ssl-cert group
@@ -304,6 +346,7 @@
     name: xrdp
     groups: ssl-cert
     append: true
+  tags: xrdp
 
 # Default xrdp session uses Xorg — configure it to start a full GNOME
 # session so the user gets the same desktop as a local login.
@@ -320,6 +363,7 @@
     group: root
     mode: "0644"
   notify: restart xrdp
+  tags: xrdp
 
 # Polkit rule to allow colord access without authentication prompts
 # that block the RDP session at login
@@ -342,6 +386,7 @@
     owner: root
     group: root
     mode: "0644"
+  tags: xrdp
 
 # gnome-remote-desktop ships with ubuntu-desktop-minimal and binds port 3389
 # on startup via GDM. Disable it so xrdp can claim the port.
@@ -353,6 +398,7 @@
   register: grd_disable
   failed_when: false
   changed_when: grd_disable.rc == 0
+  tags: xrdp
 
 - name: Enable and start xrdp
   become: true
@@ -360,6 +406,7 @@
     name: xrdp
     state: started
     enabled: true
+  tags: xrdp
 
 # SSH config for all lab hosts — `ssh esxi-01` just works
 - name: Create .ssh directory
@@ -370,6 +417,7 @@
     owner: ubuntu
     group: ubuntu
     mode: "0700"
+  tags: shell
 
 - name: Deploy SSH config for lab hosts
   become: true
@@ -379,6 +427,7 @@
     owner: ubuntu
     group: ubuntu
     mode: "0600"
+  tags: shell
 
 # --- Third-party apt repositories ---
 # All repos are added together, then a single cache update, then installs.
@@ -391,6 +440,7 @@
     url: https://pkgs.k8s.io/core:/stable:/v1.31/deb/Release.key
     dest: /etc/apt/keyrings/kubernetes.asc
     mode: "0644"
+  tags: repos
 
 - name: Add Kubernetes apt repository
   become: true
@@ -403,6 +453,7 @@
     dest: /etc/apt/sources.list.d/kubernetes.sources
     mode: "0644"
   register: k8s_repo
+  tags: repos
 
 # Conky displays lab environment info on the desktop (like BGInfo on Windows)
 - name: Deploy conky configuration
@@ -413,6 +464,7 @@
     owner: ubuntu
     group: ubuntu
     mode: "0644"
+  tags: desktop
 
 - name: Create GNOME autostart directory
   become: true
@@ -422,6 +474,7 @@
     owner: ubuntu
     group: ubuntu
     mode: "0755"
+  tags: desktop
 
 - name: Create conky autostart entry
   become: true
@@ -437,6 +490,7 @@
     owner: ubuntu
     group: ubuntu
     mode: "0644"
+  tags: desktop
 
 # IP masquerading allows nested hosts (10.0.0.0/16) to reach the internet
 # via the gateway's public NIC. Required for VCF depot sync, content library
@@ -449,6 +503,7 @@
     sysctl_file: /etc/sysctl.d/99-lab-forwarding.conf
     reload: true
     state: present
+  tags: routing
 
 - name: Add iptables masquerade rule
   become: true
@@ -460,6 +515,7 @@
     jump: MASQUERADE
     state: present
   notify: save iptables
+  tags: routing
 
 # FRR BGP peers with the NSX Tier-0 gateway on the edge uplink VLAN (60).
 # The gateway advertises infrastructure routes; NSX advertises VKS pod/service
@@ -473,6 +529,7 @@
     group: frr
     mode: "0640"
   notify: restart frr
+  tags: routing
 
 - name: Deploy FRR zebra configuration
   become: true
@@ -483,6 +540,7 @@
     group: frr
     mode: "0640"
   notify: restart frr
+  tags: routing
 
 - name: Deploy FRR BGP configuration
   become: true
@@ -493,6 +551,7 @@
     group: frr
     mode: "0640"
   notify: restart frr
+  tags: routing
 
 - name: Enable and start FRR
   become: true
@@ -500,6 +559,7 @@
     name: frr
     state: started
     enabled: true
+  tags: routing
 
 # step-ca provides an internal CA with ACME support. TLS certificates for
 # Keycloak and other lab services are issued from this CA. The root cert
@@ -510,6 +570,7 @@
     url: https://packages.smallstep.com/keys/apt/repo-signing-key.gpg
     dest: /etc/apt/keyrings/smallstep.asc
     mode: "0644"
+  tags: [repos, ca]
 
 - name: Add Smallstep apt repository
   become: true
@@ -523,6 +584,7 @@
     dest: /etc/apt/sources.list.d/smallstep.sources
     mode: "0644"
   register: smallstep_repo
+  tags: [repos, ca]
 
 # VS Code provides an IDE on the gateway for editing Ansible playbooks,
 # VKS manifests, and troubleshooting — accessible via RDP.
@@ -532,6 +594,7 @@
     url: https://packages.microsoft.com/keys/microsoft.asc
     dest: /etc/apt/keyrings/microsoft.asc
     mode: "0644"
+  tags: repos
 
 - name: Add Microsoft VS Code apt repository
   become: true
@@ -546,6 +609,7 @@
     dest: /etc/apt/sources.list.d/vscode.sources
     mode: "0644"
   register: vscode_repo
+  tags: repos
 
 # Single apt cache update after all third-party repos are added.
 # Skips on re-runs when repos haven't changed.
@@ -554,12 +618,14 @@
   ansible.builtin.apt:
     update_cache: true
   when: k8s_repo is changed or smallstep_repo is changed or vscode_repo is changed
+  tags: repos
 
 - name: Install third-party packages
   become: true
   ansible.builtin.apt:
     name: "{{ gateway_step_packages + gateway_vscode_packages + ['kubectl'] }}"
     state: present
+  tags: repos
 
 # Derived deterministically from bootstrap_password so reruns always
 # produce the same value — safe to overwrite on every run.
@@ -570,6 +636,7 @@
     dest: /root/.step-ca-password
     owner: root
     mode: "0600"
+  tags: ca
 
 - name: Initialise step-ca
   become: true
@@ -582,6 +649,7 @@
       --provisioner="lab-admin"
       --password-file=/root/.step-ca-password
     creates: /root/.step/config/ca.json
+  tags: ca
 
 # Default max cert duration is 24h — raise to 1 year for lab services
 - name: Set max certificate duration to 1 year
@@ -600,6 +668,7 @@
   register: cert_duration_result
   changed_when: "'updated' in cert_duration_result.stdout"
   notify: restart step-ca
+  tags: ca
 
 - name: Export root CA certificate
   become: true
@@ -608,6 +677,7 @@
     dest: "{{ ca_cert_path }}"
     remote_src: true
     mode: "0644"
+  tags: ca
 
 # Configure step CLI defaults for the ubuntu user so that `step ca health`
 # works without --ca-url/--root flags (step-ca was initialised as root).
@@ -619,6 +689,7 @@
     owner: ubuntu
     group: ubuntu
     mode: "0700"
+  tags: ca
 
 - name: Deploy step CLI defaults for ubuntu user
   become: true
@@ -632,6 +703,7 @@
     owner: ubuntu
     group: ubuntu
     mode: "0644"
+  tags: ca
 
 # Add root CA to system trust store so curl, wget, and Firefox trust it
 - name: Install root CA into system trust store
@@ -642,11 +714,13 @@
     remote_src: true
     mode: "0644"
   register: system_ca_result
+  tags: ca
 
 - name: Update system CA bundle
   become: true
   ansible.builtin.command: update-ca-certificates
   when: system_ca_result.changed
+  tags: ca
 
 # Firefox enterprise policy — trust system CA store without manual config
 - name: Create Firefox policy directory
@@ -655,6 +729,7 @@
     path: /etc/firefox/policies
     state: directory
     mode: "0755"
+  tags: [ca, desktop]
 
 - name: Deploy Firefox enterprise policy
   become: true
@@ -679,6 +754,7 @@
       }
     dest: /etc/firefox/policies/policies.json
     mode: "0644"
+  tags: [ca, desktop]
 
 # Fetch to controller so Phase 2 can push it to ESXi hosts via copy module
 - name: Fetch root CA certificate to controller
@@ -686,6 +762,7 @@
     src: "{{ ca_cert_path }}"
     dest: "{{ ca_cert_path }}"
     flat: true
+  tags: ca
 
 - name: Deploy step-ca systemd service
   become: true
@@ -705,6 +782,7 @@
       WantedBy=multi-user.target
     dest: /etc/systemd/system/step-ca.service
     mode: "0644"
+  tags: ca
 
 - name: Enable and start step-ca
   become: true
@@ -713,6 +791,7 @@
     state: started
     enabled: true
     daemon_reload: true
+  tags: ca
 
 # Wait for step-ca to be ready before docker_services role issues certs
 - name: Wait for step-ca to be ready
@@ -724,3 +803,4 @@
   until: stepca_health.status == 200
   retries: 30
   delay: 2
+  tags: ca
