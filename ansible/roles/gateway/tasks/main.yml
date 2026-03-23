@@ -261,6 +261,15 @@
   ansible.builtin.command: grdctl --system rdp enable
   changed_when: false
 
+# RDP sessions need GPU access for hardware-accelerated rendering.
+# Without video/render groups, GPU-intensive apps disconnect the session.
+- name: Add ubuntu to video and render groups for RDP GPU access
+  become: true
+  ansible.builtin.user:
+    name: ubuntu
+    groups: video,render
+    append: true
+
 - name: Enable and start GRD system service
   become: true
   ansible.builtin.systemd:

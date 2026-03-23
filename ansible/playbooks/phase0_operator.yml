@@ -15,10 +15,6 @@
     # certificates by default. The gateway's GRD system mode uses a self-signed
     # cert for RDP. Disable certificate transparency enforcement so the
     # client accepts it.
-    # macOS Windows App (Microsoft Remote Desktop) rejects self-signed TLS
-    # certificates by default. The gateway's GRD system mode uses a self-signed
-    # cert for RDP. Disable certificate transparency enforcement so the
-    # client accepts it.
     - name: Allow self-signed certs in Windows App (macOS)
       community.general.osx_defaults:
         domain: com.microsoft.rdc.macos
@@ -30,16 +26,34 @@
 
     # FreeRDP is a reliable RDP client that supports cert:ignore for
     # self-signed certificates. Use as primary or fallback RDP client.
-    # Connect with: xfreerdp /v:<gateway-ip> /u:ubuntu /sec:tls /cert:ignore
     - name: Install FreeRDP via Homebrew (macOS)
       community.general.homebrew:
         name: freerdp
         state: present
       when: ansible_os_family == "Darwin"
 
+    # Generate an RDP connection file pre-configured for the gateway.
+    # macOS Windows App requires 'use redirection server name:i:1' to
+    # connect to GRD system mode — without this edit the client hangs
+    # on "securing connection to remote PC".
+    - name: Create RDP connection file for gateway
+      ansible.builtin.copy:
+        content: |
+          full address:s:{{ gateway_public_ip }}:3389
+          username:s:ubuntu
+          use redirection server name:i:1
+          prompt for credentials on client:i:1
+          authentication level:i:0
+          negotiate security layer:i:0
+        dest: "{{ lookup('env', 'HOME') }}/Desktop/VKS-Lab-Gateway.rdp"
+        mode: "0644"
+
+    # Add ubuntu user to video and render groups on the gateway for
+    # hardware-accelerated RDP sessions. This runs against the gateway
+    # not localhost, so use a delegate approach.
     - name: Operator workstation setup complete
       ansible.builtin.debug:
         msg: >-
           Operator workstation configured.
-          RDP option 1: Windows App — restart if running, then connect.
-          RDP option 2: xfreerdp /v:<gateway-ip> /u:ubuntu /sec:tls /cert:ignore
+          RDP: Double-click ~/Desktop/VKS-Lab-Gateway.rdp to connect.
+          Fallback: xfreerdp /v:{{ gateway_public_ip }} /u:ubuntu /sec:tls /cert:ignore
