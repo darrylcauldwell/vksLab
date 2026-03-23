@@ -189,82 +189,16 @@
   delay: 5
   changed_when: false
 
-# GNOME keyring is locked on auto-login (no password prompt to unlock it).
-# grdctl stores RDP credentials in the keyring and hangs waiting for unlock.
-# Delete any existing keyring files so GNOME creates a fresh login keyring
-# with an empty password on the next session start. This is safe for a lab
-# appliance where the only keyring consumer is GRD.
-- name: Create keyrings directory
-  become: true
-  ansible.builtin.file:
-    path: /home/ubuntu/.local/share/keyrings
-    state: directory
-    owner: ubuntu
-    group: ubuntu
-    mode: "0700"
+# --- GRD RDP configuration ---
+# grdctl stores credentials in GNOME keyring via the Secret Service D-Bus
+# API, which requires an unlocked login keyring. On auto-login (no password
+# prompt), the keyring stays locked and grdctl hangs or fails.
+#
+# Workaround: configure GRD entirely via dconf (GSettings backend) and
+# write the RDP password directly to the GRD credentials file, bypassing
+# the keyring entirely. This is safe for a lab appliance.
 
-- name: Find existing locked keyring files
-  become: true
-  ansible.builtin.find:
-    paths: /home/ubuntu/.local/share/keyrings
-    patterns: "*.keyring"
-  register: keyring_files
-
-- name: Remove existing locked keyring files
-  become: true
-  ansible.builtin.file:
-    path: "{{ item.path }}"
-    state: absent
-  loop: "{{ keyring_files.files }}"
-  loop_control:
-    label: "{{ item.path | basename }}"
-  when: keyring_files.files | length > 0
-
-- name: Set default keyring to login
-  become: true
-  ansible.builtin.copy:
-    content: "login"
-    dest: /home/ubuntu/.local/share/keyrings/default
-    owner: ubuntu
-    group: ubuntu
-    mode: "0600"
-
-# Create and unlock the login keyring with an empty password.
-# grdctl stores RDP credentials via the Secret Service D-Bus API,
-# which requires the login keyring collection to exist and be unlocked.
-# Do NOT use --replace as it kills the session's keyring daemon.
-# Only run when no keyring file exists yet (first run or after cleanup).
-- name: Check if login keyring exists
-  become: true
-  ansible.builtin.stat:
-    path: /home/ubuntu/.local/share/keyrings/login.keyring
-  register: login_keyring
-
-- name: Create and unlock login keyring with empty password
-  become: true
-  become_user: ubuntu
-  ansible.builtin.shell: echo -n "" | gnome-keyring-daemon --unlock
-  environment:
-    XDG_RUNTIME_DIR: /run/user/1000
-    DBUS_SESSION_BUS_ADDRESS: unix:path=/run/user/1000/bus
-  when: not login_keyring.stat.exists
-
-# Check if GRD is already configured by looking for its credentials in
-# dconf (not port 3389 — that races with service startup and previously
-# matched xrdp).
-- name: Check if GRD RDP is already configured
-  become: true
-  become_user: ubuntu
-  ansible.builtin.command: grdctl status rdp
-  environment:
-    XDG_RUNTIME_DIR: /run/user/1000
-    DBUS_SESSION_BUS_ADDRESS: unix:path=/run/user/1000/bus
-  register: grd_status
-  failed_when: false
-  changed_when: false
-
-# GRD needs a valid TLS certificate before any grdctl commands will work.
-# Generate a self-signed cert if one doesn't already exist.
+# GRD needs a valid TLS certificate for RDP connections.
 - name: Create GRD data directory
   become: true
   ansible.builtin.file:
@@ -290,25 +224,74 @@
     -days 365 -nodes -subj "/CN=gateway"
   when: not grd_tls_cert.stat.exists
 
-- name: Set GRD TLS certificate
+# Configure GRD via dconf database instead of grdctl to avoid keyring.
+# dconf reads from /etc/dconf/db/ which is compiled into a system database.
+- name: Create dconf profile for GRD
   become: true
-  become_user: ubuntu
-  ansible.builtin.command: grdctl rdp set-tls-cert /home/ubuntu/.local/share/gnome-remote-desktop/grd-tls.crt
-  environment:
-    XDG_RUNTIME_DIR: /run/user/1000
-    DBUS_SESSION_BUS_ADDRESS: unix:path=/run/user/1000/bus
-  changed_when: true
-  when: not grd_tls_cert.stat.exists
+  ansible.builtin.copy:
+    content: |
+      user-db:user
+      system-db:local
+    dest: /etc/dconf/profile/user
+    mode: "0644"
 
-- name: Set GRD TLS key
+- name: Create dconf local database directory
   become: true
-  become_user: ubuntu
-  ansible.builtin.command: grdctl rdp set-tls-key /home/ubuntu/.local/share/gnome-remote-desktop/grd-tls.key
-  environment:
-    XDG_RUNTIME_DIR: /run/user/1000
-    DBUS_SESSION_BUS_ADDRESS: unix:path=/run/user/1000/bus
-  changed_when: true
-  when: not grd_tls_cert.stat.exists
+  ansible.builtin.file:
+    path: /etc/dconf/db/local.d
+    state: directory
+    mode: "0755"
+
+- name: Configure GRD RDP via dconf
+  become: true
+  ansible.builtin.copy:
+    content: |
+      [org/gnome/desktop/remote-desktop/rdp]
+      enable=true
+      tls-cert='/home/ubuntu/.local/share/gnome-remote-desktop/grd-tls.crt'
+      tls-key='/home/ubuntu/.local/share/gnome-remote-desktop/grd-tls.key'
+      view-only=false
+    dest: /etc/dconf/db/local.d/01-grd
+    mode: "0644"
+  register: grd_dconf
+
+- name: Lock GRD dconf keys to prevent user override
+  become: true
+  ansible.builtin.file:
+    path: /etc/dconf/db/local.d/locks
+    state: directory
+    mode: "0755"
+
+- name: Create GRD dconf locks
+  become: true
+  ansible.builtin.copy:
+    content: |
+      /org/gnome/desktop/remote-desktop/rdp/enable
+      /org/gnome/desktop/remote-desktop/rdp/tls-cert
+      /org/gnome/desktop/remote-desktop/rdp/tls-key
+      /org/gnome/desktop/remote-desktop/rdp/view-only
+    dest: /etc/dconf/db/local.d/locks/grd
+    mode: "0644"
+  register: grd_locks
+
+- name: Update dconf database
+  become: true
+  ansible.builtin.command: dconf update
+  when: grd_dconf is changed or grd_locks is changed
+
+# GRD RDP credentials — write directly to GRD's credentials file.
+# This bypasses the GNOME keyring entirely.
+- name: Write GRD RDP credentials file
+  become: true
+  ansible.builtin.copy:
+    content: |
+      [rdp]
+      username=ubuntu
+      password={{ lookup('community.general.onepassword', 'Jumpbox Ubuntu', field='password', vault=onepassword_vault) }}
+    dest: /home/ubuntu/.local/share/gnome-remote-desktop/credentials.ini
+    owner: ubuntu
+    group: ubuntu
+    mode: "0600"
 
 - name: Set GNOME keyboard input source
   become: true
@@ -319,39 +302,7 @@
     XDG_RUNTIME_DIR: /run/user/1000
     DBUS_SESSION_BUS_ADDRESS: unix:path=/run/user/1000/bus
   changed_when: true
-  when: grd_status.rc != 0 or 'enabled' not in grd_status.stdout | lower
-
-- name: Enable GRD RDP
-  become: true
-  become_user: ubuntu
-  ansible.builtin.command: grdctl rdp enable
-  environment:
-    XDG_RUNTIME_DIR: /run/user/1000
-    DBUS_SESSION_BUS_ADDRESS: unix:path=/run/user/1000/bus
-  changed_when: true
-  when: grd_status.rc != 0 or 'enabled' not in grd_status.stdout | lower
-
-- name: Set GRD RDP credentials
-  become: true
-  become_user: ubuntu
-  ansible.builtin.command: >
-    grdctl rdp set-credentials ubuntu
-    {{ lookup('community.general.onepassword', 'Jumpbox Ubuntu', field='password', vault=onepassword_vault) }}
-  environment:
-    XDG_RUNTIME_DIR: /run/user/1000
-    DBUS_SESSION_BUS_ADDRESS: unix:path=/run/user/1000/bus
-  changed_when: true
-  when: grd_status.rc != 0 or 'enabled' not in grd_status.stdout | lower
-
-- name: Disable GRD view-only mode
-  become: true
-  become_user: ubuntu
-  ansible.builtin.command: grdctl rdp disable-view-only
-  environment:
-    XDG_RUNTIME_DIR: /run/user/1000
-    DBUS_SESSION_BUS_ADDRESS: unix:path=/run/user/1000/bus
-  changed_when: true
-  when: grd_status.rc != 0 or 'enabled' not in grd_status.stdout | lower
+  when: grd_dconf is changed
 
 - name: Enable gnome-remote-desktop systemd user service
   become: true
@@ -360,7 +311,7 @@
     name: gnome-remote-desktop
     scope: user
     enabled: true
-    state: "{{ 'restarted' if (not grd_tls_cert.stat.exists) else 'started' }}"
+    state: "{{ 'restarted' if (grd_dconf is changed or not grd_tls_cert.stat.exists) else 'started' }}"
   environment:
     XDG_RUNTIME_DIR: /run/user/1000
     DBUS_SESSION_BUS_ADDRESS: unix:path=/run/user/1000/bus
