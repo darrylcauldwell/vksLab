@@ -159,6 +159,15 @@
     state: present
 
 # Mark GNOME Initial Setup as complete so the welcome wizard is skipped
+- name: Ensure .config directory exists for ubuntu user
+  become: true
+  ansible.builtin.file:
+    path: /home/ubuntu/.config
+    state: directory
+    owner: ubuntu
+    group: ubuntu
+    mode: "0755"
+
 - name: Create gnome-initial-setup-done flag
   become: true
   ansible.builtin.copy:
@@ -168,14 +177,39 @@
     group: ubuntu
     mode: "0644"
 
-# Set GNOME dock favourites so Firefox and Terminal are one click away
-- name: Set GNOME favourite apps
+# Set GNOME dock favourites via dconf profile (dconf write needs a D-Bus
+# session which doesn't exist during Ansible). A system db override applies
+# to all users and works without an active session.
+- name: Create dconf profile for user defaults
   become: true
-  become_user: ubuntu
-  ansible.builtin.command: >
-    dconf write /org/gnome/shell/favorite-apps
-    "['firefox_firefox.desktop', 'org.gnome.Terminal.desktop', 'org.gnome.Nautilus.desktop']"
-  changed_when: false
+  ansible.builtin.copy:
+    content: |
+      user-db:user
+      system-db:local
+    dest: /etc/dconf/profile/user
+    mode: "0644"
+
+- name: Create dconf local database directory
+  become: true
+  ansible.builtin.file:
+    path: /etc/dconf/db/local.d
+    state: directory
+    mode: "0755"
+
+- name: Set GNOME favourite apps via dconf system database
+  become: true
+  ansible.builtin.copy:
+    content: |
+      [org/gnome/shell]
+      favorite-apps=['firefox_firefox.desktop', 'org.gnome.Terminal.desktop', 'org.gnome.Nautilus.desktop']
+    dest: /etc/dconf/db/local.d/01-favorites
+    mode: "0644"
+  register: dconf_favorites
+
+- name: Update dconf system database
+  become: true
+  ansible.builtin.command: dconf update
+  when: dconf_favorites.changed
 
 # --- zsh + Oh My Zsh + Powerlevel10k ---
 
@@ -199,6 +233,7 @@
     cmd: sh /tmp/install-ohmyzsh.sh
     creates: /home/ubuntu/.oh-my-zsh/oh-my-zsh.sh
   environment:
+    HOME: /home/ubuntu
     RUNZSH: "no"
     CHSH: "no"
 
@@ -210,22 +245,26 @@
     dest: /home/ubuntu/.oh-my-zsh/custom/themes/powerlevel10k
     depth: 1
     version: master
+  environment:
+    HOME: /home/ubuntu
 
 - name: Install zsh-autosuggestions Oh My Zsh plugin
   become: true
-  become_user: ubuntu
   ansible.builtin.file:
     src: /usr/share/zsh-autosuggestions
     dest: /home/ubuntu/.oh-my-zsh/custom/plugins/zsh-autosuggestions
     state: link
+    owner: ubuntu
+    group: ubuntu
 
 - name: Install zsh-syntax-highlighting Oh My Zsh plugin
   become: true
-  become_user: ubuntu
   ansible.builtin.file:
     src: /usr/share/zsh-syntax-highlighting
     dest: /home/ubuntu/.oh-my-zsh/custom/plugins/zsh-syntax-highlighting
     state: link
+    owner: ubuntu
+    group: ubuntu
 
 - name: Configure .zshrc
   become: true
@@ -306,12 +345,14 @@
 
 # gnome-remote-desktop ships with ubuntu-desktop-minimal and binds port 3389
 # on startup via GDM. Disable it so xrdp can claim the port.
+# Use command rather than service module — on first run GDM may not have
+# started yet so the service may not be active/known to systemd.
 - name: Disable gnome-remote-desktop service
   become: true
-  ansible.builtin.service:
-    name: gnome-remote-desktop
-    state: stopped
-    enabled: false
+  ansible.builtin.command: systemctl disable --now gnome-remote-desktop.service
+  register: grd_disable
+  failed_when: false
+  changed_when: grd_disable.rc == 0
 
 - name: Enable and start xrdp
   become: true
