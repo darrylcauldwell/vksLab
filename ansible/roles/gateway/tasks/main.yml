@@ -126,6 +126,7 @@
       - xorgxrdp
     state: absent
     purge: true
+  notify: restart gdm3
 
 # Ubuntu's 61-gdm.rules detects VMware's virtual GPU and forces Xorg,
 # disabling Wayland. Override with an empty file so GDM respects
@@ -166,6 +167,9 @@
 # grdctl requires an active GNOME user session (D-Bus + XDG_RUNTIME_DIR).
 # GDM auto-login must be active first, so a reboot is needed between
 # GDM config and GRD config.
+- name: Flush handlers to restart GDM before GRD setup
+  ansible.builtin.meta: flush_handlers
+
 - name: Reboot to start GNOME session
   become: true
   ansible.builtin.reboot:
