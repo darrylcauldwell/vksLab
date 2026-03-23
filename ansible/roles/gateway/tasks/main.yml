@@ -36,6 +36,13 @@
     upgrade: dist
     update_cache: true
 
+# dist-upgrade can leave dpkg in a partially configured state (e.g.
+# kernel updates triggering needrestart). Fix before installing packages.
+- name: Fix any partially configured packages
+  become: true
+  ansible.builtin.command: dpkg --configure -a
+  changed_when: false
+
 - name: Install required packages
   become: true
   ansible.builtin.apt:
