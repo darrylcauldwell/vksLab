@@ -1,0 +1,31 @@
+---
+# Phase 0 — Operator workstation setup
+#
+# Configures the local machine (the operator's laptop) with settings
+# required to manage the lab. Run once before connecting to the lab.
+#
+# Usage: ansible-playbook playbooks/phase0_operator.yml --connection=local
+
+- name: Phase 0 — Configure operator workstation
+  hosts: localhost
+  connection: local
+  gather_facts: true
+  tasks:
+    # macOS Windows App (Microsoft Remote Desktop) rejects self-signed TLS
+    # certificates by default. The gateway's GRD system mode uses a self-signed
+    # cert for RDP. Disable certificate transparency enforcement so the
+    # client accepts it.
+    - name: Allow self-signed certs in Windows App (macOS)
+      community.general.osx_defaults:
+        domain: com.microsoft.rdc.macos
+        key: NSRequiresCertificateTransparency
+        type: bool
+        value: false
+        state: present
+      when: ansible_os_family == "Darwin"
+
+    - name: Operator workstation setup complete
+      ansible.builtin.debug:
+        msg: >-
+          Operator workstation configured. Restart Windows App if it was
+          running, then connect to the gateway via RDP.
