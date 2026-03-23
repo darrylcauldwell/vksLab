@@ -242,6 +242,53 @@
   changed_when: true
   when: grd_status.rc != 0 or 'enabled' not in grd_status.stdout
 
+# GRD needs a valid TLS certificate for RDP connections. Generate a
+# self-signed cert if one doesn't already exist.
+- name: Create GRD data directory
+  become: true
+  ansible.builtin.file:
+    path: /home/ubuntu/.local/share/gnome-remote-desktop
+    state: directory
+    owner: ubuntu
+    group: ubuntu
+    mode: "0700"
+
+- name: Check if GRD TLS certificate exists
+  become: true
+  ansible.builtin.stat:
+    path: /home/ubuntu/.local/share/gnome-remote-desktop/grd-tls.crt
+  register: grd_tls_cert
+
+- name: Generate self-signed TLS certificate for GRD
+  become: true
+  become_user: ubuntu
+  ansible.builtin.command: >
+    openssl req -x509 -newkey rsa:2048
+    -keyout /home/ubuntu/.local/share/gnome-remote-desktop/grd-tls.key
+    -out /home/ubuntu/.local/share/gnome-remote-desktop/grd-tls.crt
+    -days 365 -nodes -subj "/CN=gateway"
+  when: not grd_tls_cert.stat.exists
+
+- name: Set GRD TLS certificate
+  become: true
+  become_user: ubuntu
+  ansible.builtin.command: grdctl rdp set-tls-cert /home/ubuntu/.local/share/gnome-remote-desktop/grd-tls.crt
+  environment:
+    XDG_RUNTIME_DIR: /run/user/1000
+    DBUS_SESSION_BUS_ADDRESS: unix:path=/run/user/1000/bus
+  changed_when: true
+  when: not grd_tls_cert.stat.exists
+
+- name: Set GRD TLS key
+  become: true
+  become_user: ubuntu
+  ansible.builtin.command: grdctl rdp set-tls-key /home/ubuntu/.local/share/gnome-remote-desktop/grd-tls.key
+  environment:
+    XDG_RUNTIME_DIR: /run/user/1000
+    DBUS_SESSION_BUS_ADDRESS: unix:path=/run/user/1000/bus
+  changed_when: true
+  when: not grd_tls_cert.stat.exists
+
 - name: Enable gnome-remote-desktop systemd user service
   become: true
   become_user: ubuntu
@@ -249,7 +296,7 @@
     name: gnome-remote-desktop
     scope: user
     enabled: true
-    state: started
+    state: "{{ 'restarted' if (not grd_tls_cert.stat.exists) else 'started' }}"
   environment:
     XDG_RUNTIME_DIR: /run/user/1000
     DBUS_SESSION_BUS_ADDRESS: unix:path=/run/user/1000/bus
