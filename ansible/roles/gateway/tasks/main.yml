@@ -187,6 +187,34 @@
   delay: 5
   changed_when: false
 
+# GNOME keyring is locked on auto-login (no password prompt to unlock it).
+# grdctl stores RDP credentials in the keyring and hangs waiting for unlock.
+# Delete any existing keyring files so GNOME creates a fresh login keyring
+# with an empty password on the next session start. This is safe for a lab
+# appliance where the only keyring consumer is GRD.
+- name: Create keyrings directory
+  become: true
+  ansible.builtin.file:
+    path: /home/ubuntu/.local/share/keyrings
+    state: directory
+    owner: ubuntu
+    group: ubuntu
+    mode: "0700"
+
+- name: Remove existing locked keyring files
+  become: true
+  ansible.builtin.shell: rm -f /home/ubuntu/.local/share/keyrings/*.keyring
+  changed_when: true
+
+- name: Set default keyring to login
+  become: true
+  ansible.builtin.copy:
+    content: "login"
+    dest: /home/ubuntu/.local/share/keyrings/default
+    owner: ubuntu
+    group: ubuntu
+    mode: "0600"
+
 # Check if GRD is already configured by looking for its credentials in
 # dconf (not port 3389 — that races with service startup and previously
 # matched xrdp).
