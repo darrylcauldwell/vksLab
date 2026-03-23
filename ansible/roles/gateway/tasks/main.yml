@@ -233,6 +233,13 @@
 # grdctl stores RDP credentials via the Secret Service D-Bus API,
 # which requires the login keyring collection to exist and be unlocked.
 # Do NOT use --replace as it kills the session's keyring daemon.
+# Only run when no keyring file exists yet (first run or after cleanup).
+- name: Check if login keyring exists
+  become: true
+  ansible.builtin.stat:
+    path: /home/ubuntu/.local/share/keyrings/login.keyring
+  register: login_keyring
+
 - name: Create and unlock login keyring with empty password
   become: true
   become_user: ubuntu
@@ -240,7 +247,7 @@
   environment:
     XDG_RUNTIME_DIR: /run/user/1000
     DBUS_SESSION_BUS_ADDRESS: unix:path=/run/user/1000/bus
-  changed_when: true
+  when: not login_keyring.stat.exists
 
 # Check if GRD is already configured by looking for its credentials in
 # dconf (not port 3389 — that races with service startup and previously
@@ -312,7 +319,7 @@
     XDG_RUNTIME_DIR: /run/user/1000
     DBUS_SESSION_BUS_ADDRESS: unix:path=/run/user/1000/bus
   changed_when: true
-  when: grd_status.rc != 0 or 'enabled' not in grd_status.stdout | lower | lower
+  when: grd_status.rc != 0 or 'enabled' not in grd_status.stdout | lower
 
 - name: Enable GRD RDP
   become: true
@@ -377,6 +384,10 @@
     group: ubuntu
     mode: "0600"
 
+# --- Third-party apt repositories ---
+# All repos are added together, then a single cache update, then installs.
+# On re-runs repos are unchanged → cache update and installs skip.
+
 # kubectl for VKS cluster management in later phases
 - name: Add Kubernetes apt repository key
   become: true
@@ -395,13 +406,7 @@
       Signed-By: /etc/apt/keyrings/kubernetes.asc
     dest: /etc/apt/sources.list.d/kubernetes.sources
     mode: "0644"
-
-- name: Install kubectl
-  become: true
-  ansible.builtin.apt:
-    name: kubectl
-    state: present
-    update_cache: true
+  register: k8s_repo
 
 # Conky displays lab environment info on the desktop (like BGInfo on Windows)
 - name: Deploy conky configuration
@@ -521,13 +526,7 @@
       Signed-By: /etc/apt/keyrings/smallstep.asc
     dest: /etc/apt/sources.list.d/smallstep.sources
     mode: "0644"
-
-- name: Install Smallstep packages
-  become: true
-  ansible.builtin.apt:
-    name: "{{ gateway_step_packages }}"
-    state: present
-    update_cache: true
+  register: smallstep_repo
 
 # VS Code provides an IDE on the gateway for editing Ansible playbooks,
 # VKS manifests, and troubleshooting — accessible via RDP.
@@ -550,13 +549,21 @@
       Signed-By: /etc/apt/keyrings/microsoft.asc
     dest: /etc/apt/sources.list.d/vscode.sources
     mode: "0644"
+  register: vscode_repo
 
-- name: Install VS Code
+# Single apt cache update after all third-party repos are added.
+# Skips on re-runs when repos haven't changed.
+- name: Update apt cache for third-party repos
   become: true
   ansible.builtin.apt:
-    name: "{{ gateway_vscode_packages }}"
-    state: present
     update_cache: true
+  when: k8s_repo is changed or smallstep_repo is changed or vscode_repo is changed
+
+- name: Install third-party packages
+  become: true
+  ansible.builtin.apt:
+    name: "{{ gateway_step_packages + gateway_vscode_packages + ['kubectl'] }}"
+    state: present
 
 # Derived deterministically from bootstrap_password so reruns always
 # produce the same value — safe to overwrite on every run.
