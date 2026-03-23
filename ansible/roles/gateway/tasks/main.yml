@@ -125,69 +125,22 @@
     line: 'enabled=0'
     state: present
 
-# --- RDP via GNOME Remote Desktop (system mode) ---
+# --- RDP via xrdp ---
 #
-# GRD has two modes: "screen sharing" (user service, shares auto-login
-# session, requires GNOME keyring) and "system" (system service, creates
-# a fresh login session per RDP connection, no keyring dependency).
+# xrdp is a battle-tested RDP server that works with every RDP client
+# (macOS Windows App, mstsc, FreeRDP). It creates an Xorg GNOME session
+# per connection. No keyring, no D-Bus, no TLS negotiation issues.
 #
-# Screen-sharing mode is fundamentally incompatible with automated setup
-# because grdctl stores credentials in the GNOME keyring, which is locked
-# on auto-login (no password prompt to unlock it). Every workaround
-# (PAM unlock, empty keyring, dconf bypass) is fragile.
-#
-# System mode (`grdctl --system`) runs as root, stores credentials in
-# /etc/gnome-remote-desktop/, and requires no D-Bus session, no keyring,
-# no auto-login. When an RDP client connects, GRD shows the GDM login
-# screen and creates a Wayland session after authentication.
+# GRD (gnome-remote-desktop) was evaluated but has client compatibility
+# issues with macOS Windows App (rdp_server_accept_nego failures) and
+# its screen-sharing mode requires GNOME keyring which is locked on
+# auto-login. xrdp is the pragmatic choice for a lab gateway.
 
-# The vApp template may boot to multi-user.target (no GUI). GDM and GRD
-# system mode both require graphical.target.
+# The vApp template may boot to multi-user.target (no GUI).
 - name: Set default boot target to graphical
   become: true
   ansible.builtin.command: systemctl set-default graphical.target
   changed_when: false
-
-# xrdp may be pre-installed in the vApp template. It conflicts with
-# gnome-remote-desktop by binding port 3389 first. Remove it entirely.
-- name: Remove xrdp if present
-  become: true
-  ansible.builtin.apt:
-    name:
-      - xrdp
-      - xorgxrdp
-    state: absent
-    purge: true
-
-# Ubuntu's 61-gdm.rules detects VMware's virtual GPU and forces Xorg,
-# disabling Wayland. Override with an empty file so GDM respects
-# WaylandEnable=true in custom.conf.
-- name: Override GDM udev rule that disables Wayland on VMs
-  become: true
-  ansible.builtin.copy:
-    content: "# Intentionally empty — allow Wayland on VMware virtual GPU\n"
-    dest: /etc/udev/rules.d/61-gdm.rules
-    owner: root
-    group: root
-    mode: "0644"
-  register: udev_override
-
-- name: Reload udev rules
-  become: true
-  ansible.builtin.command: udevadm trigger
-  when: udev_override is changed
-
-- name: Enable Wayland in GDM
-  become: true
-  ansible.builtin.copy:
-    content: |
-      [daemon]
-      WaylandEnable=true
-    dest: /etc/gdm3/custom.conf
-    owner: root
-    group: root
-    mode: "0644"
-  notify: restart gdm3
 
 - name: Set keyboard layout
   become: true
@@ -197,87 +150,66 @@
     line: 'XKBLAYOUT="{{ gateway_keyboard_layout }}"'
     state: present
 
-# TLS certificate for RDP encryption. GRD system mode expects certs
-# in the gnome-remote-desktop service user's data directory.
-- name: Create GRD certificate directory
+- name: Install xrdp
   become: true
-  ansible.builtin.file:
-    path: /var/lib/gnome-remote-desktop/.local/share/gnome-remote-desktop
-    state: directory
-    owner: gnome-remote-desktop
-    group: gnome-remote-desktop
-    mode: "0700"
-    recurse: true
+  ansible.builtin.apt:
+    name:
+      - xrdp
+      - xorgxrdp
+    state: present
 
-- name: Check if GRD TLS certificate exists
-  become: true
-  ansible.builtin.stat:
-    path: /var/lib/gnome-remote-desktop/.local/share/gnome-remote-desktop/tls.crt
-  register: grd_tls_cert
-
-- name: Generate self-signed TLS certificate for GRD
-  become: true
-  become_user: gnome-remote-desktop
-  ansible.builtin.command: >
-    openssl req -x509 -newkey rsa:2048
-    -keyout /var/lib/gnome-remote-desktop/.local/share/gnome-remote-desktop/tls.key
-    -out /var/lib/gnome-remote-desktop/.local/share/gnome-remote-desktop/tls.crt
-    -days 3650 -nodes -subj "/CN=gateway"
-  when: not grd_tls_cert.stat.exists
-
-# Configure GRD system mode — all commands run as root, no D-Bus or
-# keyring needed. Credentials are stored in the system GRD config.
-# The "door credentials" authenticate the RDP connection; after that
-# the user logs in with their OS credentials at the GDM screen.
-- name: Set GRD system TLS certificate
-  become: true
-  ansible.builtin.command: >
-    grdctl --system rdp set-tls-cert
-    /var/lib/gnome-remote-desktop/.local/share/gnome-remote-desktop/tls.crt
-  when: not grd_tls_cert.stat.exists
-
-- name: Set GRD system TLS key
-  become: true
-  ansible.builtin.command: >
-    grdctl --system rdp set-tls-key
-    /var/lib/gnome-remote-desktop/.local/share/gnome-remote-desktop/tls.key
-  when: not grd_tls_cert.stat.exists
-
-- name: Set GRD system RDP credentials
-  become: true
-  ansible.builtin.command: >
-    grdctl --system rdp set-credentials ubuntu
-    {{ lookup('community.general.onepassword', 'Jumpbox Ubuntu', field='password', vault=onepassword_vault) }}
-  changed_when: true
-  no_log: true
-
-- name: Disable GRD system view-only mode
-  become: true
-  ansible.builtin.command: grdctl --system rdp disable-view-only
-  changed_when: false
-
-- name: Enable GRD system RDP
-  become: true
-  ansible.builtin.command: grdctl --system rdp enable
-  changed_when: false
-
-# RDP sessions need GPU access for hardware-accelerated rendering.
-# Without video/render groups, GPU-intensive apps disconnect the session.
-- name: Add ubuntu to video and render groups for RDP GPU access
+# xrdp needs access to the TLS certificate used by the RDP listener
+- name: Add xrdp user to ssl-cert group
   become: true
   ansible.builtin.user:
-    name: ubuntu
-    groups: video,render
+    name: xrdp
+    groups: ssl-cert
     append: true
 
-- name: Enable and start GRD system service
+# Default xrdp session uses Xorg — configure it to start a full GNOME
+# session so the user gets the same desktop as a local login.
+- name: Configure xrdp to use GNOME session
   become: true
-  ansible.builtin.systemd:
-    name: gnome-remote-desktop
-    scope: system
+  ansible.builtin.copy:
+    content: |
+      [Desktop Entry]
+      Name=Xrdp Session
+      Exec=env -u SESSION_MANAGER -u DBUS_SESSION_BUS_ADDRESS gnome-session
+      Type=Application
+    dest: /etc/xrdp/xsession.desktop
+    owner: root
+    group: root
+    mode: "0644"
+  notify: restart xrdp
+
+# Polkit rule to allow colord access without authentication prompts
+# that block the RDP session at login
+- name: Create polkit rule for colord in xrdp sessions
+  become: true
+  ansible.builtin.copy:
+    content: |
+      polkit.addRule(function(action, subject) {
+          if ((action.id == "org.freedesktop.color-manager.create-device" ||
+               action.id == "org.freedesktop.color-manager.create-profile" ||
+               action.id == "org.freedesktop.color-manager.delete-device" ||
+               action.id == "org.freedesktop.color-manager.delete-profile" ||
+               action.id == "org.freedesktop.color-manager.modify-device" ||
+               action.id == "org.freedesktop.color-manager.modify-profile") &&
+              subject.isInGroup("ubuntu")) {
+              return polkit.Result.YES;
+          }
+      });
+    dest: /etc/polkit-1/rules.d/02-allow-colord.rules
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Enable and start xrdp
+  become: true
+  ansible.builtin.service:
+    name: xrdp
+    state: started
     enabled: true
-    state: "{{ 'restarted' if (not grd_tls_cert.stat.exists) else 'started' }}"
-    daemon_reload: true
 
 # SSH config for all lab hosts — `ssh esxi-01` just works
 - name: Create .ssh directory

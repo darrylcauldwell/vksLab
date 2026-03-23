@@ -5,8 +5,7 @@ gateway_lab_network: "{{ lab_network_prefix }}.0.0/16"
 gateway_vlan_trunk_nic: ens34
 
 gateway_packages:
-  - ubuntu-desktop-minimal    # GNOME + GDM3 + Wayland
-  - gnome-remote-desktop      # Wayland-native RDP
+  - ubuntu-desktop-minimal    # GNOME + GDM3
   - dnsmasq
   - chrony
   - firefox

@@ -38,3 +38,9 @@
   ansible.builtin.service:
     name: gdm3
     state: restarted
+
+- name: restart xrdp
+  become: true
+  ansible.builtin.service:
+    name: xrdp
+    state: restarted
