@@ -215,6 +215,18 @@
     group: ubuntu
     mode: "0600"
 
+# Create and unlock the login keyring with an empty password.
+# grdctl stores RDP credentials via the Secret Service D-Bus API,
+# which requires the login keyring collection to exist and be unlocked.
+- name: Create and unlock login keyring with empty password
+  become: true
+  become_user: ubuntu
+  ansible.builtin.shell: echo -n "" | gnome-keyring-daemon --unlock --replace
+  environment:
+    XDG_RUNTIME_DIR: /run/user/1000
+    DBUS_SESSION_BUS_ADDRESS: unix:path=/run/user/1000/bus
+  changed_when: true
+
 # Check if GRD is already configured by looking for its credentials in
 # dconf (not port 3389 — that races with service startup and previously
 # matched xrdp).
