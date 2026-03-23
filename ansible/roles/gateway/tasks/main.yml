@@ -23,12 +23,21 @@
 
 # systemd-resolved binds port 53, preventing dnsmasq from starting.
 # Disable it and point resolv.conf at upstream DNS so apt works.
-- name: Disable systemd-resolved
+# Mask (not just disable) systemd-resolved — dnsmasq's systemd service
+# tries to register with resolved via D-Bus after starting. Masking
+# prevents the D-Bus activation from resurrecting it.
+- name: Stop systemd-resolved
   become: true
   ansible.builtin.service:
     name: systemd-resolved
     state: stopped
-    enabled: false
+  tags: [packages, dns]
+
+- name: Mask systemd-resolved
+  become: true
+  ansible.builtin.systemd:
+    name: systemd-resolved
+    masked: true
   tags: [packages, dns]
 
 - name: Configure resolv.conf for upstream DNS
