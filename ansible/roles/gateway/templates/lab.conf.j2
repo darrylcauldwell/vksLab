@@ -3,6 +3,10 @@ domain={{ lab_domain }}
 local=/{{ lab_domain }}/
 
 # --- Upstream DNS forwarders ---
+# no-resolv prevents dnsmasq reading /run/dnsmasq/resolv.conf (which
+# doesn't exist since we disabled systemd-resolved). Upstream servers
+# are defined explicitly below.
+no-resolv
 {% for server in gateway_upstream_dns %}
 server={{ server }}
 {% endfor %}
