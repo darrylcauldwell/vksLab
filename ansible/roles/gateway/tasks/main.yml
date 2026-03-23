@@ -141,6 +141,13 @@
 # no auto-login. When an RDP client connects, GRD shows the GDM login
 # screen and creates a Wayland session after authentication.
 
+# The vApp template may boot to multi-user.target (no GUI). GDM and GRD
+# system mode both require graphical.target.
+- name: Set default boot target to graphical
+  become: true
+  ansible.builtin.command: systemctl set-default graphical.target
+  changed_when: false
+
 # xrdp may be pre-installed in the vApp template. It conflicts with
 # gnome-remote-desktop by binding port 3389 first. Remove it entirely.
 - name: Remove xrdp if present
