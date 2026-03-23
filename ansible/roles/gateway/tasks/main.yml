@@ -7,7 +7,7 @@
 #   - CA (step-ca) — internal TLS certificates for all lab components
 #   - NAT/masquerade — outbound internet for nested hosts via the public NIC
 #   - BGP (FRR) — peers with NSX Tier-0 for VKS pod/service route exchange
-#   - RDP (GNOME + gnome-remote-desktop) — Wayland-native remote desktop for managing web UIs
+#   - RDP (GNOME + xrdp) — remote desktop for managing web UIs
 
 # systemd-resolved binds port 53, preventing dnsmasq from starting.
 # Disable it and point resolv.conf at upstream DNS so apt works.
@@ -203,6 +203,15 @@
     owner: root
     group: root
     mode: "0644"
+
+# gnome-remote-desktop ships with ubuntu-desktop-minimal and binds port 3389
+# on startup via GDM. Disable it so xrdp can claim the port.
+- name: Disable gnome-remote-desktop service
+  become: true
+  ansible.builtin.service:
+    name: gnome-remote-desktop
+    state: stopped
+    enabled: false
 
 - name: Enable and start xrdp
   become: true
