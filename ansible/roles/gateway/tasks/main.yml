@@ -229,49 +229,8 @@
   failed_when: false
   changed_when: false
 
-- name: Set GNOME keyboard input source
-  become: true
-  become_user: ubuntu
-  ansible.builtin.command: >
-    gsettings set org.gnome.desktop.input-sources sources "[('xkb', '{{ gateway_keyboard_layout }}')]"
-  environment:
-    XDG_RUNTIME_DIR: /run/user/1000
-    DBUS_SESSION_BUS_ADDRESS: unix:path=/run/user/1000/bus
-  changed_when: true
-  when: grd_status.rc != 0 or 'enabled' not in grd_status.stdout
-
-- name: Enable GRD RDP
-  become: true
-  become_user: ubuntu
-  ansible.builtin.command: grdctl rdp enable
-  environment:
-    XDG_RUNTIME_DIR: /run/user/1000
-    DBUS_SESSION_BUS_ADDRESS: unix:path=/run/user/1000/bus
-  changed_when: true
-  when: grd_status.rc != 0 or 'enabled' not in grd_status.stdout
-
-- name: Set GRD RDP credentials
-  become: true
-  become_user: ubuntu
-  ansible.builtin.command: grdctl rdp set-credentials ubuntu VMware1!
-  environment:
-    XDG_RUNTIME_DIR: /run/user/1000
-    DBUS_SESSION_BUS_ADDRESS: unix:path=/run/user/1000/bus
-  changed_when: true
-  when: grd_status.rc != 0 or 'enabled' not in grd_status.stdout
-
-- name: Disable GRD view-only mode
-  become: true
-  become_user: ubuntu
-  ansible.builtin.command: grdctl rdp disable-view-only
-  environment:
-    XDG_RUNTIME_DIR: /run/user/1000
-    DBUS_SESSION_BUS_ADDRESS: unix:path=/run/user/1000/bus
-  changed_when: true
-  when: grd_status.rc != 0 or 'enabled' not in grd_status.stdout
-
-# GRD needs a valid TLS certificate for RDP connections. Generate a
-# self-signed cert if one doesn't already exist.
+# GRD needs a valid TLS certificate before any grdctl commands will work.
+# Generate a self-signed cert if one doesn't already exist.
 - name: Create GRD data directory
   become: true
   ansible.builtin.file:
@@ -316,6 +275,47 @@
     DBUS_SESSION_BUS_ADDRESS: unix:path=/run/user/1000/bus
   changed_when: true
   when: not grd_tls_cert.stat.exists
+
+- name: Set GNOME keyboard input source
+  become: true
+  become_user: ubuntu
+  ansible.builtin.command: >
+    gsettings set org.gnome.desktop.input-sources sources "[('xkb', '{{ gateway_keyboard_layout }}')]"
+  environment:
+    XDG_RUNTIME_DIR: /run/user/1000
+    DBUS_SESSION_BUS_ADDRESS: unix:path=/run/user/1000/bus
+  changed_when: true
+  when: grd_status.rc != 0 or 'enabled' not in grd_status.stdout
+
+- name: Enable GRD RDP
+  become: true
+  become_user: ubuntu
+  ansible.builtin.command: grdctl rdp enable
+  environment:
+    XDG_RUNTIME_DIR: /run/user/1000
+    DBUS_SESSION_BUS_ADDRESS: unix:path=/run/user/1000/bus
+  changed_when: true
+  when: grd_status.rc != 0 or 'enabled' not in grd_status.stdout
+
+- name: Set GRD RDP credentials
+  become: true
+  become_user: ubuntu
+  ansible.builtin.command: grdctl rdp set-credentials ubuntu VMware1!
+  environment:
+    XDG_RUNTIME_DIR: /run/user/1000
+    DBUS_SESSION_BUS_ADDRESS: unix:path=/run/user/1000/bus
+  changed_when: true
+  when: grd_status.rc != 0 or 'enabled' not in grd_status.stdout
+
+- name: Disable GRD view-only mode
+  become: true
+  become_user: ubuntu
+  ansible.builtin.command: grdctl rdp disable-view-only
+  environment:
+    XDG_RUNTIME_DIR: /run/user/1000
+    DBUS_SESSION_BUS_ADDRESS: unix:path=/run/user/1000/bus
+  changed_when: true
+  when: grd_status.rc != 0 or 'enabled' not in grd_status.stdout
 
 - name: Enable gnome-remote-desktop systemd user service
   become: true
