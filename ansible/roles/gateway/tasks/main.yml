@@ -126,7 +126,7 @@
       - xorgxrdp
     state: absent
     purge: true
-  notify: restart gdm3
+  register: xrdp_removed
 
 # Ubuntu's 61-gdm.rules detects VMware's virtual GPU and forces Xorg,
 # disabling Wayland. Override with an empty file so GDM respects
@@ -139,7 +139,13 @@
     owner: root
     group: root
     mode: "0644"
-  notify: restart gdm3
+  register: udev_override
+
+# Reload udev rules so the override takes effect without a full reboot
+- name: Reload udev rules
+  become: true
+  ansible.builtin.command: udevadm trigger
+  when: udev_override is changed
 
 - name: Configure GDM3 auto-login for ubuntu user
   become: true
@@ -154,7 +160,6 @@
     group: root
     mode: "0644"
   register: gdm_config
-  notify: restart gdm3
 
 - name: Set keyboard layout
   become: true
@@ -164,17 +169,14 @@
     line: 'XKBLAYOUT="{{ gateway_keyboard_layout }}"'
     state: present
 
-# grdctl requires an active GNOME user session (D-Bus + XDG_RUNTIME_DIR).
-# GDM auto-login must be active first, so a reboot is needed between
-# GDM config and GRD config.
-- name: Flush handlers to restart GDM before GRD setup
-  ansible.builtin.meta: flush_handlers
-
-- name: Reboot to start GNOME session
+# Reboot if any GDM-related config changed. grdctl requires an active
+# GNOME auto-login session with a functioning D-Bus — a reboot is the
+# most reliable way to get a clean session after GDM config changes.
+- name: Reboot to apply GDM/Wayland changes
   become: true
   ansible.builtin.reboot:
     reboot_timeout: 300
-  when: gdm_config is changed
+  when: gdm_config is changed or udev_override is changed or xrdp_removed is changed
 
 - name: Wait for GNOME session to be active
   become: true
@@ -185,13 +187,18 @@
   delay: 5
   changed_when: false
 
-# Skip all D-Bus-dependent tasks (gsettings, grdctl) if RDP is already
-# configured and listening — these hang on re-runs when the GNOME session
-# has stale D-Bus state (#63).
-- name: Check if GRD RDP is already listening
+# Check if GRD is already configured by looking for its credentials in
+# dconf (not port 3389 — that races with service startup and previously
+# matched xrdp).
+- name: Check if GRD RDP is already configured
   become: true
-  ansible.builtin.command: ss -tlnp sport = :3389
-  register: grd_listening
+  become_user: ubuntu
+  ansible.builtin.command: grdctl status rdp
+  environment:
+    XDG_RUNTIME_DIR: /run/user/1000
+    DBUS_SESSION_BUS_ADDRESS: unix:path=/run/user/1000/bus
+  register: grd_status
+  failed_when: false
   changed_when: false
 
 - name: Set GNOME keyboard input source
@@ -203,7 +210,7 @@
     XDG_RUNTIME_DIR: /run/user/1000
     DBUS_SESSION_BUS_ADDRESS: unix:path=/run/user/1000/bus
   changed_when: true
-  when: "'3389' not in grd_listening.stdout"
+  when: grd_status.rc != 0 or 'enabled' not in grd_status.stdout
 
 - name: Enable GRD RDP
   become: true
@@ -213,7 +220,7 @@
     XDG_RUNTIME_DIR: /run/user/1000
     DBUS_SESSION_BUS_ADDRESS: unix:path=/run/user/1000/bus
   changed_when: true
-  when: "'3389' not in grd_listening.stdout"
+  when: grd_status.rc != 0 or 'enabled' not in grd_status.stdout
 
 - name: Set GRD RDP credentials
   become: true
@@ -223,7 +230,7 @@
     XDG_RUNTIME_DIR: /run/user/1000
     DBUS_SESSION_BUS_ADDRESS: unix:path=/run/user/1000/bus
   changed_when: true
-  when: "'3389' not in grd_listening.stdout"
+  when: grd_status.rc != 0 or 'enabled' not in grd_status.stdout
 
 - name: Disable GRD view-only mode
   become: true
@@ -233,7 +240,7 @@
     XDG_RUNTIME_DIR: /run/user/1000
     DBUS_SESSION_BUS_ADDRESS: unix:path=/run/user/1000/bus
   changed_when: true
-  when: "'3389' not in grd_listening.stdout"
+  when: grd_status.rc != 0 or 'enabled' not in grd_status.stdout
 
 - name: Enable gnome-remote-desktop systemd user service
   become: true
@@ -246,7 +253,6 @@
   environment:
     XDG_RUNTIME_DIR: /run/user/1000
     DBUS_SESSION_BUS_ADDRESS: unix:path=/run/user/1000/bus
-  when: "'3389' not in grd_listening.stdout"
 
 # SSH config for all lab hosts — `ssh esxi-01` just works
 - name: Create .ssh directory
