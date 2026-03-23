@@ -183,53 +183,50 @@
     line: 'XKBLAYOUT="{{ gateway_keyboard_layout }}"'
     state: present
 
-# TLS certificate for RDP encryption
-- name: Create GRD configuration directory
+# TLS certificate for RDP encryption. GRD system mode expects certs
+# in the gnome-remote-desktop service user's data directory.
+- name: Create GRD certificate directory
   become: true
   ansible.builtin.file:
-    path: /etc/gnome-remote-desktop
+    path: /var/lib/gnome-remote-desktop/.local/share/gnome-remote-desktop
     state: directory
-    owner: root
-    group: root
+    owner: gnome-remote-desktop
+    group: gnome-remote-desktop
     mode: "0700"
+    recurse: true
 
 - name: Check if GRD TLS certificate exists
   become: true
   ansible.builtin.stat:
-    path: /etc/gnome-remote-desktop/grd-tls.crt
+    path: /var/lib/gnome-remote-desktop/.local/share/gnome-remote-desktop/tls.crt
   register: grd_tls_cert
 
 - name: Generate self-signed TLS certificate for GRD
   become: true
+  become_user: gnome-remote-desktop
   ansible.builtin.command: >
     openssl req -x509 -newkey rsa:2048
-    -keyout /etc/gnome-remote-desktop/grd-tls.key
-    -out /etc/gnome-remote-desktop/grd-tls.crt
-    -days 365 -nodes -subj "/CN=gateway"
-  when: not grd_tls_cert.stat.exists
-
-- name: Set GRD TLS certificate permissions
-  become: true
-  ansible.builtin.file:
-    path: "{{ item }}"
-    owner: root
-    group: root
-    mode: "0600"
-  loop:
-    - /etc/gnome-remote-desktop/grd-tls.crt
-    - /etc/gnome-remote-desktop/grd-tls.key
+    -keyout /var/lib/gnome-remote-desktop/.local/share/gnome-remote-desktop/tls.key
+    -out /var/lib/gnome-remote-desktop/.local/share/gnome-remote-desktop/tls.crt
+    -days 3650 -nodes -subj "/CN=gateway"
   when: not grd_tls_cert.stat.exists
 
 # Configure GRD system mode — all commands run as root, no D-Bus or
-# keyring needed. Credentials are stored in /etc/gnome-remote-desktop/.
+# keyring needed. Credentials are stored in the system GRD config.
+# The "door credentials" authenticate the RDP connection; after that
+# the user logs in with their OS credentials at the GDM screen.
 - name: Set GRD system TLS certificate
   become: true
-  ansible.builtin.command: grdctl --system rdp set-tls-cert /etc/gnome-remote-desktop/grd-tls.crt
+  ansible.builtin.command: >
+    grdctl --system rdp set-tls-cert
+    /var/lib/gnome-remote-desktop/.local/share/gnome-remote-desktop/tls.crt
   when: not grd_tls_cert.stat.exists
 
 - name: Set GRD system TLS key
   become: true
-  ansible.builtin.command: grdctl --system rdp set-tls-key /etc/gnome-remote-desktop/grd-tls.key
+  ansible.builtin.command: >
+    grdctl --system rdp set-tls-key
+    /var/lib/gnome-remote-desktop/.local/share/gnome-remote-desktop/tls.key
   when: not grd_tls_cert.stat.exists
 
 - name: Set GRD system RDP credentials
