@@ -185,13 +185,22 @@
     name: ubuntu
     shell: /usr/bin/zsh
 
+- name: Download Oh My Zsh installer
+  become: true
+  ansible.builtin.get_url:
+    url: https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh
+    dest: /tmp/install-ohmyzsh.sh
+    mode: "0755"
+
 - name: Install Oh My Zsh
   become: true
   become_user: ubuntu
   ansible.builtin.command:
-    cmd: sh -c "RUNZSH=no CHSH=no sh -"
-    stdin: "{{ lookup('url', 'https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh', split_lines=false) }}"
+    cmd: sh /tmp/install-ohmyzsh.sh
     creates: /home/ubuntu/.oh-my-zsh/oh-my-zsh.sh
+  environment:
+    RUNZSH: "no"
+    CHSH: "no"
 
 - name: Install Powerlevel10k theme
   become: true
