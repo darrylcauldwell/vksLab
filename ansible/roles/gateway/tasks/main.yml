@@ -22,7 +22,9 @@
   become: true
   ansible.builtin.copy:
     content: |
-      nameserver {{ gateway_upstream_dns[0] }}
+      {% for dns in gateway_upstream_dns %}
+      nameserver {{ dns }}
+      {% endfor %}
     dest: /etc/resolv.conf
     owner: root
     group: root
@@ -201,10 +203,22 @@
     group: ubuntu
     mode: "0700"
 
+- name: Find existing locked keyring files
+  become: true
+  ansible.builtin.find:
+    paths: /home/ubuntu/.local/share/keyrings
+    patterns: "*.keyring"
+  register: keyring_files
+
 - name: Remove existing locked keyring files
   become: true
-  ansible.builtin.shell: rm -f /home/ubuntu/.local/share/keyrings/*.keyring
-  changed_when: true
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: absent
+  loop: "{{ keyring_files.files }}"
+  loop_control:
+    label: "{{ item.path | basename }}"
+  when: keyring_files.files | length > 0
 
 - name: Set default keyring to login
   become: true
@@ -218,10 +232,11 @@
 # Create and unlock the login keyring with an empty password.
 # grdctl stores RDP credentials via the Secret Service D-Bus API,
 # which requires the login keyring collection to exist and be unlocked.
+# Do NOT use --replace as it kills the session's keyring daemon.
 - name: Create and unlock login keyring with empty password
   become: true
   become_user: ubuntu
-  ansible.builtin.shell: echo -n "" | gnome-keyring-daemon --unlock --replace
+  ansible.builtin.shell: echo -n "" | gnome-keyring-daemon --unlock
   environment:
     XDG_RUNTIME_DIR: /run/user/1000
     DBUS_SESSION_BUS_ADDRESS: unix:path=/run/user/1000/bus
@@ -297,7 +312,7 @@
     XDG_RUNTIME_DIR: /run/user/1000
     DBUS_SESSION_BUS_ADDRESS: unix:path=/run/user/1000/bus
   changed_when: true
-  when: grd_status.rc != 0 or 'enabled' not in grd_status.stdout
+  when: grd_status.rc != 0 or 'enabled' not in grd_status.stdout | lower | lower
 
 - name: Enable GRD RDP
   become: true
@@ -307,17 +322,19 @@
     XDG_RUNTIME_DIR: /run/user/1000
     DBUS_SESSION_BUS_ADDRESS: unix:path=/run/user/1000/bus
   changed_when: true
-  when: grd_status.rc != 0 or 'enabled' not in grd_status.stdout
+  when: grd_status.rc != 0 or 'enabled' not in grd_status.stdout | lower
 
 - name: Set GRD RDP credentials
   become: true
   become_user: ubuntu
-  ansible.builtin.command: grdctl rdp set-credentials ubuntu VMware1!
+  ansible.builtin.command: >
+    grdctl rdp set-credentials ubuntu
+    {{ lookup('community.general.onepassword', 'Jumpbox Ubuntu', field='password', vault=onepassword_vault) }}
   environment:
     XDG_RUNTIME_DIR: /run/user/1000
     DBUS_SESSION_BUS_ADDRESS: unix:path=/run/user/1000/bus
   changed_when: true
-  when: grd_status.rc != 0 or 'enabled' not in grd_status.stdout
+  when: grd_status.rc != 0 or 'enabled' not in grd_status.stdout | lower
 
 - name: Disable GRD view-only mode
   become: true
@@ -327,7 +344,7 @@
     XDG_RUNTIME_DIR: /run/user/1000
     DBUS_SESSION_BUS_ADDRESS: unix:path=/run/user/1000/bus
   changed_when: true
-  when: grd_status.rc != 0 or 'enabled' not in grd_status.stdout
+  when: grd_status.rc != 0 or 'enabled' not in grd_status.stdout | lower
 
 - name: Enable gnome-remote-desktop systemd user service
   become: true
@@ -673,7 +690,8 @@
     content: |
       [Unit]
       Description=Smallstep CA
-      After=network.target
+      After=network-online.target
+      Wants=network-online.target
 
       [Service]
       ExecStart=/usr/bin/step-ca /root/.step/config/ca.json --password-file=/root/.step-ca-password
