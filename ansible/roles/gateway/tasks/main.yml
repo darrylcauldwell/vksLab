@@ -116,6 +116,19 @@
     line: 'enabled=0'
     state: present
 
+# Ubuntu's 61-gdm.rules detects VMware's virtual GPU and forces Xorg,
+# disabling Wayland. Override with an empty file so GDM respects
+# WaylandEnable=true in custom.conf.
+- name: Override GDM udev rule that disables Wayland on VMs
+  become: true
+  ansible.builtin.copy:
+    content: "# Intentionally empty — allow Wayland on VMware virtual GPU\n"
+    dest: /etc/udev/rules.d/61-gdm.rules
+    owner: root
+    group: root
+    mode: "0644"
+  notify: restart gdm3
+
 - name: Configure GDM3 auto-login for ubuntu user
   become: true
   ansible.builtin.copy:
