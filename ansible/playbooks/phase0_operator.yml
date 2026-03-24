@@ -115,6 +115,25 @@
         launchctl bootstrap gui/$(id -u) {{ ansible_env.HOME }}/Library/LaunchAgents/dev.dreamfold.lab-tunnel.plist
       when: launch_agent.changed
 
+    - name: Fetch lab root CA certificate from gateway
+      ansible.builtin.shell: >
+        scp -o StrictHostKeyChecking=no
+        ubuntu@{{ gateway_public_ip }}:/tmp/lab-root-ca.crt
+        {{ ansible_env.HOME }}/.lab-root-ca.crt
+      args:
+        creates: "{{ ansible_env.HOME }}/.lab-root-ca.crt"
+
+    - name: Trust lab root CA in macOS system keychain
+      ansible.builtin.shell: >
+        security verify-cert -c {{ ansible_env.HOME }}/.lab-root-ca.crt 2>/dev/null
+        && echo "already_trusted"
+        || (sudo security add-trusted-cert -d -r trustRoot
+        -k /Library/Keychains/System.keychain
+        {{ ansible_env.HOME }}/.lab-root-ca.crt
+        && echo "imported")
+      register: ca_import
+      changed_when: "'imported' in ca_import.stdout"
+
     - name: Generate Firefox bookmarks HTML for import
       ansible.builtin.copy:
         content: |
