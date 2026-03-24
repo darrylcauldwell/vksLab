@@ -74,6 +74,8 @@
           Host lab-tunnel
             HostName {{ gateway_public_ip }}
             User ubuntu
+            StrictHostKeyChecking no
+            UserKnownHostsFile /dev/null
             DynamicForward 1080
             ExitOnForwardFailure yes
             ServerAliveInterval 30
