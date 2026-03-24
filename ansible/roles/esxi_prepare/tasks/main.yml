@@ -120,21 +120,39 @@
   register: scsi_result
   changed_when: scsi_result.rc == 0
 
-- name: Get storage device CSV
+- name: Get storage devices as CSV
   ansible.builtin.raw: >
     esxcli --formatter=csv storage core device list
   register: device_csv
   changed_when: false
 
-- name: Show CSV header and first NVMe line
-  ansible.builtin.debug:
-    msg:
-      - "{{ device_csv.stdout_lines[0] | default('NO HEADER') }}"
-      - "{{ device_csv.stdout_lines[1] | default('NO DATA') }}"
+- name: Parse non-boot NVMe devices from CSV
+  ansible.builtin.set_fact:
+    nvme_sorted: >-
+      {%- set header = device_csv.stdout_lines[0].split(',') -%}
+      {%- set devices = [] -%}
+      {%- for line in device_csv.stdout_lines[1:] if line | trim | length > 0 -%}
+        {%- set cols = line.split(',') -%}
+        {%- set dev = dict(header | zip(cols)) -%}
+        {%- if dev.get('IsBootDevice', '') in ['false', 'False'] and 'NVMe' in dev.get('DisplayName', '') -%}
+          {%- set _ = devices.append({'id': dev.get('Device', ''), 'size': dev.get('Size', '0') | int, 'name': dev.get('DisplayName', '')}) -%}
+        {%- endif -%}
+      {%- endfor -%}
+      {{ devices | sort(attribute='size') }}
 
-- name: Fail to inspect output
-  ansible.builtin.fail:
-    msg: "Stopping to inspect CSV format — remove this task after"
+- name: Display discovered NVMe devices
+  ansible.builtin.debug:
+    msg: "{{ nvme_sorted }}"
+
+- name: Set local datastore device (smallest non-boot NVMe)
+  ansible.builtin.set_fact:
+    local_datastore_device: "{{ nvme_sorted[0].id }}"
+  when: nvme_sorted | length >= 2
+
+- name: Set vSAN device (largest non-boot NVMe)
+  ansible.builtin.set_fact:
+    vsan_device: "{{ nvme_sorted[-1].id }}"
+  when: nvme_sorted | length >= 2
 
 - name: Display storage device assignments
   ansible.builtin.debug:
