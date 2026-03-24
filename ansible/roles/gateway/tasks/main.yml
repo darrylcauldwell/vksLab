@@ -40,10 +40,11 @@
     masked: true
   tags: [packages, dns]
 
-- name: Configure resolv.conf for upstream DNS
+- name: Configure resolv.conf with local dnsmasq and upstream fallback
   become: true
   ansible.builtin.copy:
     content: |
+      nameserver 127.0.0.1
       {% for dns in gateway_upstream_dns %}
       nameserver {{ dns }}
       {% endfor %}
