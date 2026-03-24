@@ -64,13 +64,10 @@
 
         - name: Set OVF property values in deployment spec
           ansible.builtin.shell: |
-            python3 -c "
-            import json, sys
-
+            python3 << 'PYEOF'
+            import json
             with open('/tmp/vcf-installer-spec.json') as f:
                 spec = json.load(f)
-
-            # Map of property key substrings to values
             props = {
                 'ip': '{{ vcf_installer_ip }}',
                 'netmask': '{{ vcf_installer_netmask }}',
@@ -82,29 +79,28 @@
                 'ADMIN_PASSWORD': '{{ vcf_installer_password }}',
                 'ROOT_PASSWORD': '{{ vcf_installer_password }}',
             }
-
             for pm in spec.get('PropertyMapping', []):
                 key_lower = pm['Key'].lower()
                 for pattern, value in props.items():
                     if pattern.lower() in key_lower:
                         pm['Value'] = value
                         break
-
             with open('/tmp/vcf-installer-spec.json', 'w') as f:
                 json.dump(spec, f, indent=2)
-            "
+            PYEOF
           changed_when: false
 
         - name: Display deployment spec (redacted)
-          ansible.builtin.shell: >
-            python3 -c "
-            import json;
-            spec = json.load(open('/tmp/vcf-installer-spec.json'));
+          ansible.builtin.shell: |
+            python3 << 'PYEOF'
+            import json
+            with open('/tmp/vcf-installer-spec.json') as f:
+                spec = json.load(f)
             for p in spec.get('PropertyMapping', []):
-              if 'password' in p['Key'].lower():
-                p['Value'] = '****'
+                if 'password' in p['Key'].lower():
+                    p['Value'] = '****'
             print(json.dumps(spec, indent=2))
-            "
+            PYEOF
           register: spec_display
           changed_when: false
 
