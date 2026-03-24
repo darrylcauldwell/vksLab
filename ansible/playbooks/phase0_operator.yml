@@ -132,11 +132,11 @@
       register: launch_agent
       tags: ssh
 
-    - name: Load LaunchAgent
+    - name: Restart SOCKS tunnel LaunchAgent
       ansible.builtin.shell: >
         launchctl bootout gui/$(id -u) {{ ansible_env.HOME }}/Library/LaunchAgents/dev.dreamfold.lab-tunnel.plist 2>/dev/null;
         launchctl bootstrap gui/$(id -u) {{ ansible_env.HOME }}/Library/LaunchAgents/dev.dreamfold.lab-tunnel.plist
-      when: launch_agent.changed
+      changed_when: true
       tags: ssh
 
     - name: Fetch lab root CA certificate from gateway
