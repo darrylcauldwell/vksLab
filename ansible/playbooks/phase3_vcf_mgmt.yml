@@ -1,6 +1,148 @@
 ---
 # Phase 3 — VCF Management Domain Bringup
-# Drives Cloud Builder to deploy vCenter, SDDC Manager, and NSX Manager
+#
+# Play 1 — Deploy VCF Installer OVA (via gateway):
+#   Uses govc to deploy the VCF Installer appliance to esxi-01.
+#   Idempotent — skips if the VM already exists.
+#
+# Play 2 — VCF bringup (from localhost):
+#   Drives the VCF Installer API to deploy vCenter, SDDC Manager,
+#   and NSX Manager.
+
+- name: Phase 3 — Deploy VCF Installer OVA
+  hosts: gateways
+  gather_facts: false
+  become: true
+  vars:
+    vcf_installer_ova: /home/ubuntu/vcf-installer.ova
+    vcf_installer_vm_name: vcf-installer
+    vcf_installer_ip: "{{ lab_mgmt_prefix }}.3"
+    vcf_installer_netmask: "255.255.255.0"
+    vcf_installer_gateway: "{{ lab_mgmt_prefix }}.1"
+    vcf_installer_dns: "{{ lab_mgmt_prefix }}.1"
+    vcf_installer_ntp: "{{ lab_ntp_servers[0] }}"
+    vcf_installer_fqdn: "vcf-installer.{{ lab_domain }}"
+    vcf_installer_password: "{{ sddc_admin_password }}"
+    esxi_target: "esxi-01.{{ lab_domain }}"
+    esxi_datastore: datastore1
+    govc_env:
+      GOVC_URL: "https://{{ esxi_target }}"
+      GOVC_USERNAME: root
+      GOVC_PASSWORD: "{{ bootstrap_password }}"
+      GOVC_INSECURE: "true"
+      GOVC_DATASTORE: "{{ esxi_datastore }}"
+  tasks:
+    - name: Check if VCF Installer VM already exists
+      ansible.builtin.shell: >
+        govc vm.info {{ vcf_installer_vm_name }}
+      environment: "{{ govc_env }}"
+      register: vm_check
+      failed_when: false
+      changed_when: false
+
+    - name: Deploy VCF Installer OVA
+      when: vm_check.rc != 0
+      block:
+        - name: Extract OVA deployment spec
+          ansible.builtin.shell: >
+            govc import.spec {{ vcf_installer_ova }}
+          environment: "{{ govc_env }}"
+          register: ova_spec
+          changed_when: false
+
+        - name: Generate deployment spec with network properties
+          ansible.builtin.copy:
+            content: "{{ ova_spec.stdout | from_json | combine(overrides, recursive=true) | to_nice_json }}"
+            dest: /tmp/vcf-installer-spec.json
+            mode: "0600"
+          vars:
+            overrides:
+              Name: "{{ vcf_installer_vm_name }}"
+              PowerOn: true
+              InjectOvfEnv: true
+              WaitForIP: false
+
+        - name: Set OVF property values in deployment spec
+          ansible.builtin.shell: |
+            python3 -c "
+            import json, sys
+
+            with open('/tmp/vcf-installer-spec.json') as f:
+                spec = json.load(f)
+
+            # Map of property key substrings to values
+            props = {
+                'ip': '{{ vcf_installer_ip }}',
+                'netmask': '{{ vcf_installer_netmask }}',
+                'gateway': '{{ vcf_installer_gateway }}',
+                'dns': '{{ vcf_installer_dns }}',
+                'ntp': '{{ vcf_installer_ntp }}',
+                'hostname': '{{ vcf_installer_fqdn }}',
+                'password': '{{ vcf_installer_password }}',
+                'ADMIN_PASSWORD': '{{ vcf_installer_password }}',
+                'ROOT_PASSWORD': '{{ vcf_installer_password }}',
+            }
+
+            for pm in spec.get('PropertyMapping', []):
+                key_lower = pm['Key'].lower()
+                for pattern, value in props.items():
+                    if pattern.lower() in key_lower:
+                        pm['Value'] = value
+                        break
+
+            with open('/tmp/vcf-installer-spec.json', 'w') as f:
+                json.dump(spec, f, indent=2)
+            "
+          changed_when: false
+
+        - name: Display deployment spec (redacted)
+          ansible.builtin.shell: >
+            python3 -c "
+            import json;
+            spec = json.load(open('/tmp/vcf-installer-spec.json'));
+            for p in spec.get('PropertyMapping', []):
+              if 'password' in p['Key'].lower():
+                p['Value'] = '****'
+            print(json.dumps(spec, indent=2))
+            "
+          register: spec_display
+          changed_when: false
+
+        - name: Show deployment spec
+          ansible.builtin.debug:
+            msg: "{{ spec_display.stdout }}"
+
+        - name: Deploy OVA to esxi-01
+          ansible.builtin.shell: >
+            govc import.ova
+            -name={{ vcf_installer_vm_name }}
+            -options=/tmp/vcf-installer-spec.json
+            {{ vcf_installer_ova }}
+          environment: "{{ govc_env }}"
+
+        - name: Clean up deployment spec
+          ansible.builtin.file:
+            path: /tmp/vcf-installer-spec.json
+            state: absent
+
+    - name: Wait for VCF Installer to be accessible
+      ansible.builtin.uri:
+        url: "https://{{ vcf_installer_fqdn }}"
+        validate_certs: false
+        status_code: [200, 301, 302, 403]
+      register: installer_ready
+      until: installer_ready.status in [200, 301, 302, 403]
+      retries: 60
+      delay: 10
+      delegate_to: localhost
+      become: false
+
+    - name: VCF Installer deployment summary
+      ansible.builtin.debug:
+        msg: >-
+          VCF Installer is accessible at https://{{ vcf_installer_fqdn }}.
+          {{ 'VM was already deployed.' if vm_check.rc == 0 else 'OVA deployed and powered on.' }}
+
 - name: Phase 3 — VCF management domain bringup
   hosts: localhost
   connection: local

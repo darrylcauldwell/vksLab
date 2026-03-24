@@ -286,11 +286,19 @@ DNS records for all VCF appliances are statically configured in the dnsmasq temp
 
 In VCF 9.0, the SDDC Manager appliance doubles as the VCF Installer (Cloud Builder functionality is consolidated into it). The OVA was pre-staged on the gateway in Phase 0 (`~/vcf-installer.ova`).
 
-| Step | Action | Expected Result | Verification |
-|------|--------|-----------------|--------------|
-| 6.2.1 | Upload OVA from gateway to esxi-01 datastore: `scp ~/vcf-installer.ova root@esxi-01.lab.dreamfold.dev:/vmfs/volumes/datastore1/` (alternatively, use ESXi Host Client > **Storage** > **Datastore browser** > **Upload**) | The OVA is available on the esxi-01 datastore | The datastore browser shows the OVA file |
-| 6.2.2 | Deploy VCF Installer OVA via ESXi Host Client: navigate to **Virtual Machines** > **Create / Register VM** > **Deploy a virtual machine from an OVF or OVA file**. Configure networking: IP `10.0.10.3`, subnet mask `255.255.255.0`, gateway `10.0.10.1`, DNS `10.0.10.1` | The VCF Installer appliance is deployed and powered on | The VM is powered on in the ESXi Host Client |
-| 6.2.3 | Wait for installer services to start (5-10 minutes) | All installer services are ready | `https://vcf-installer.lab.dreamfold.dev` is accessible |
+The Phase 3 playbook automates the full deployment using `govc` on the gateway:
+
+```bash
+cd ansible && ansible-playbook playbooks/phase3_vcf_mgmt.yml
+```
+
+The first play deploys the VCF Installer OVA to esxi-01 with the correct network properties, powers it on, and waits for the installer services to become accessible. The deployment is idempotent — if the VM already exists, it skips straight to the service readiness check.
+
+| Step | Automated Action | Expected Result |
+|------|-----------------|-----------------|
+| 6.2.1 | `govc import.spec` extracts OVF properties from the OVA | Deployment spec generated with network config |
+| 6.2.2 | `govc import.ova` deploys to esxi-01 with IP `10.0.10.3`, subnet `255.255.255.0`, gateway `10.0.10.1`, DNS `10.0.10.1` | VCF Installer VM deployed and powered on |
+| 6.2.3 | Playbook polls `https://vcf-installer.lab.dreamfold.dev` until accessible (up to 10 minutes) | All installer services are ready |
 
 #### VCF Deployment Parameter Workbook
 

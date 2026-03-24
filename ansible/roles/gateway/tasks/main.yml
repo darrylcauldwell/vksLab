@@ -648,6 +648,22 @@
     state: present
   tags: repos
 
+# govc CLI for programmatic OVA deployment to ESXi (used in Phase 3)
+- name: Install govc
+  become: true
+  ansible.builtin.shell: |
+    if command -v govc > /dev/null 2>&1; then
+      echo "already_installed"
+    else
+      curl -fsSL https://github.com/vmware/govmomi/releases/latest/download/govc_Linux_x86_64.tar.gz \
+        | tar -xz -C /usr/local/bin govc
+      chmod +x /usr/local/bin/govc
+      echo "installed"
+    fi
+  register: govc_install
+  changed_when: "'installed' in govc_install.stdout"
+  tags: repos
+
 # Derived deterministically from bootstrap_password so reruns always
 # produce the same value — safe to overwrite on every run.
 - name: Write step-ca password
