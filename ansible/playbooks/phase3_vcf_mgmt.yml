@@ -34,14 +34,18 @@
   tasks:
     - name: Check if VCF Installer VM already exists
       ansible.builtin.shell: >
-        govc vm.info {{ vcf_installer_vm_name }}
+        govc vm.info {{ vcf_installer_vm_name }} 2>&1
       environment: "{{ govc_env }}"
       register: vm_check
       failed_when: false
       changed_when: false
 
+    - name: Show VM check result
+      ansible.builtin.debug:
+        msg: "rc={{ vm_check.rc }} stdout={{ vm_check.stdout }} stderr={{ vm_check.stderr | default('') }}"
+
     - name: Deploy VCF Installer OVA
-      when: vm_check.rc != 0
+      when: vm_check.rc != 0 or vm_check.stdout == ''
       block:
         - name: Extract OVA deployment spec
           ansible.builtin.shell: >
