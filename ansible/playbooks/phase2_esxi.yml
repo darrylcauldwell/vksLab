@@ -96,6 +96,19 @@
         loop_var: esxi_host
         label: "{{ esxi_host }}"
 
+- name: Phase 2 — Clear stale ESXi SSH keys from gateway
+  hosts: gateways
+  gather_facts: false
+  become: true
+  tasks:
+    - name: Remove stale ESXi host keys from gateway known_hosts
+      ansible.builtin.shell: |
+        {% for host in groups['esxi'] %}
+        ssh-keygen -R {{ hostvars[host]['ansible_host'] }} 2>/dev/null || true
+        ssh-keygen -R {{ host }}.{{ lab_domain }} 2>/dev/null || true
+        {% endfor %}
+      changed_when: false
+
 - name: Phase 2 — Prepare ESXi hosts
   hosts: esxi
   gather_facts: false
