@@ -140,6 +140,10 @@
       {%- endfor -%}
       {{ devices | sort(attribute='size') }}
 
+- name: Display CSV header columns
+  ansible.builtin.debug:
+    msg: "{{ device_csv.stdout_lines[0].split(',') }}"
+
 - name: Display discovered NVMe devices
   ansible.builtin.debug:
     msg: "{{ nvme_sorted }}"
