@@ -127,13 +127,6 @@
   register: ssd_result
   changed_when: ssd_result.rc == 0
 
-- name: Enable vSAN firewall rulesets
-  ansible.builtin.shell: >
-    esxcli network firewall ruleset set -e true -r {{ item }}
-  loop: "{{ esxi_vsan_firewall_rulesets }}"
-  register: fw_result
-  changed_when: fw_result.rc == 0
-
 # --- CA certificate ---
 
 - name: Upload CA root certificate

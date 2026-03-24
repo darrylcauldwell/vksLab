@@ -3,6 +3,3 @@ esxi_domain: "{{ lab_domain }}"
 esxi_ntp_servers: "{{ lab_ntp_servers }}"
 esxi_gateway: "{{ lab_gateway }}"
 esxi_ca_cert_path: "{{ ca_cert_path }}"
-esxi_vsan_firewall_rulesets:
-  - vsan-transport
-  - vsanEncryption
