@@ -122,7 +122,7 @@
         launchctl bootstrap gui/$(id -u) {{ ansible_env.HOME }}/Library/LaunchAgents/dev.dreamfold.lab-tunnel.plist
       when: launch_agent.changed
 
-    - name: Deploy Firefox enterprise policy for lab SOCKS proxy
+    - name: Deploy Firefox enterprise policy for lab SOCKS proxy and bookmarks
       ansible.builtin.copy:
         content: |
           {
@@ -130,7 +130,31 @@
               "Proxy": {
                 "Mode": "autoConfig",
                 "AutoConfigURL": "file://{{ ansible_env.HOME }}/.lab-proxy.pac"
-              }
+              },
+              "DisplayBookmarksToolbar": "always",
+              "ManagedBookmarks": [
+                { "toplevel_name": "VCF Lab" },
+                { "name": "VCF Installer", "url": "https://vcf-installer.{{ lab_domain }}" },
+                { "name": "vCenter (mgmt)", "url": "https://vcenter-mgmt.{{ lab_domain }}/ui" },
+                { "name": "SDDC Manager", "url": "https://sddc-manager.{{ lab_domain }}/ui" },
+                { "name": "NSX Manager (mgmt)", "url": "https://nsx-mgr-mgmt.{{ lab_domain }}" },
+                { "name": "vCenter (wld)", "url": "https://vcenter-wld.{{ lab_domain }}/ui" },
+                { "name": "NSX Manager (wld)", "url": "https://nsx-mgr-wld.{{ lab_domain }}" },
+                { "name": "VCF Operations", "url": "https://vcf-ops.{{ lab_domain }}" },
+                { "name": "VCF Automation", "url": "https://vcf-auto.{{ lab_domain }}" },
+                {
+                  "name": "ESXi Hosts",
+                  "children": [
+                    { "name": "esxi-01", "url": "https://esxi-01.{{ lab_domain }}/ui" },
+                    { "name": "esxi-02", "url": "https://esxi-02.{{ lab_domain }}/ui" },
+                    { "name": "esxi-03", "url": "https://esxi-03.{{ lab_domain }}/ui" },
+                    { "name": "esxi-04", "url": "https://esxi-04.{{ lab_domain }}/ui" },
+                    { "name": "esxi-05", "url": "https://esxi-05.{{ lab_domain }}/ui" },
+                    { "name": "esxi-06", "url": "https://esxi-06.{{ lab_domain }}/ui" },
+                    { "name": "esxi-07", "url": "https://esxi-07.{{ lab_domain }}/ui" }
+                  ]
+                }
+              ]
             }
           }
         dest: /Applications/Firefox.app/Contents/Resources/distribution/policies.json
