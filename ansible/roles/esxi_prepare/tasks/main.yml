@@ -140,10 +140,6 @@
       {%- endfor -%}
       {{ devices | sort(attribute='size') }}
 
-- name: Display CSV header columns
-  ansible.builtin.debug:
-    msg: "{{ device_csv.stdout_lines[0].split(',') }}"
-
 - name: Display discovered NVMe devices
   ansible.builtin.debug:
     msg: "{{ nvme_sorted }}"
@@ -153,20 +149,9 @@
     local_datastore_device: "{{ nvme_sorted[0].id }}"
   when: nvme_sorted | length >= 2
 
-- name: Set vSAN device (largest non-boot NVMe)
-  ansible.builtin.set_fact:
-    vsan_device: "{{ nvme_sorted[-1].id }}"
-  when: nvme_sorted | length >= 2
-
-- name: Display storage device assignments
+- name: Display local datastore device
   ansible.builtin.debug:
-    msg: "Local datastore: {{ local_datastore_device | default('none') }} | vSAN: {{ vsan_device | default('none') }}"
-
-- name: Mark vSAN NVMe device as SSD
-  ansible.builtin.shell: >
-    esxcli storage hpp device set -d {{ vsan_device }} -M true
-  when: vsan_device is defined
-  changed_when: true
+    msg: "Local datastore device: {{ local_datastore_device | default('none') }}"
 
 - name: Check if local datastore already exists
   ansible.builtin.shell: >
