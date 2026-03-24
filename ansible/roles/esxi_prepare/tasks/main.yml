@@ -120,32 +120,21 @@
   register: scsi_result
   changed_when: scsi_result.rc == 0
 
-- name: Discover non-boot NVMe devices with sizes
-  ansible.builtin.raw: |
-    for DEV in $(esxcli storage core device list | grep -E '^eui\.' | tr -d ' '); do
-      BOOT=$(esxcli storage core device list -d "$DEV" | grep "Is Boot Device" | sed 's/.*: //')
-      NAME=$(esxcli storage core device list -d "$DEV" | grep "Display Name" | sed 's/.*: //')
-      SIZE=$(esxcli storage core device list -d "$DEV" | grep "   Size:" | grep -v "Queue" | sed 's/.*: //')
-      if [ "$BOOT" = "false" ] && echo "$NAME" | grep -q NVMe; then
-        echo "${SIZE}:${DEV}"
-      fi
-    done | sort -n
-  register: nvme_discovery
+- name: Get storage device CSV
+  ansible.builtin.raw: >
+    esxcli --formatter=csv storage core device list
+  register: device_csv
   changed_when: false
 
-- name: Display discovered NVMe devices
+- name: Show CSV header and first NVMe line
   ansible.builtin.debug:
-    msg: "{{ nvme_discovery.stdout_lines }}"
+    msg:
+      - "{{ device_csv.stdout_lines[0] | default('NO HEADER') }}"
+      - "{{ device_csv.stdout_lines[1] | default('NO DATA') }}"
 
-- name: Set local datastore device (smallest non-boot NVMe)
-  ansible.builtin.set_fact:
-    local_datastore_device: "{{ nvme_discovery.stdout_lines[0].split(':')[1] }}"
-  when: nvme_discovery.stdout_lines | length >= 2
-
-- name: Set vSAN device (largest non-boot NVMe)
-  ansible.builtin.set_fact:
-    vsan_device: "{{ nvme_discovery.stdout_lines[-1].split(':')[1] }}"
-  when: nvme_discovery.stdout_lines | length >= 2
+- name: Fail to inspect output
+  ansible.builtin.fail:
+    msg: "Stopping to inspect CSV format — remove this task after"
 
 - name: Display storage device assignments
   ansible.builtin.debug:
