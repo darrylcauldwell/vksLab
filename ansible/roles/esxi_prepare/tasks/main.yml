@@ -19,98 +19,36 @@
   delay: 5
   changed_when: false
 
-# --- Switch vmk0 from DHCP to static ---
+# --- Switch vmk0 from DHCP to static and configure networking ---
 # ESXi hosts obtain their management IP via DHCP (phase1b). DHCP also sets
-# DNS servers, which prevents manual DNS configuration. Switch vmk0 to a
-# static IP (same address) so we can manage DNS and gateway ourselves.
+# DNS, gateway, and NTP — but VCF bringup requires static configuration.
+# Switch to static and set all networking in one step to avoid the
+# "Can't add DNS server when IPv4 DHCP DNS is enabled" error.
 
-- name: Switch vmk0 from DHCP to static IP
-  ansible.builtin.shell: >
-    esxcli network ip interface ipv4 set
-    -i vmk0
-    -I {{ ansible_host }}
-    -N 255.255.255.0
-    -t static
-  register: static_ip_result
-  changed_when: static_ip_result.rc == 0
-  failed_when:
-    - static_ip_result.rc != 0
-    - "'already' not in (static_ip_result.stderr | default(''))"
+- name: Switch vmk0 to static IP with DNS, gateway, and NTP
+  ansible.builtin.shell: |
+    # Switch vmk0 from DHCP to static (same IP)
+    esxcli network ip interface ipv4 set -i vmk0 -I {{ ansible_host }} -N 255.255.255.0 -t static
 
-# --- DNS ---
+    # DNS — clear DHCP-inherited servers, set lab DNS
+    for srv in $(esxcli network ip dns server list | awk '/^[0-9]/ {print $1}'); do
+      esxcli network ip dns server remove --server="$srv" 2>/dev/null
+    done
+    esxcli network ip dns server add --server={{ esxi_dns_server }} 2>/dev/null || true
 
-# Remove any DNS servers inherited from the template before adding ours
-- name: Get current DNS servers
-  ansible.builtin.shell: >
-    esxcli network ip dns server list | awk '/^[0-9]/ {print $1}'
-  register: current_dns
-  changed_when: false
+    # DNS search domain
+    for dom in $(esxcli network ip dns search list | awk '/^[a-zA-Z]/ && !/DNSSearch/ {print $1}'); do
+      esxcli network ip dns search remove --domain="$dom" 2>/dev/null
+    done
+    esxcli network ip dns search add --domain={{ esxi_domain }} 2>/dev/null || true
 
-- name: Remove stale DNS servers
-  ansible.builtin.shell: >
-    esxcli network ip dns server remove --server={{ item }}
-  loop: "{{ current_dns.stdout_lines }}"
-  when: item != esxi_dns_server
-  register: dns_remove
-  changed_when: dns_remove.rc == 0
-  failed_when: false
-
-- name: Configure DNS server
-  ansible.builtin.shell: >
-    esxcli network ip dns server add --server={{ esxi_dns_server }}
-  register: dns_result
-  changed_when: dns_result.rc == 0
-  failed_when:
-    - dns_result.rc != 0
-    - "'already exists' not in (dns_result.stderr | default(''))"
-
-# Remove stale search domains inherited from template
-- name: Get current DNS search domains
-  ansible.builtin.shell: >
-    esxcli network ip dns search list | awk '/^[a-zA-Z]/ && !/DNSSearch/ {print $1}'
-  register: current_search
-  changed_when: false
-
-- name: Remove stale DNS search domains
-  ansible.builtin.shell: >
-    esxcli network ip dns search remove --domain={{ item }}
-  loop: "{{ current_search.stdout_lines }}"
-  when: item != esxi_domain
-  register: search_remove
-  changed_when: search_remove.rc == 0
-  failed_when: false
-
-- name: Configure DNS search domain
-  ansible.builtin.shell: >
-    esxcli network ip dns search add --domain={{ esxi_domain }}
-  register: dns_search_result
-  changed_when: dns_search_result.rc == 0
-  failed_when:
-    - dns_search_result.rc != 0
-    - "'already exists' not in (dns_search_result.stderr | default(''))"
-
-# --- Network ---
-
-# Set default gateway on management network
-- name: Configure default gateway
-  ansible.builtin.shell: >
+    # Default gateway
     esxcfg-route {{ esxi_gateway }}
-  register: gw_result
-  changed_when: gw_result.rc == 0
 
-# --- Time ---
-
-- name: Configure NTP servers
-  ansible.builtin.shell: >
+    # NTP
     esxcli system ntp set --server={{ esxi_ntp_servers | join(',') }}
-  register: ntp_result
-  changed_when: ntp_result.rc == 0
-
-- name: Enable NTP service
-  ansible.builtin.shell: >
     esxcli system ntp set --enabled=true
-  register: ntp_enable_result
-  changed_when: ntp_enable_result.rc == 0
+  changed_when: true
 
 # --- Services and security ---
 
