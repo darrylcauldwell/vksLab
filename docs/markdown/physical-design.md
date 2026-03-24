@@ -154,7 +154,9 @@ ESXi hosts receive their management IP via DHCP with static MAC→IP reservation
 |----------|----------|-----------------|
 | vCPU | 48 | 192 |
 | RAM | 128 GB | 512 GB |
-| Disk (vSAN Non-Volatile Memory Express (NVMe)) | 200 GB | 800 GB |
+| Boot Non-Volatile Memory Express (NVMe) | 40 GB | 160 GB |
+| Local Datastore NVMe | 200 GB | 800 GB |
+| vSAN NVMe | 2,048 GB | 8,192 GB |
 | NICs | 2 (management + trunk) | — |
 | ESXi Version | 9.0 | — |
 
@@ -164,7 +166,9 @@ ESXi hosts receive their management IP via DHCP with static MAC→IP reservation
 |----------|----------|-----------------|
 | vCPU | 48 | 144 |
 | RAM | 128 GB | 384 GB |
-| Disk (vSAN NVMe) | 200 GB | 600 GB |
+| Boot NVMe | 40 GB | 120 GB |
+| Local Datastore NVMe | 200 GB | 600 GB |
+| vSAN NVMe | 2,048 GB | 6,144 GB |
 | NICs | 2 (management + trunk) | — |
 | ESXi Version | 9.0 | — |
 
@@ -184,11 +188,21 @@ ESXi hosts receive their management IP via DHCP with static MAC→IP reservation
 | vmk2 | 30 | vSAN |
 | vmk3 | 40 | Host Overlay (TEP) |
 
+### Storage Layout Per Host
+
+Each ESXi VM has three NVMe devices:
+
+| Device | Size | Purpose |
+|--------|------|---------|
+| NVMe 0 | 40 GB | ESXi boot (OSDATA partitions — fully consumed, no VMFS) |
+| NVMe 1 | 200 GB | Local VMFS datastore (`datastore1`) — VCF Installer OVA on esxi-01, general-purpose local storage |
+| NVMe 2 | 2,048 GB | vSAN ESA storage pool |
+
 ### vSAN Disk Layout
 
 - **Mode**: vSAN Express Storage Architecture (ESA)
 - **Storage policy**: Failures to Tolerate (FTT) = 1 (RAID-1 mirroring)
-- Each host: 1x 200 GB NVMe storage device in a single storage pool (no separate cache tier)
+- Each host: 1x 2,048 GB NVMe storage device in a single storage pool (no separate cache tier)
 - Nested ESXi preparation: NVMe devices marked as SSD, FakeSCSIReservations enabled (VCF 9.0.1+ includes a built-in vSAN ESA Hardware Compatibility List (HCL) bypass — no mock HCL vSphere Installation Bundle (VIB) required)
 
 ### vSAN Usable Capacity
@@ -201,28 +215,28 @@ With FTT=1 RAID-1, each object is mirrored — raw capacity is halved for data p
 
 | Metric | Value | Calculation |
 |--------|-------|-------------|
-| Raw capacity | 800 GB | 4 hosts × 200 GB |
+| Raw capacity | 8,192 GB | 4 hosts × 2,048 GB |
 | FTT=1 RAID-1 overhead | 50% | Mirror = 2× data |
-| Usable after RAID | ~400 GB | 800 GB ÷ 2 |
-| Operational reserve (25%) | ~100 GB | Rebalancing, rebuilds, lifecycle headroom |
-| Available for VM data | ~300 GB | After reserve |
+| Usable after RAID | ~4,096 GB | 8,192 GB ÷ 2 |
+| Operational reserve (25%) | ~1,024 GB | Rebalancing, rebuilds, lifecycle headroom |
+| Available for VM data | ~3,072 GB | After reserve |
 | Appliance allocation | ~1,100 GB (thin) | See Section 5 + resource table (thin-provisioned — actual consumption is 30-50% of allocated) |
 
-> Appliance disks are thin-provisioned. The allocated total far exceeds raw capacity, but actual vSAN consumption is much lower due to thin provisioning plus ESA inline dedup/compression. Monitor via vCenter → vSAN → Capacity.
+> With 2 TB NVMe per host, the management domain has ample vSAN capacity. Appliance disks are thin-provisioned — actual consumption is well within the ~3 TB available. Monitor via vCenter → vSAN → Capacity.
 
 #### Workload Domain Storage
 
 | Metric | Value | Calculation |
 |--------|-------|-------------|
-| Raw capacity | 600 GB | 3 hosts × 200 GB |
+| Raw capacity | 6,144 GB | 3 hosts × 2,048 GB |
 | FTT=1 RAID-1 overhead | 50% | Mirror = 2× data |
-| Usable after RAID | ~300 GB | 600 GB ÷ 2 |
-| Operational reserve (25%) | ~75 GB | Rebalancing, rebuilds |
-| Available for VM data | ~225 GB | After reserve |
+| Usable after RAID | ~3,072 GB | 6,144 GB ÷ 2 |
+| Operational reserve (25%) | ~768 GB | Rebalancing, rebuilds |
+| Available for VM data | ~2,304 GB | After reserve |
 | Infrastructure allocation | ~800 GB (thin) | vCenter + NSX Mgr + 2× Edge + vSphere Supervisor CPs (thin-provisioned) |
-| Available for vSphere Kubernetes Services (VKS) PVs | ~50-100 GB | Depends on actual consumption after thin + dedup |
+| Available for vSphere Kubernetes Services (VKS) PVs | ~1,500 GB | Depends on actual consumption after thin + dedup |
 
-> The workload domain is the tighter storage constraint. VKS PersistentVolumes compete with NSX Edge VMs and the Supervisor control plane for vSAN capacity. Monitor vSAN capacity utilisation closely — see [Operations Guide](operate.md) Section 5.
+> With 2 TB NVMe per host, the workload domain has sufficient headroom for VKS PersistentVolumes alongside infrastructure VMs. Monitor vSAN capacity utilisation — see [Operations Guide](operate.md) Section 5.
 
 ## 5. VCF Management Domain
 
