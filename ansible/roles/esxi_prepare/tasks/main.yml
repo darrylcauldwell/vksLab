@@ -109,6 +109,11 @@
 #   - Smallest non-boot NVMe → local VMFS datastore
 #   - Largest non-boot NVMe → vSAN (marked as SSD)
 
+- name: Rescan storage adapters
+  ansible.builtin.shell: >
+    esxcli storage core adapter rescan --all
+  changed_when: true
+
 - name: Enable FakeSCSIReservations for nested vSAN
   ansible.builtin.shell: >
     esxcli system settings advanced set -o /VSAN/FakeSCSIReservations -i 1
