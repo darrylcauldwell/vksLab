@@ -71,13 +71,6 @@
         dest: "{{ ansible_env.HOME }}/.lab-proxy.pac"
         mode: "0644"
 
-    - name: Create Firefox distribution directory
-      ansible.builtin.file:
-        path: /Applications/Firefox.app/Contents/Resources/distribution
-        state: directory
-        mode: "0755"
-      become: true
-
     - name: Deploy LaunchAgent for automatic SOCKS tunnel
       ansible.builtin.copy:
         content: |
@@ -122,44 +115,47 @@
         launchctl bootstrap gui/$(id -u) {{ ansible_env.HOME }}/Library/LaunchAgents/dev.dreamfold.lab-tunnel.plist
       when: launch_agent.changed
 
-    - name: Deploy Firefox enterprise policy for lab SOCKS proxy and bookmarks
+    - name: Generate Firefox bookmarks HTML for import
       ansible.builtin.copy:
         content: |
-          {
-            "policies": {
-              "Proxy": {
-                "Mode": "autoConfig",
-                "AutoConfigURL": "file://{{ ansible_env.HOME }}/.lab-proxy.pac"
-              },
-              "DisplayBookmarksToolbar": "always",
-              "ManagedBookmarks": [
-                { "toplevel_name": "VCF Lab" },
-                { "name": "VCF Installer", "url": "https://vcf-installer.{{ lab_domain }}" },
-                { "name": "vCenter (mgmt)", "url": "https://vcenter-mgmt.{{ lab_domain }}/ui" },
-                { "name": "SDDC Manager", "url": "https://sddc-manager.{{ lab_domain }}/ui" },
-                { "name": "NSX Manager (mgmt)", "url": "https://nsx-mgr-mgmt.{{ lab_domain }}" },
-                { "name": "vCenter (wld)", "url": "https://vcenter-wld.{{ lab_domain }}/ui" },
-                { "name": "NSX Manager (wld)", "url": "https://nsx-mgr-wld.{{ lab_domain }}" },
-                { "name": "VCF Operations", "url": "https://vcf-ops.{{ lab_domain }}" },
-                { "name": "VCF Automation", "url": "https://vcf-auto.{{ lab_domain }}" },
-                {
-                  "name": "ESXi Hosts",
-                  "children": [
-                    { "name": "esxi-01", "url": "https://esxi-01.{{ lab_domain }}/ui" },
-                    { "name": "esxi-02", "url": "https://esxi-02.{{ lab_domain }}/ui" },
-                    { "name": "esxi-03", "url": "https://esxi-03.{{ lab_domain }}/ui" },
-                    { "name": "esxi-04", "url": "https://esxi-04.{{ lab_domain }}/ui" },
-                    { "name": "esxi-05", "url": "https://esxi-05.{{ lab_domain }}/ui" },
-                    { "name": "esxi-06", "url": "https://esxi-06.{{ lab_domain }}/ui" },
-                    { "name": "esxi-07", "url": "https://esxi-07.{{ lab_domain }}/ui" }
-                  ]
-                }
-              ]
-            }
-          }
-        dest: /Applications/Firefox.app/Contents/Resources/distribution/policies.json
+          <!DOCTYPE NETSCAPE-Bookmark-file-1>
+          <META HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=UTF-8">
+          <TITLE>Bookmarks</TITLE>
+          <H1>Bookmarks</H1>
+          <DL><p>
+            <DT><H3 PERSONAL_TOOLBAR_FOLDER="true">Bookmarks Toolbar</H3>
+            <DL><p>
+              <DT><H3>VCF Lab</H3>
+              <DL><p>
+                <DT><A HREF="https://vcf-installer.{{ lab_domain }}">VCF Installer</A>
+                <DT><A HREF="https://vcenter-mgmt.{{ lab_domain }}/ui">vCenter (mgmt)</A>
+                <DT><A HREF="https://sddc-manager.{{ lab_domain }}/ui">SDDC Manager</A>
+                <DT><A HREF="https://nsx-mgr-mgmt.{{ lab_domain }}">NSX Manager (mgmt)</A>
+                <DT><A HREF="https://vcenter-wld.{{ lab_domain }}/ui">vCenter (wld)</A>
+                <DT><A HREF="https://nsx-mgr-wld.{{ lab_domain }}">NSX Manager (wld)</A>
+                <DT><A HREF="https://vcf-ops.{{ lab_domain }}">VCF Operations</A>
+                <DT><A HREF="https://vcf-auto.{{ lab_domain }}">VCF Automation</A>
+                <DT><H3>ESXi Hosts</H3>
+                <DL><p>
+                  <DT><A HREF="https://esxi-01.{{ lab_domain }}/ui">esxi-01</A>
+                  <DT><A HREF="https://esxi-02.{{ lab_domain }}/ui">esxi-02</A>
+                  <DT><A HREF="https://esxi-03.{{ lab_domain }}/ui">esxi-03</A>
+                  <DT><A HREF="https://esxi-04.{{ lab_domain }}/ui">esxi-04</A>
+                  <DT><A HREF="https://esxi-05.{{ lab_domain }}/ui">esxi-05</A>
+                  <DT><A HREF="https://esxi-06.{{ lab_domain }}/ui">esxi-06</A>
+                  <DT><A HREF="https://esxi-07.{{ lab_domain }}/ui">esxi-07</A>
+                </DL><p>
+              </DL><p>
+            </DL><p>
+          </DL><p>
+        dest: "{{ ansible_env.HOME }}/Desktop/vcf-lab-bookmarks.html"
         mode: "0644"
-      become: true
+
+    - name: Bookmarks file ready
+      ansible.builtin.debug:
+        msg: >-
+          Bookmarks file created at ~/Desktop/vcf-lab-bookmarks.html.
+          Import in Firefox: Bookmarks > Manage Bookmarks > Import and Backup > Import Bookmarks from HTML.
 
     - name: Operator workstation setup complete
       ansible.builtin.debug:
