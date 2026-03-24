@@ -99,5 +99,6 @@
 - name: Phase 2 — Prepare ESXi hosts
   hosts: esxi
   gather_facts: false
+  serial: 1
   roles:
     - esxi_prepare
