@@ -98,7 +98,16 @@
     esxcli system settings advanced set -o /UserVars/HostClientCEIPOptIn -i 2
   changed_when: true
 
-# --- vSAN preparation ---
+# --- Storage preparation ---
+#
+# Each host has 3 NVMe devices:
+#   - 40 GB boot (OSDATA — fully consumed, no VMFS)
+#   - 200 GB local datastore (VMFS — for VCF Installer OVA on esxi-01, general use)
+#   - 2,048 GB vSAN ESA storage pool
+#
+# The discovery below identifies non-boot NVMe devices by size:
+#   - Smallest non-boot NVMe → local VMFS datastore
+#   - Largest non-boot NVMe → vSAN (marked as SSD)
 
 - name: Enable FakeSCSIReservations for nested vSAN
   ansible.builtin.shell: >
@@ -106,26 +115,60 @@
   register: scsi_result
   changed_when: scsi_result.rc == 0
 
-- name: Discover non-boot NVMe storage devices
+- name: Discover non-boot NVMe storage devices with sizes
   ansible.builtin.shell: |
     esxcli storage core device list | awk '
       /^[^ \t]/ { id=$0 }
       /Display Name/ { name=$0; sub(/.*: /,"",name) }
+      /Size/ { size=$0; sub(/.*: /,"",size); sub(/ .*/, "", size) }
       /Is SSD/ { ssd=$0; sub(/.*: /,"",ssd) }
       /Is Boot Device/ { boot=$0; sub(/.*: /,"",boot);
-        if (boot == "false" && ssd == "false" && name ~ /NVMe/) print id
+        if (boot == "false" && name ~ /NVMe/) print size ":" id
       }
-    '
-  register: nvme_devices
+    ' | sort -t: -k1 -n
+  register: nvme_with_sizes
   changed_when: false
 
-- name: Mark NVMe devices as SSD
+- name: Set local datastore device (smallest non-boot NVMe)
+  ansible.builtin.set_fact:
+    local_datastore_device: "{{ nvme_with_sizes.stdout_lines[0].split(':')[1] }}"
+  when: nvme_with_sizes.stdout_lines | length >= 2
+
+- name: Set vSAN device (largest non-boot NVMe)
+  ansible.builtin.set_fact:
+    vsan_device: "{{ nvme_with_sizes.stdout_lines[-1].split(':')[1] }}"
+  when: nvme_with_sizes.stdout_lines | length >= 2
+
+- name: Display storage device assignments
+  ansible.builtin.debug:
+    msg: "Local datastore: {{ local_datastore_device | default('none') }} | vSAN: {{ vsan_device | default('none') }}"
+
+- name: Mark vSAN NVMe device as SSD
   ansible.builtin.shell: >
-    esxcli storage hpp device set -d {{ item }} -M true
-  loop: "{{ nvme_devices.stdout_lines }}"
-  when: nvme_devices.stdout_lines | length > 0
-  register: ssd_result
-  changed_when: ssd_result.rc == 0
+    esxcli storage hpp device set -d {{ vsan_device }} -M true
+  when: vsan_device is defined
+  changed_when: true
+
+- name: Check if local datastore already exists
+  ansible.builtin.shell: >
+    esxcli storage filesystem list | grep -q datastore1 && echo "exists" || echo "missing"
+  register: datastore_check
+  changed_when: false
+
+- name: Create VMFS datastore on local NVMe
+  ansible.builtin.shell: |
+    # Get the partition path for the device
+    DISK="/vmfs/devices/disks/{{ local_datastore_device }}"
+    # Create a new GPT partition table and VMFS-6 datastore
+    partedUtil mklabel "$DISK" gpt
+    # Get disk size in sectors
+    END_SECTOR=$(partedUtil getptbl "$DISK" | tail -1 | awk '{print $2 * $3 * $4 - 1}')
+    partedUtil setptbl "$DISK" gpt "1 2048 $END_SECTOR AA31E02A400F11DB9590000C2911D1B8 0"
+    vmkfstools -C vmfs6 -S datastore1 "${DISK}:1"
+  when:
+    - local_datastore_device is defined
+    - "'missing' in datastore_check.stdout"
+  changed_when: true
 
 # --- CA certificate ---
 
