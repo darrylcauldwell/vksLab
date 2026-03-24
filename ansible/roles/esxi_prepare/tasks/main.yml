@@ -122,22 +122,32 @@
 
 - name: Get storage device list
   ansible.builtin.shell: >
-    esxcli --formatter=csv storage core device list
-  register: device_csv
+    esxcli storage core device list
+  register: device_text
   changed_when: false
 
 - name: Parse non-boot NVMe devices
   ansible.builtin.set_fact:
     nvme_sorted: >-
-      {%- set header = device_csv.stdout_lines[0].split(',') -%}
       {%- set devices = [] -%}
-      {%- for line in device_csv.stdout_lines[1:] if line | trim | length > 0 -%}
-        {%- set cols = line.split(',') -%}
-        {%- set dev = dict(header | zip(cols)) -%}
-        {%- if dev.get('IsBootDevice', '') in ['false', 'False'] and 'NVMe' in dev.get('DisplayName', '') -%}
-          {%- set _ = devices.append({'id': dev.get('Device', ''), 'size': dev.get('Size', '0') | int, 'name': dev.get('DisplayName', '')}) -%}
+      {%- set current = {} -%}
+      {%- for line in device_text.stdout_lines -%}
+        {%- if line | trim | length > 0 and line[0] != ' ' -%}
+          {%- if current and current.get('boot') == 'false' and 'NVMe' in current.get('name', '') -%}
+            {%- set _ = devices.append(current) -%}
+          {%- endif -%}
+          {%- set current = {'id': line | trim} -%}
+        {%- elif 'Display Name:' in line -%}
+          {%- set _ = current.update({'name': line.split(': ', 1)[1] | trim}) -%}
+        {%- elif 'Is Boot Device:' in line -%}
+          {%- set _ = current.update({'boot': line.split(': ', 1)[1] | trim}) -%}
+        {%- elif line | trim is match('Size: \\d') and 'Queue' not in line and 'Sample' not in line -%}
+          {%- set _ = current.update({'size': line.split(': ', 1)[1] | trim | int}) -%}
         {%- endif -%}
       {%- endfor -%}
+      {%- if current and current.get('boot') == 'false' and 'NVMe' in current.get('name', '') -%}
+        {%- set _ = devices.append(current) -%}
+      {%- endif -%}
       {{ devices | sort(attribute='size') }}
 
 - name: Display discovered NVMe devices
