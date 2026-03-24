@@ -249,6 +249,14 @@ The `prepare` command performs these steps on each host via SSH:
 
 ### 5.3 ESXi Host Verification
 
+The Phase 2 playbook (`phase2_esxi.yml`) includes built-in validation tasks that verify gateway connectivity, DNS server reachability, SSL certificate CN matching, and system UUID uniqueness. Successful completion of the playbook confirms that all ESXi hosts are correctly configured for VCF bringup — no additional manual verification is required.
+
+To re-validate after changes, run the playbook in check mode:
+
+```bash
+cd ansible && ansible-playbook playbooks/phase2_esxi.yml --limit esxi --check
+```
+
 | Check | Command / Method | Expected Result |
 |-------|------------------|-----------------|
 | All hosts reachable | `ping 10.0.10.{11..17}` from gateway | All seven hosts respond to ping |
@@ -265,7 +273,7 @@ The `prepare` command performs these steps on each host via SSH:
 
 ### 6.1 Pre-Bringup DNS Records
 
-Verify all DNS records are configured in dnsmasq (done in Phase 1). Forward and reverse records must exist for:
+DNS records for all VCF appliances are statically configured in the dnsmasq template deployed by the Phase 1 playbook (`phase1_foundation.yml`). Successful completion of Phase 1 — including the DNS forward-lookup verification task — confirms that all required records are in place. The records are defined in `ansible/roles/gateway/defaults/main.yml` under `gateway_dns_records` and include:
 
 | Hostname | IP | Purpose |
 |----------|-----|---------|
