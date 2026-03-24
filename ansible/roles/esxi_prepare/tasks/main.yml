@@ -120,13 +120,13 @@
   register: scsi_result
   changed_when: scsi_result.rc == 0
 
-- name: Get storage devices as CSV
-  ansible.builtin.raw: >
+- name: Get storage device list
+  ansible.builtin.shell: >
     esxcli --formatter=csv storage core device list
   register: device_csv
   changed_when: false
 
-- name: Parse non-boot NVMe devices from CSV
+- name: Parse non-boot NVMe devices
   ansible.builtin.set_fact:
     nvme_sorted: >-
       {%- set header = device_csv.stdout_lines[0].split(',') -%}
