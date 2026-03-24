@@ -120,48 +120,32 @@
   register: scsi_result
   changed_when: scsi_result.rc == 0
 
-- name: Get list of all storage devices
-  ansible.builtin.shell: >
-    esxcli storage core device list | grep '^eui\.' | tr -d ' '
-  register: all_devices
+- name: Discover non-boot NVMe devices with sizes
+  ansible.builtin.raw: |
+    for DEV in $(esxcli storage core device list | grep -E '^eui\.' | tr -d ' '); do
+      BOOT=$(esxcli storage core device list -d "$DEV" | grep "Is Boot Device" | sed 's/.*: //')
+      NAME=$(esxcli storage core device list -d "$DEV" | grep "Display Name" | sed 's/.*: //')
+      SIZE=$(esxcli storage core device list -d "$DEV" | grep "   Size:" | grep -v "Queue" | sed 's/.*: //')
+      if [ "$BOOT" = "false" ] && echo "$NAME" | grep -q NVMe; then
+        echo "${SIZE}:${DEV}"
+      fi
+    done | sort -n
+  register: nvme_discovery
   changed_when: false
-
-- name: Get boot device ID
-  ansible.builtin.shell: >
-    esxcli storage core device boot get | grep '^eui\.' | tr -d ' '
-  register: boot_device
-  changed_when: false
-  failed_when: false
-
-- name: Get device details for non-boot devices
-  ansible.builtin.shell: |
-    DEV="{{ item }}"
-    NAME=$(esxcli storage core device list -d "$DEV" | grep "Display Name" | sed 's/.*: //')
-    SIZE=$(esxcli storage core device list -d "$DEV" | grep "^   Size:" | sed 's/.*: //')
-    if echo "$NAME" | grep -q NVMe; then
-      echo "${SIZE}:${DEV}"
-    fi
-  loop: "{{ all_devices.stdout_lines | difference([boot_device.stdout]) }}"
-  register: device_details
-  changed_when: false
-
-- name: Build sorted list of non-boot NVMe devices
-  ansible.builtin.set_fact:
-    nvme_sorted: "{{ device_details.results | map(attribute='stdout') | select | sort | list }}"
 
 - name: Display discovered NVMe devices
   ansible.builtin.debug:
-    msg: "{{ nvme_sorted }}"
+    msg: "{{ nvme_discovery.stdout_lines }}"
 
 - name: Set local datastore device (smallest non-boot NVMe)
   ansible.builtin.set_fact:
-    local_datastore_device: "{{ nvme_sorted[0].split(':')[1] }}"
-  when: nvme_sorted | length >= 2
+    local_datastore_device: "{{ nvme_discovery.stdout_lines[0].split(':')[1] }}"
+  when: nvme_discovery.stdout_lines | length >= 2
 
 - name: Set vSAN device (largest non-boot NVMe)
   ansible.builtin.set_fact:
-    vsan_device: "{{ nvme_sorted[-1].split(':')[1] }}"
-  when: nvme_sorted | length >= 2
+    vsan_device: "{{ nvme_discovery.stdout_lines[-1].split(':')[1] }}"
+  when: nvme_discovery.stdout_lines | length >= 2
 
 - name: Display storage device assignments
   ansible.builtin.debug:
