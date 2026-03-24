@@ -44,6 +44,14 @@
         ubuntu@{{ gateway_public_ip }}:{{ vcf_installer_ova_remote }}
       when: "'missing' in ova_check.stdout"
 
+    - name: Clear stale ESXi SSH host keys from local known_hosts
+      ansible.builtin.shell: |
+        {% for host in groups['esxi'] %}
+        ssh-keygen -R {{ hostvars[host]['ansible_host'] }} 2>/dev/null || true
+        {% endfor %}
+        ssh-keygen -R {{ gateway_public_ip }} 2>/dev/null || true
+      changed_when: false
+
     - name: Add SSH config entry for lab SOCKS tunnel
       ansible.builtin.blockinfile:
         path: "{{ ansible_env.HOME }}/.ssh/config"
