@@ -2,7 +2,12 @@
 # Phase 0 — Operator workstation setup
 #
 # Configures the local machine (the operator's laptop) with settings
-# required to manage the lab. Run once before connecting to the lab.
+# required to manage the lab, and uploads artifacts to the gateway.
+#
+# Prerequisites:
+#   - VCF Installer OVA downloaded to ~/Downloads/
+#   - Gateway VM accessible via SSH (vApp powered on, Phase 1 complete)
+#   - SSH key copied to gateway (ssh-copy-id ubuntu@<gateway_ip>)
 #
 # Usage: ansible-playbook playbooks/phase0_operator.yml --connection=local
 
@@ -10,10 +15,39 @@
   hosts: localhost
   connection: local
   gather_facts: true
+  vars:
+    vcf_installer_ova_local: "{{ lookup('fileglob', '~/Downloads/VCF-*.ova') }}"
+    vcf_installer_ova_remote: /home/ubuntu/vcf-installer.ova
   tasks:
+    - name: Verify VCF Installer OVA exists locally
+      ansible.builtin.assert:
+        that: vcf_installer_ova_local | length > 0
+        fail_msg: >-
+          No VCF Installer OVA found matching ~/Downloads/VCF-*.ova.
+          Download the OVA from the VCF depot and place it in ~/Downloads/.
+
+    - name: Show OVA source path
+      ansible.builtin.debug:
+        msg: "Using OVA: {{ vcf_installer_ova_local }}"
+
+    - name: Check if OVA already exists on gateway
+      ansible.builtin.shell: >
+        ssh -o StrictHostKeyChecking=no ubuntu@{{ gateway_public_ip }}
+        test -f {{ vcf_installer_ova_remote }} && echo "exists" || echo "missing"
+      register: ova_check
+      changed_when: false
+
+    - name: Upload VCF Installer OVA to gateway
+      ansible.builtin.shell: >
+        scp -o StrictHostKeyChecking=no
+        "{{ vcf_installer_ova_local }}"
+        ubuntu@{{ gateway_public_ip }}:{{ vcf_installer_ova_remote }}
+      when: "'missing' in ova_check.stdout"
+
     - name: Operator workstation setup complete
       ansible.builtin.debug:
         msg: >-
           Operator workstation configured.
+          VCF Installer OVA: {{ vcf_installer_ova_remote }} on gateway.
           RDP: Connect to {{ gateway_public_ip }} with Windows App,
           username 'ubuntu', password from 1Password 'Jumpbox Ubuntu'.
