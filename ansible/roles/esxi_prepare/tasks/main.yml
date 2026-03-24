@@ -125,7 +125,7 @@
     esxcli storage core device list | awk '
       /^[^ \t]/ { id=$0; size=0; name=""; boot="" }
       /Display Name/ { name=$0; sub(/.*: /,"",name) }
-      /^   Size:/ { size=$0; sub(/.*: /,"",size); sub(/ .*/, "", size) }
+      /^ *Size: [1-9]/ { size=$0; sub(/.*: /,"",size); sub(/ .*/, "", size) }
       /Is Boot Device/ { boot=$0; sub(/.*: /,"",boot);
         if (boot == "false" && name ~ /NVMe/) print size ":" id
       }
