@@ -59,10 +59,44 @@
             ServerAliveInterval 30
             ServerAliveCountMax 3
 
+    - name: Deploy PAC file for lab domain proxy routing
+      ansible.builtin.copy:
+        content: |
+          function FindProxyForURL(url, host) {
+            if (shExpMatch(host, "*.{{ lab_domain }}")) {
+              return "SOCKS5 127.0.0.1:1080";
+            }
+            return "DIRECT";
+          }
+        dest: "{{ ansible_env.HOME }}/.lab-proxy.pac"
+        mode: "0644"
+
+    - name: Create Firefox distribution directory
+      ansible.builtin.file:
+        path: /Applications/Firefox.app/Contents/Resources/distribution
+        state: directory
+        mode: "0755"
+      become: true
+
+    - name: Deploy Firefox enterprise policy for lab SOCKS proxy
+      ansible.builtin.copy:
+        content: |
+          {
+            "policies": {
+              "Proxy": {
+                "Mode": "autoConfig",
+                "AutoConfigURL": "file://{{ ansible_env.HOME }}/.lab-proxy.pac"
+              }
+            }
+          }
+        dest: /Applications/Firefox.app/Contents/Resources/distribution/policies.json
+        mode: "0644"
+      become: true
+
     - name: Operator workstation setup complete
       ansible.builtin.debug:
         msg: >-
           Operator workstation configured.
           VCF Installer OVA: {{ vcf_installer_ova_remote }} on gateway.
-          SOCKS proxy: run 'ssh -N lab-tunnel' then configure browser to use localhost:1080.
+          SOCKS proxy: run 'ssh -N lab-tunnel' then Firefox will auto-route *.{{ lab_domain }} traffic.
           Browse lab UIs at their real FQDNs (e.g. https://esxi-01.lab.dreamfold.dev).
