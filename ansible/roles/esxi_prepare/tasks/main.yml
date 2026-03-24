@@ -19,6 +19,24 @@
   delay: 5
   changed_when: false
 
+# --- Switch vmk0 from DHCP to static ---
+# ESXi hosts obtain their management IP via DHCP (phase1b). DHCP also sets
+# DNS servers, which prevents manual DNS configuration. Switch vmk0 to a
+# static IP (same address) so we can manage DNS and gateway ourselves.
+
+- name: Switch vmk0 from DHCP to static IP
+  ansible.builtin.shell: >
+    esxcli network ip interface ipv4 set
+    -i vmk0
+    -I {{ ansible_host }}
+    -N 255.255.255.0
+    -t static
+  register: static_ip_result
+  changed_when: static_ip_result.rc == 0
+  failed_when:
+    - static_ip_result.rc != 0
+    - "'already' not in (static_ip_result.stderr | default(''))"
+
 # --- DNS ---
 
 # Remove any DNS servers inherited from the template before adding ours
