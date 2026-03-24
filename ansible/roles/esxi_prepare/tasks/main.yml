@@ -136,11 +136,16 @@
     mode: "0644"
   when: esxi_ca_cert_path is defined and esxi_ca_cert_path | length > 0
 
-- name: Import CA root certificate
-  ansible.builtin.shell: >
-    esxcli security cert import --cert-file /tmp/lab-root-ca.crt
+- name: Import CA root certificate into ESXi trust store
+  ansible.builtin.shell: |
+    if ! grep -q "VKS Lab CA" /etc/vmware/ssl/castore.pem 2>/dev/null; then
+      cat /tmp/lab-root-ca.crt >> /etc/vmware/ssl/castore.pem
+      echo "imported"
+    else
+      echo "already_present"
+    fi
   register: cert_result
-  changed_when: cert_result.rc == 0
+  changed_when: "'imported' in cert_result.stdout"
   when: esxi_ca_cert_path is defined and esxi_ca_cert_path | length > 0
 
 # --- Validation ---
