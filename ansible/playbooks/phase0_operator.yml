@@ -78,6 +78,50 @@
         mode: "0755"
       become: true
 
+    - name: Deploy LaunchAgent for automatic SOCKS tunnel
+      ansible.builtin.copy:
+        content: |
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>Label</key>
+            <string>dev.dreamfold.lab-tunnel</string>
+            <key>ProgramArguments</key>
+            <array>
+              <string>/usr/bin/ssh</string>
+              <string>-N</string>
+              <string>-o</string>
+              <string>ExitOnForwardFailure=yes</string>
+              <string>-o</string>
+              <string>ServerAliveInterval=30</string>
+              <string>-o</string>
+              <string>ServerAliveCountMax=3</string>
+              <string>lab-tunnel</string>
+            </array>
+            <key>RunAtLoad</key>
+            <true/>
+            <key>KeepAlive</key>
+            <dict>
+              <key>NetworkState</key>
+              <true/>
+            </dict>
+            <key>ThrottleInterval</key>
+            <integer>30</integer>
+            <key>StandardErrorPath</key>
+            <string>/tmp/lab-tunnel.err</string>
+          </dict>
+          </plist>
+        dest: "{{ ansible_env.HOME }}/Library/LaunchAgents/dev.dreamfold.lab-tunnel.plist"
+        mode: "0644"
+      register: launch_agent
+
+    - name: Load LaunchAgent
+      ansible.builtin.shell: >
+        launchctl bootout gui/$(id -u) {{ ansible_env.HOME }}/Library/LaunchAgents/dev.dreamfold.lab-tunnel.plist 2>/dev/null;
+        launchctl bootstrap gui/$(id -u) {{ ansible_env.HOME }}/Library/LaunchAgents/dev.dreamfold.lab-tunnel.plist
+      when: launch_agent.changed
+
     - name: Deploy Firefox enterprise policy for lab SOCKS proxy
       ansible.builtin.copy:
         content: |
@@ -98,5 +142,7 @@
         msg: >-
           Operator workstation configured.
           VCF Installer OVA: {{ vcf_installer_ova_remote }} on gateway.
-          SOCKS proxy: run 'ssh -N lab-tunnel' then Firefox will auto-route *.{{ lab_domain }} traffic.
+          SOCKS tunnel starts automatically on login and reconnects if dropped.
+          Firefox auto-routes *.{{ lab_domain }} traffic through the tunnel.
           Browse lab UIs at their real FQDNs (e.g. https://esxi-01.lab.dreamfold.dev).
+          Stop tunnel: launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/dev.dreamfold.lab-tunnel.plist
