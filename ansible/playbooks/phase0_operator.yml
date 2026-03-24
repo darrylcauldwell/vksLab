@@ -44,10 +44,25 @@
         ubuntu@{{ gateway_public_ip }}:{{ vcf_installer_ova_remote }}
       when: "'missing' in ova_check.stdout"
 
+    - name: Add SSH config entry for lab SOCKS tunnel
+      ansible.builtin.blockinfile:
+        path: "{{ ansible_env.HOME }}/.ssh/config"
+        marker: "# {mark} ANSIBLE MANAGED — VKS Lab SOCKS tunnel"
+        create: true
+        mode: "0600"
+        block: |
+          Host lab-tunnel
+            HostName {{ gateway_public_ip }}
+            User ubuntu
+            DynamicForward 1080
+            ExitOnForwardFailure yes
+            ServerAliveInterval 30
+            ServerAliveCountMax 3
+
     - name: Operator workstation setup complete
       ansible.builtin.debug:
         msg: >-
           Operator workstation configured.
           VCF Installer OVA: {{ vcf_installer_ova_remote }} on gateway.
-          RDP: Connect to {{ gateway_public_ip }} with Windows App,
-          username 'ubuntu', password from 1Password 'Jumpbox Ubuntu'.
+          SOCKS proxy: run 'ssh -N lab-tunnel' then configure browser to use localhost:1080.
+          Browse lab UIs at their real FQDNs (e.g. https://esxi-01.lab.dreamfold.dev).
