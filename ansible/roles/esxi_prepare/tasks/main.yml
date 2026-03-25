@@ -126,7 +126,7 @@
     /^[^[:space:]]/ {
       if (id && boot == "false" && vendor ~ /NVMe/)
         print id "|" size
-      id = $0; sub(/:$/, "", id)
+      id = $0; sub(/:$/, "", id); gsub(/[[:space:]]/, "", id)
       boot = ""; vendor = ""; size = 0
     }
     /^[[:space:]]*Is Boot Device:/ { boot = $NF }
@@ -170,14 +170,20 @@
   register: datastore_check
   changed_when: false
 
+- name: Verify disk path exists
+  ansible.builtin.shell: >
+    ls -la /vmfs/devices/disks/{{ local_datastore_device }}
+  when: local_datastore_device is defined
+  changed_when: false
+
 - name: Create VMFS datastore on local NVMe
   ansible.builtin.shell: |
     # Get the partition path for the device
     DISK="/vmfs/devices/disks/{{ local_datastore_device }}"
     # Create a new GPT partition table and VMFS-6 datastore
     partedUtil mklabel "$DISK" gpt
-    # Get total sectors from partition table (last field of geometry line)
-    END_SECTOR=$(partedUtil getptbl "$DISK" | tail -1 | awk '{print $4 - 1}')
+    # getUsableSectors returns "firstSector lastSector" — reliable for NVMe
+    END_SECTOR=$(partedUtil getUsableSectors "$DISK" | awk '{print $2}')
     partedUtil setptbl "$DISK" gpt "1 2048 $END_SECTOR AA31E02A400F11DB9590000C2911D1B8 0"
     vmkfstools -C vmfs6 -S datastore1 "${DISK}:1"
   when:
