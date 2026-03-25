@@ -32,7 +32,7 @@ The following must be in place before starting Phase 1.
 
 | # | Prerequisite | Status |
 |---|-------------|--------|
-| 1 | vCD resources approved (338 vCPU, 906 GB RAM, 1.5 TB storage) | ☐ |
+| 1 | vCD resources approved (170 vCPU, 906 GB RAM, 1.9 TB storage) | ☐ |
 | 2 | Ubuntu ISO available in vCD Content Hub (`ubuntu-24.04.2-live-server-amd64.iso`), ESXi vApp template available (`[baked]esxi-9.0.2-2514807`) | ☐ |
 | 3 | VCF Installer OVA (`VCF-SDDC-Manager-Appliance-9.0.2.0.25151285.ova`, 2.03 GB) — download from support.broadcom.com to operator laptop (formerly Cloud Builder; consolidated into SDDC Manager appliance in VCF 9.0) | ☐ |
 | 4 | RDP client installed on operator Mac — [Windows App](https://apps.apple.com/app/windows-app/id1295203466) from App Store | ☐ |
@@ -71,7 +71,7 @@ The following must be in place before starting Phase 1.
 
 | Step | Action | Expected Result |
 |------|--------|-----------------|
-| 3.4.1 | In the vApp, click **Add VM** > **From Template**. Select `[baked]esxi-9.0.2-2514807` from the catalog. Create esxi-01 through esxi-04 (48 vCPU, 128 GB RAM, 40 GB boot Non-Volatile Memory Express (NVMe) + 200 GB vSAN NVMe). Assign both NICs to `lab-trunk` | The four management ESXi VMs are cloning from the template |
+| 3.4.1 | In the vApp, click **Add VM** > **From Template**. Select `[baked]esxi-9.0.2-2514807` from the catalog. Create esxi-01 through esxi-04 (24 vCPU, 128 GB RAM, 64 GB boot Non-Volatile Memory Express (NVMe) + 256 GB local NVMe + 2,048 GB vSAN NVMe). Assign both NICs to `lab-trunk` | The four management ESXi VMs are cloning from the template |
 | 3.4.2 | Repeat for esxi-05 through esxi-07 (same spec), both NICs on `lab-trunk` | The three workload ESXi VMs are cloning from the template |
 
 ### 3.5 Power Off and Save to Catalog

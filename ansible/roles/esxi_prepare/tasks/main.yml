@@ -101,8 +101,8 @@
 # --- Storage preparation ---
 #
 # Each host has 3 NVMe devices:
-#   - 40 GB boot (OSDATA — fully consumed, no VMFS)
-#   - 200 GB local datastore (VMFS — for VCF Installer OVA on esxi-01, general use)
+#   - 64 GB boot (OSDATA — fully consumed, no VMFS)
+#   - 256 GB local datastore (VMFS — for VCF Installer OVA on esxi-01, general use)
 #   - 2,048 GB vSAN ESA storage pool
 #
 # The discovery below identifies non-boot NVMe devices by size:

@@ -152,10 +152,10 @@ ESXi hosts receive their management IP via DHCP with static MAC→IP reservation
 
 | Resource | Per Host | Total (4 hosts) |
 |----------|----------|-----------------|
-| vCPU | 48 | 192 |
+| vCPU | 24 | 96 |
 | RAM | 128 GB | 512 GB |
-| Boot Non-Volatile Memory Express (NVMe) | 40 GB | 160 GB |
-| Local Datastore NVMe | 200 GB | 800 GB |
+| Boot Non-Volatile Memory Express (NVMe) | 64 GB | 256 GB |
+| Local Datastore NVMe | 256 GB | 1,024 GB |
 | vSAN NVMe | 2,048 GB | 8,192 GB |
 | NICs | 2 (management + trunk) | — |
 | ESXi Version | 9.0 | — |
@@ -164,10 +164,10 @@ ESXi hosts receive their management IP via DHCP with static MAC→IP reservation
 
 | Resource | Per Host | Total (3 hosts) |
 |----------|----------|-----------------|
-| vCPU | 48 | 144 |
+| vCPU | 24 | 72 |
 | RAM | 128 GB | 384 GB |
-| Boot NVMe | 40 GB | 120 GB |
-| Local Datastore NVMe | 200 GB | 600 GB |
+| Boot NVMe | 64 GB | 192 GB |
+| Local Datastore NVMe | 256 GB | 768 GB |
 | vSAN NVMe | 2,048 GB | 6,144 GB |
 | NICs | 2 (management + trunk) | — |
 | ESXi Version | 9.0 | — |
@@ -194,8 +194,8 @@ Each ESXi VM has three NVMe devices:
 
 | Device | Size | Purpose |
 |--------|------|---------|
-| NVMe 0 | 40 GB | ESXi boot (OSDATA partitions — fully consumed, no VMFS) |
-| NVMe 1 | 200 GB | Local VMFS datastore (`datastore1`) — VCF Installer OVA on esxi-01, general-purpose local storage |
+| NVMe 0 | 64 GB | ESXi boot (OSDATA partitions — fully consumed, no VMFS) |
+| NVMe 1 | 256 GB | Local VMFS datastore (`datastore1`) — VCF Installer OVA on esxi-01, general-purpose local storage |
 | NVMe 2 | 2,048 GB | vSAN ESA storage pool |
 
 ### vSAN Disk Layout
@@ -451,9 +451,9 @@ A subscribed content library provides VKr images. The library syncs from VMware'
 | Component | vCPU | RAM (GB) | Storage (GB) |
 |-----------|------|----------|-------------|
 | Ubuntu Gateway | 2 | 10 | 60 |
-| ESXi (Management, 4x) | 192 | 512 | 800 |
-| ESXi (Workload, 3x) | 144 | 384 | 600 |
-| **vCD Total** | **338** | **906** | **1,460** |
+| ESXi (Management, 4x) | 96 | 512 | 1,024 |
+| ESXi (Workload, 3x) | 72 | 384 | 768 |
+| **vCD Total** | **170** | **906** | **1,852** |
 
 ### VCF Appliances (Nested, on ESXi)
 
@@ -472,7 +472,7 @@ These run inside the nested environment and consume resources from the ESXi host
 | VCF Automation | 4 | 24 | 100 |
 | **Nested Total** | **52** | **234** | **1,800** |
 
-> **Note**: The nested appliance resources are consumed from the 896 GB RAM and 1,400 GB storage provisioned to the ESXi VMs. The remaining ~662 GB RAM is available for VKS workloads and Supervisor VMs.
+> **Note**: The nested appliance resources are consumed from the 896 GB RAM and 1,792 GB storage provisioned to the ESXi VMs. The remaining ~662 GB RAM is available for VKS workloads and Supervisor VMs.
 
 ### 9.1 Capacity Headroom Analysis
 
@@ -482,7 +482,7 @@ The management domain hosts run all VCF infrastructure appliances. The VCF Insta
 
 | Category | vCPU | RAM (GB) |
 |----------|------|----------|
-| **Total provisioned (4 hosts)** | 192 | 512 |
+| **Total provisioned (4 hosts)** | 96 | 512 |
 | vCenter Server (management) | 4 | 21 |
 | SDDC Manager | 4 | 16 |
 | NSX Manager (management) | 6 | 24 |
@@ -490,8 +490,8 @@ The management domain hosts run all VCF infrastructure appliances. The VCF Insta
 | VCF Automation | 4 | 24 |
 | **Appliance subtotal** | **22** | **101** |
 | VCF Installer (temporary, reclaimed after bringup) | 4 | 24 |
-| **Remaining after bringup** | **170** | **411** |
-| **Utilisation** | **~11%** | **~20%** |
+| **Remaining after bringup** | **74** | **411** |
+| **Utilisation** | **~23%** | **~20%** |
 
 > **Note**: Management domain hosts have substantial headroom. The surplus provides a comfortable buffer for SDDC Manager lifecycle operations (e.g., in-place upgrades that temporarily run two appliance instances).
 
@@ -501,7 +501,7 @@ The workload domain hosts run the workload vCenter, NSX Manager, NSX Edge cluste
 
 | Category | vCPU | RAM (GB) |
 |----------|------|----------|
-| **Total provisioned (3 hosts)** | 144 | 384 |
+| **Total provisioned (3 hosts)** | 72 | 384 |
 | vCenter Server (workload) | 4 | 21 |
 | NSX Manager (workload) | 6 | 24 |
 | NSX Edge cluster (2x Large) | 16 | 64 |
@@ -510,10 +510,10 @@ The workload domain hosts run the workload vCenter, NSX Manager, NSX Edge cluste
 | VKS shared-services cluster CP (3 VMs) | ~6 | ~24 |
 | VKS shared-services cluster workers (3x best-effort-medium) | 6 | 24 |
 | **Consumed subtotal** | **~50** | **~205** |
-| **Remaining** | **~94** | **~179** |
-| **Utilisation** | **~35%** | **~53%** |
+| **Remaining** | **~22** | **~179** |
+| **Utilisation** | **~69%** | **~53%** |
 
-> **Note**: The workload domain has adequate headroom after deploying both VKS clusters. RAM utilisation (~53%) is the tighter compute constraint. Platform services PVCs (~172 Gi) add to vSAN consumption, making storage capacity the overall tightest constraint — monitor via vCenter → vSAN → Capacity.
+> **Note**: The workload domain vCPU utilisation (~69%) is moderate after deploying both VKS clusters. RAM utilisation (~53%) provides more headroom. Platform services PVCs (~172 Gi) add to vSAN consumption, making storage capacity the overall tightest constraint — monitor via vCenter → vSAN → Capacity.
 
 #### Scaling Thresholds
 

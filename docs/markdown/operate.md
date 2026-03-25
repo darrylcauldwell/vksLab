@@ -68,7 +68,7 @@ The VMware Cloud Foundation (VCF) lab must be powered on in a specific order to 
 
 | Step | Action | Verification |
 |------|--------|-------------|
-| 1 | Deploy new nested ESXi VM with standard spec (48 vCPU, 128 GB RAM, 40 GB boot Non-Volatile Memory Express (NVMe) + 200 GB vSAN NVMe) | VM powered on |
+| 1 | Deploy new nested ESXi VM with standard spec (24 vCPU, 128 GB RAM, 64 GB boot Non-Volatile Memory Express (NVMe) + 256 GB local NVMe + 2,048 GB vSAN NVMe) | VM powered on |
 | 2 | Configure networking (management access + trunk) | Management IP pingable |
 | 3 | Set hostname, Domain Name System (DNS) (10.0.10.1), Network Time Protocol (NTP) (10.0.10.1) | Services configured |
 | 4 | Add DNS record to gateway dnsmasq | `dig` resolves new hostname |
@@ -666,10 +666,10 @@ Refer to [Physical Design](physical-design.md) Section 9 for the canonical vCD r
 
 | Option | Impact | vCD Resources Required |
 |--------|--------|----------------------|
-| Add ESXi host to workload domain | More compute/storage for VKS | +48 vCPU, +128 GB RAM, +240 GB disk |
+| Add ESXi host to workload domain | More compute/storage for VKS | +24 vCPU, +128 GB RAM, +320 GB disk |
 | Increase VKS worker count | More pod capacity | Uses existing ESXi resources |
 | Scale VKS VM class (medium → large) | More per-node resources | Uses existing ESXi resources |
-| Add ESXi host to management domain | More headroom for appliances | +48 vCPU, +128 GB RAM, +240 GB disk |
+| Add ESXi host to management domain | More headroom for appliances | +24 vCPU, +128 GB RAM, +320 GB disk |
 
 ### 5.3 Resource Monitoring
 
