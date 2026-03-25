@@ -26,14 +26,14 @@
     body_format: json
     body:
       offlineAccount:
-        username: ""
-        password: ""
+        username: depot
+        password: depot
       depotConfiguration:
         isOfflineDepot: true
         hostname: "{{ vcf_depot_url }}"
         port: 443
     validate_certs: false
-    status_code: [200, 204]
+    status_code: [200, 202, 204]
   register: depot_result
 
 - name: Display depot configuration result
