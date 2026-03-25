@@ -11,9 +11,9 @@ no-resolv
 server={{ server }}
 {% endfor %}
 
-# --- DNS Records ---
+# --- DNS Records (host-record creates both A and PTR records) ---
 {% for record in gateway_dns_records %}
-address=/{{ record.hostname }}.{{ lab_domain }}/{{ record.ip }}
+host-record={{ record.hostname }}.{{ lab_domain }},{{ record.ip }}
 {% endfor %}
 
 # --- DHCP on management network (native/untagged on trunk) ---
