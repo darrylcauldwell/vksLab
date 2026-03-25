@@ -120,34 +120,21 @@
   register: scsi_result
   changed_when: scsi_result.rc == 0
 
-- name: Get storage device list
+- name: Get storage device list (JSON)
   ansible.builtin.shell: >
-    esxcli storage core device list
-  register: device_text
+    esxcli --formatter=json storage core device list
+  register: device_json
   changed_when: false
 
 - name: Parse non-boot NVMe devices
   ansible.builtin.set_fact:
     nvme_sorted: >-
       {%- set devices = [] -%}
-      {%- set current = {} -%}
-      {%- for line in device_text.stdout_lines -%}
-        {%- if line | trim | length > 0 and line[0] != ' ' -%}
-          {%- if current and current.get('boot') == 'false' and 'NVMe' in current.get('name', '') -%}
-            {%- set _ = devices.append(current) -%}
-          {%- endif -%}
-          {%- set current = {'id': line | trim} -%}
-        {%- elif 'Display Name:' in line -%}
-          {%- set _ = current.update({'name': line.split(': ', 1)[1] | trim}) -%}
-        {%- elif 'Is Boot Device:' in line -%}
-          {%- set _ = current.update({'boot': line.split(': ', 1)[1] | trim}) -%}
-        {%- elif line | trim is match('Size: \\d') and 'Queue' not in line and 'Sample' not in line -%}
-          {%- set _ = current.update({'size': line.split(': ', 1)[1] | trim | int}) -%}
+      {%- for dev_id, props in (device_json.stdout | from_json).items() -%}
+        {%- if not props['Is Boot Device'] and 'NVMe' in (props['Vendor'] | default('')) -%}
+          {%- set _ = devices.append({'id': dev_id, 'size': props['Size'], 'name': props['Display Name']}) -%}
         {%- endif -%}
       {%- endfor -%}
-      {%- if current and current.get('boot') == 'false' and 'NVMe' in current.get('name', '') -%}
-        {%- set _ = devices.append(current) -%}
-      {%- endif -%}
       {{ devices | sort(attribute='size') }}
 
 - name: Display discovered NVMe devices
@@ -159,9 +146,13 @@
     local_datastore_device: "{{ nvme_sorted[0].id }}"
   when: nvme_sorted | length >= 2
 
-- name: Display local datastore device
-  ansible.builtin.debug:
-    msg: "Local datastore device: {{ local_datastore_device | default('none') }}"
+- name: Verify local datastore device was found
+  ansible.builtin.assert:
+    that: local_datastore_device is defined
+    fail_msg: >-
+      No local datastore device found. Expected at least 2 non-boot NVMe
+      devices (1 for local VMFS, 1 for vSAN). Found: {{ nvme_sorted }}
+    success_msg: "Local datastore device: {{ local_datastore_device }}"
 
 - name: Check if local datastore already exists
   ansible.builtin.shell: >
@@ -187,11 +178,13 @@
 # --- CA certificate ---
 
 - name: Upload CA root certificate
-  ansible.builtin.copy:
-    src: "{{ esxi_ca_cert_path }}"
-    dest: /tmp/lab-root-ca.crt
-    mode: "0644"
+  ansible.builtin.shell: |
+    cat > /tmp/lab-root-ca.crt << 'CERT'
+    {{ lookup('file', esxi_ca_cert_path) }}
+    CERT
+    chmod 644 /tmp/lab-root-ca.crt
   when: esxi_ca_cert_path is defined and esxi_ca_cert_path | length > 0
+  changed_when: true
 
 - name: Import CA root certificate into ESXi trust store
   ansible.builtin.shell: |
