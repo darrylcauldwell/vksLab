@@ -1,6 +1,6 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
-"""Ansible module for VCF Cloud Builder bringup API."""
+"""Ansible module for VCF management domain bringup via the VCF Installer API."""
 
 from __future__ import absolute_import, division, print_function
 
@@ -9,27 +9,29 @@ __metaclass__ = type
 DOCUMENTATION = r"""
 ---
 module: vcf_cloud_builder
-short_description: Drive VCF Cloud Builder bringup
+short_description: Drive VCF management domain bringup
 description:
   - Validates or deploys a VCF management domain via the VCF Installer REST API.
   - Authenticates via token (POST /v1/tokens) then uses Bearer auth.
+  - Validation is asynchronous — polls until completion.
+  - Bringup is asynchronous — polls until completion (up to timeout).
 options:
   hostname:
-    description: Cloud Builder hostname or IP.
+    description: VCF Installer hostname or IP.
     required: true
     type: str
   username:
-    description: Cloud Builder admin username.
+    description: VCF Installer admin username (e.g. admin@local).
     required: true
     type: str
   password:
-    description: Cloud Builder admin password.
+    description: VCF Installer admin password.
     required: true
     type: str
     no_log: true
   state:
     description: >
-      C(validated) runs pre-flight validation only.
+      C(validated) runs pre-flight validation only (async, polls until done).
       C(deployed) starts bringup and polls until complete.
     required: true
     type: str
@@ -40,12 +42,12 @@ options:
     required: true
     type: raw
   timeout:
-    description: Maximum wait time in seconds for deployment.
+    description: Maximum wait time in seconds for validation or deployment.
     required: false
     type: int
     default: 7200
   poll_interval:
-    description: Seconds between status checks during deployment.
+    description: Seconds between status checks.
     required: false
     type: int
     default: 60
@@ -80,15 +82,31 @@ def make_ssl_context(validate_certs):
     return ctx
 
 
+def get_auth_token(base_url, username, password, validate_certs):
+    """Obtain a bearer token from POST /v1/tokens."""
+    token_data = {"username": username, "password": password}
+    token_payload = json.dumps(token_data).encode()
+    req = Request(f"{base_url}/v1/tokens", data=token_payload, method="POST")
+    req.add_header("Content-Type", "application/json")
+    ctx = make_ssl_context(validate_certs)
+    resp = urlopen(req, context=ctx)
+    result = json.loads(resp.read().decode())
+    access_token = result.get("accessToken")
+    if not access_token:
+        raise RuntimeError(f"Token response missing accessToken: {result}")
+    return f"Bearer {access_token}"
+
+
 def api_request(url, method, auth_header, data=None, validate_certs=False):
-    """Make an authenticated API request to Cloud Builder."""
+    """Make an authenticated API request."""
     payload = json.dumps(data).encode() if data else None
     req = Request(url, data=payload, method=method)
     req.add_header("Authorization", auth_header)
     req.add_header("Content-Type", "application/json")
     ctx = make_ssl_context(validate_certs)
     resp = urlopen(req, context=ctx)
-    return json.loads(resp.read().decode())
+    body = resp.read().decode()
+    return json.loads(body) if body else {}
 
 
 def run_module():
@@ -109,30 +127,17 @@ def run_module():
         module.exit_json(changed=False, msg="Check mode — no action taken")
 
     base_url = f"https://{module.params['hostname']}"
+    username = module.params["username"]
+    password = module.params["password"]
     state = module.params["state"]
     validate_certs = module.params["validate_certs"]
+    timeout = module.params["timeout"]
+    poll_interval = module.params["poll_interval"]
 
-    # Obtain bearer token via /v1/tokens
+    # Obtain initial bearer token
     try:
-        token_data = {
-            "username": module.params["username"],
-            "password": module.params["password"],
-        }
-        token_payload = json.dumps(token_data).encode()
-        token_req = Request(
-            f"{base_url}/v1/tokens",
-            data=token_payload,
-            method="POST",
-        )
-        token_req.add_header("Content-Type", "application/json")
-        ctx = make_ssl_context(validate_certs)
-        token_resp = urlopen(token_req, context=ctx)
-        token_result = json.loads(token_resp.read().decode())
-        access_token = token_result.get("accessToken")
-        if not access_token:
-            module.fail_json(msg=f"Token response missing accessToken: {token_result}")
-        auth_header = f"Bearer {access_token}"
-    except (URLError, HTTPError) as e:
+        auth_header = get_auth_token(base_url, username, password, validate_certs)
+    except (URLError, HTTPError, RuntimeError) as e:
         module.fail_json(msg=f"Failed to obtain API token: {e}")
 
     # Load spec — either a dict or a path to a JSON file
@@ -147,8 +152,24 @@ def run_module():
     if not isinstance(spec, dict):
         module.fail_json(msg="spec must be a dict or path to a JSON file")
 
+    def api_get_with_token_refresh(url):
+        """GET request with automatic token refresh on 401."""
+        nonlocal auth_header
+        try:
+            return api_request(url, "GET", auth_header,
+                               validate_certs=validate_certs)
+        except HTTPError as e:
+            if e.code == 401:
+                # Token expired — re-authenticate and retry
+                auth_header = get_auth_token(base_url, username, password,
+                                             validate_certs)
+                return api_request(url, "GET", auth_header,
+                                   validate_certs=validate_certs)
+            raise
+
     try:
         if state == "validated":
+            # POST starts async validation — returns an ID
             result = api_request(
                 f"{base_url}/v1/sddcs/validations",
                 "POST",
@@ -156,11 +177,58 @@ def run_module():
                 data=spec,
                 validate_certs=validate_certs,
             )
-            module.exit_json(
-                changed=False,
-                validation_id=result.get("id"),
-                result=result,
-            )
+            validation_id = result.get("id")
+            if not validation_id:
+                module.fail_json(
+                    msg=f"Validation POST did not return an ID: {result}")
+
+            # Poll until validation completes
+            start_time = time.time()
+            while True:
+                if time.time() - start_time > timeout:
+                    module.fail_json(
+                        msg=f"Validation timed out after {timeout}s",
+                        validation_id=validation_id,
+                    )
+
+                status_resp = api_get_with_token_refresh(
+                    f"{base_url}/v1/sddcs/validations/{validation_id}")
+
+                exec_status = status_resp.get("executionStatus", "UNKNOWN")
+
+                if exec_status == "COMPLETED":
+                    result_status = status_resp.get("resultStatus", "UNKNOWN")
+                    if result_status == "SUCCEEDED":
+                        module.exit_json(
+                            changed=False,
+                            validation_id=validation_id,
+                            result_status=result_status,
+                            result=status_resp,
+                        )
+                    else:
+                        # FAILED or FAILED_WITH_WARNINGS
+                        checks = status_resp.get("validationChecks", [])
+                        failed_checks = [
+                            c for c in checks
+                            if c.get("resultStatus") in ("FAILED",)
+                        ]
+                        module.fail_json(
+                            msg=f"Validation {result_status}",
+                            validation_id=validation_id,
+                            result_status=result_status,
+                            failed_checks=failed_checks,
+                            result=status_resp,
+                        )
+
+                elif exec_status in ("FAILED", "CANCELLED"):
+                    module.fail_json(
+                        msg=f"Validation execution {exec_status}",
+                        validation_id=validation_id,
+                        result=status_resp,
+                    )
+
+                # IN_PROGRESS or other — keep polling
+                time.sleep(poll_interval)
 
         elif state == "deployed":
             result = api_request(
@@ -171,43 +239,46 @@ def run_module():
                 validate_certs=validate_certs,
             )
             deployment_id = result.get("id")
+            if not deployment_id:
+                module.fail_json(
+                    msg=f"Bringup POST did not return an ID: {result}")
 
             # Poll until deployment completes
-            timeout = module.params["timeout"]
-            poll_interval = module.params["poll_interval"]
             start_time = time.time()
-
             while True:
-                elapsed = time.time() - start_time
-                if elapsed > timeout:
+                if time.time() - start_time > timeout:
                     module.fail_json(
                         msg=f"Bringup timed out after {timeout}s",
                         deployment_id=deployment_id,
                     )
 
-                status_resp = api_request(
-                    f"{base_url}/v1/sddcs/{deployment_id}",
-                    "GET",
-                    auth_header,
-                    validate_certs=validate_certs,
-                )
+                status_resp = api_get_with_token_refresh(
+                    f"{base_url}/v1/sddcs/{deployment_id}")
+
                 status = status_resp.get("status", "UNKNOWN")
 
-                if status == "COMPLETED":
+                if status == "COMPLETED_WITH_SUCCESS":
                     module.exit_json(
                         changed=True,
                         deployment_id=deployment_id,
                         status=status,
                         result=status_resp,
                     )
-                elif status in ("FAILED", "CANCELLED"):
+                elif status in ("COMPLETED_WITH_FAILURE", "ROLLBACK_SUCCESS"):
+                    sub_tasks = status_resp.get("sddcSubTasks", [])
+                    failed_tasks = [
+                        t for t in sub_tasks
+                        if t.get("status") != "COMPLETED_WITH_SUCCESS"
+                    ]
                     module.fail_json(
                         msg=f"Bringup {status}",
                         deployment_id=deployment_id,
                         status=status,
+                        failed_tasks=failed_tasks,
                         result=status_resp,
                     )
 
+                # IN_PROGRESS — keep polling
                 time.sleep(poll_interval)
 
     except HTTPError as e:
@@ -216,7 +287,11 @@ def run_module():
             body = e.read().decode()
         except Exception:
             pass
-        module.fail_json(msg=f"Cloud Builder API error: {e}", status_code=e.code, response_body=body)
+        module.fail_json(
+            msg=f"Cloud Builder API error: {e}",
+            status_code=e.code,
+            response_body=body,
+        )
     except URLError as e:
         module.fail_json(msg=f"Cloud Builder API error: {e}")
 
