@@ -83,12 +83,14 @@ ansible-playbook playbooks/phase0_operator.yml --tags ova
 
 > **Verification**: `ssh ubuntu@<gateway-ip> 'ls -lh ~/vcf-installer.ova'` shows 2.03 GB.
 
-### 3.5 Clone ESXi VMs (Manual in vCD)
+### 3.5 Deploy and Prepare ESXi VMs (Manual in vCD)
 
-| Step | Action | Expected Result |
-|------|--------|-----------------|
-| 3.5.1 | In the vApp, click **Add VM** > **From Template**. Select `[baked]esxi-9.0.2-2514807` from the catalog. Create esxi-01 through esxi-04 (24 vCPU, 128 GB RAM, 64 GB boot Non-Volatile Memory Express (NVMe) + 256 GB local NVMe + 2,048 GB vSAN NVMe). Assign both NICs to `lab-trunk` | The four management ESXi VMs are cloning from the template |
-| 3.5.2 | Repeat for esxi-05 through esxi-07 (same spec), both NICs on `lab-trunk` | The three workload ESXi VMs are cloning from the template |
+| Step | Action | Expected Result | Verification |
+|------|--------|-----------------|--------------|
+| 3.5.1 | In the vApp, click **Add VM** > **From Template**. Select `[baked]esxi-9.0.2-2514807` from the catalog. Create esxi-01 through esxi-07 (24 vCPU, 128 GB RAM, 64 GB boot Non-Volatile Memory Express (NVMe) + 256 GB local NVMe + 2,048 GB vSAN NVMe). Assign both NICs to `lab-trunk` | All 7 ESXi VMs are cloning from the template | The vApp shows 7 ESXi VMs plus the gateway |
+| 3.5.2 | Power on all 7 ESXi VMs (allow 5–10 minutes for POST) | All ESXi VMs are running | Each VM shows the Direct Console User Interface (DCUI) |
+| 3.5.3 | For each ESXi VM (esxi-01 through esxi-07), open the VM console in vCD. Press **F2** > **Reset System Configuration** > **F11** to confirm. Wait for the host to reboot (1–2 minutes per host) | Each host reboots with a clean configuration | The DCUI shows a management IP in the DHCP dynamic range |
+| 3.5.4 | On each host via DCUI: press **F2** > **Troubleshooting Options** > **Enable SSH** > **Enter**, then **Enable ESXi Shell** > **Enter** | SSH and ESXi Shell are enabled on all hosts | The DCUI shows SSH and Shell as enabled |
 
 ### 3.6 Power Off and Save to Catalog
 
