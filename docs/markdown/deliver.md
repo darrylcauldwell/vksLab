@@ -57,31 +57,47 @@ The following must be in place before starting Phase 1.
 |------|--------|-----------------|--------------|
 | 3.2.1 | In the vApp, click **Add VM** > **New**. Select Ubuntu 24.04 ISO from Content Hub (2 vCPU, 10 GB RAM, 60 GB disk). Assign NIC1 to the Public network and NIC2 to `lab-trunk` | The gateway VM is created with the specified configuration | The VM is visible in the vApp inventory |
 | 3.2.2 | Power on and complete Ubuntu installer via vCD console — set server name `gateway`, username `ubuntu`, set a simple temporary password (e.g. `VMware1!`). This password is saved to 1Password as the "Lab Bootstrap" item in step 4.1.1 | Ubuntu 24.04 is installed on the gateway VM | A login prompt appears on the vCD console |
-| 3.2.3 | Run `apt update && apt upgrade -y` to bring the OS up to date | All packages are updated to the latest versions | `apt list --upgradable` shows no pending updates |
+| 3.2.3 | Note public IP assigned by DHCP to NIC1 (ens33): `ip addr show ens33` | The public IP address is obtained | — |
+| 3.2.4 | Store gateway IP in 1Password: `op item edit "Lab Bootstrap" ip_address=<gateway-ip>` | The gateway IP is stored in 1Password | `op item get "Lab Bootstrap" --fields ip_address` returns the IP |
+| 3.2.5 | Copy SSH key to gateway: `ssh-copy-id ubuntu@<gateway-ip>` | The SSH public key is deployed to the gateway | `ssh ubuntu@<gateway-ip>` connects without a password prompt |
 
-### 3.3 Stage SDDC Manager OVA on Gateway
+### 3.3 Pre-install Gateway Packages (Automated)
 
-| Step | Action | Expected Result | Verification |
-|------|--------|-----------------|--------------|
-| 3.3.1 | Download `VCF-SDDC-Manager-Appliance-9.0.2.0.25151285.ova` (2.03 GB) from support.broadcom.com to operator laptop | The OVA file is saved to the operator laptop | The file exists on the operator laptop |
-| 3.3.2 | Note public IP assigned by DHCP to NIC1 (ens33): `ip addr show ens33` | The public IP address is obtained | — |
-| 3.3.3 | SCP OVA from laptop to gateway: `scp VCF-SDDC-Manager-Appliance-9.0.2.0.25151285.ova ubuntu@<gateway-ip>:~/vcf-installer.ova` | The OVA file is transferred to the gateway | `ls -lh ~/vcf-installer.ova` shows 2.03 GB |
+Pre-installing packages in the template avoids ~10–15 minutes of apt installs on every rebuild. The Ansible `gateway` role is idempotent — on subsequent rebuilds (Phase 1) it no-ops when packages are already present.
 
-### 3.4 Clone ESXi VMs (Manual in vCD)
+```bash
+source .venv/bin/activate
+cd ansible
+ansible-playbook playbooks/phase1_foundation.yml --tags packages
+```
+
+> **Verification**: `dpkg -l | grep -c '^ii'` on the gateway shows a significantly higher package count than a base Ubuntu install.
+
+### 3.4 Stage VCF Installer OVA on Gateway (Automated)
+
+Download `VCF-SDDC-Manager-Appliance-9.0.2.0.25151285.ova` (2.03 GB) from support.broadcom.com and place it in `~/Downloads/` on the operator laptop. The `phase0_operator.yml` playbook uploads it to the gateway:
+
+```bash
+ansible-playbook playbooks/phase0_operator.yml --tags ova
+```
+
+> **Verification**: `ssh ubuntu@<gateway-ip> 'ls -lh ~/vcf-installer.ova'` shows 2.03 GB.
+
+### 3.5 Clone ESXi VMs (Manual in vCD)
 
 | Step | Action | Expected Result |
 |------|--------|-----------------|
-| 3.4.1 | In the vApp, click **Add VM** > **From Template**. Select `[baked]esxi-9.0.2-2514807` from the catalog. Create esxi-01 through esxi-04 (24 vCPU, 128 GB RAM, 64 GB boot Non-Volatile Memory Express (NVMe) + 256 GB local NVMe + 2,048 GB vSAN NVMe). Assign both NICs to `lab-trunk` | The four management ESXi VMs are cloning from the template |
-| 3.4.2 | Repeat for esxi-05 through esxi-07 (same spec), both NICs on `lab-trunk` | The three workload ESXi VMs are cloning from the template |
+| 3.5.1 | In the vApp, click **Add VM** > **From Template**. Select `[baked]esxi-9.0.2-2514807` from the catalog. Create esxi-01 through esxi-04 (24 vCPU, 128 GB RAM, 64 GB boot Non-Volatile Memory Express (NVMe) + 256 GB local NVMe + 2,048 GB vSAN NVMe). Assign both NICs to `lab-trunk` | The four management ESXi VMs are cloning from the template |
+| 3.5.2 | Repeat for esxi-05 through esxi-07 (same spec), both NICs on `lab-trunk` | The three workload ESXi VMs are cloning from the template |
 
-### 3.5 Power Off and Save to Catalog
+### 3.6 Power Off and Save to Catalog
 
 | Step | Action | Expected Result | Verification |
 |------|--------|-----------------|--------------|
-| 3.5.1 | On the gateway VM, select **Actions** > **Media** > **Eject Media** to unmount the Ubuntu install ISO | The install ISO is ejected | No media is attached to the gateway VM |
-| 3.5.2 | Power off all 8 VMs (gateway + 7 ESXi) | All 8 VMs are stopped | The vApp shows all VMs powered off |
-| 3.5.3 | In vCD, right-click vApp → **Add to Catalog**. Select **Make identical copy**. Name: `[baseline]vcf-9.0.2-lab-8vm`, description: "VCF 9.0.2 nested lab baseline — 1 Ubuntu 24.04 gateway (OVA pre-staged) + 7 ESXi 9.0.2 hosts (4 mgmt, 3 workload)", storage policy: `ProvisioningStoragePolicy-provider01` | The vApp template is created in the catalog | The catalog shows the new template |
-| 3.5.4 | Verify template is visible in catalog and contains 8 VMs | The template is valid and contains all expected VMs | Opening template details confirms 8 VMs are listed |
+| 3.6.1 | On the gateway VM, select **Actions** > **Media** > **Eject Media** to unmount the Ubuntu install ISO | The install ISO is ejected | No media is attached to the gateway VM |
+| 3.6.2 | Power off all 8 VMs (gateway + 7 ESXi) | All 8 VMs are stopped | The vApp shows all VMs powered off |
+| 3.6.3 | In vCD, right-click vApp → **Add to Catalog**. Select **Make identical copy**. Name: `[baseline]vcf-9.0.2-lab-8vm`, description: "VCF 9.0.2 nested lab baseline — 1 Ubuntu 24.04 gateway (packages + OVA pre-staged) + 7 ESXi 9.0.2 hosts (4 mgmt, 3 workload)", storage policy: `ProvisioningStoragePolicy-provider01` | The vApp template is created in the catalog | The catalog shows the new template |
+| 3.6.4 | Verify template is visible in catalog and contains 8 VMs | The template is valid and contains all expected VMs | Opening template details confirms 8 VMs are listed |
 
 > **Note**: The original vApp can be deleted after the template is saved — it is no longer needed. All subsequent rebuilds deploy from the catalog template.
 
