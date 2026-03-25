@@ -176,8 +176,8 @@
     DISK="/vmfs/devices/disks/{{ local_datastore_device }}"
     # Create a new GPT partition table and VMFS-6 datastore
     partedUtil mklabel "$DISK" gpt
-    # Get disk size in sectors
-    END_SECTOR=$(partedUtil getptbl "$DISK" | tail -1 | awk '{print $2 * $3 * $4 - 1}')
+    # Get total sectors from partition table (last field of geometry line)
+    END_SECTOR=$(partedUtil getptbl "$DISK" | tail -1 | awk '{print $4 - 1}')
     partedUtil setptbl "$DISK" gpt "1 2048 $END_SECTOR AA31E02A400F11DB9590000C2911D1B8 0"
     vmkfstools -C vmfs6 -S datastore1 "${DISK}:1"
   when:
