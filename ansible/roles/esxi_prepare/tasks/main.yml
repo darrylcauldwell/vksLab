@@ -120,22 +120,32 @@
   register: scsi_result
   changed_when: scsi_result.rc == 0
 
-- name: Get storage device list (JSON)
-  ansible.builtin.shell: >
-    esxcli --formatter=json storage core device list
-  register: device_json
+- name: Discover non-boot NVMe devices
+  ansible.builtin.shell: |
+    esxcli storage core device list | awk '
+    /^[^[:space:]]/ {
+      if (id && boot == "false" && vendor ~ /NVMe/)
+        print id "|" size
+      id = $0; sub(/:$/, "", id)
+      boot = ""; vendor = ""; size = 0
+    }
+    /^[[:space:]]*Is Boot Device:/ { boot = $NF }
+    /^[[:space:]]*Vendor:/ { vendor = $NF }
+    /^[[:space:]]*Size:/ && !/Queue/ && !/Sample/ { size = $NF + 0 }
+    END {
+      if (id && boot == "false" && vendor ~ /NVMe/)
+        print id "|" size
+    }' | sort -t'|' -k2 -n
+  register: nvme_raw
   changed_when: false
 
-- name: Parse non-boot NVMe devices
+- name: Parse NVMe device list
   ansible.builtin.set_fact:
     nvme_sorted: >-
-      {%- set devices = [] -%}
-      {%- for dev_id, props in (device_json.stdout | from_json).items() -%}
-        {%- if not props['Is Boot Device'] and 'NVMe' in (props['Vendor'] | default('')) -%}
-          {%- set _ = devices.append({'id': dev_id, 'size': props['Size'], 'name': props['Display Name']}) -%}
-        {%- endif -%}
-      {%- endfor -%}
-      {{ devices | sort(attribute='size') }}
+      {{ nvme_raw.stdout_lines
+         | map('regex_replace', '^(.+)\\|(.+)$', '{"id": "\\1", "size": \\2}')
+         | map('from_json')
+         | list }}
 
 - name: Display discovered NVMe devices
   ansible.builtin.debug:
