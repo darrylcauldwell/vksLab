@@ -210,7 +210,14 @@ def run_module():
 
                 time.sleep(poll_interval)
 
-    except (URLError, HTTPError) as e:
+    except HTTPError as e:
+        body = ""
+        try:
+            body = e.read().decode()
+        except Exception:
+            pass
+        module.fail_json(msg=f"Cloud Builder API error: {e}", status_code=e.code, response_body=body)
+    except URLError as e:
         module.fail_json(msg=f"Cloud Builder API error: {e}")
 
 

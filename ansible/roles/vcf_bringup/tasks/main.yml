@@ -1,5 +1,9 @@
 ---
 # VCF management domain bringup via Cloud Builder API
+- name: Display bringup spec being submitted
+  ansible.builtin.debug:
+    msg: "{{ vcf_bringup_spec | to_nice_json }}"
+
 - name: Validate bringup spec
   vcf_cloud_builder:
     hostname: "{{ vcf_bringup_hostname }}"
