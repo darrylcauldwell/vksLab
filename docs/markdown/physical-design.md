@@ -33,6 +33,7 @@ date: "March 2026"
 | 10.0.10.6 | nsx-mgr-mgmt | NSX Manager (management) |
 | 10.0.10.7 | vcf-ops | VCF Operations |
 | 10.0.10.8 | vcf-auto | VCF Automation |
+| 10.0.10.18 | vcf-ops-logs | VCF Operations for Logs |
 | 10.0.10.9 | vcenter-wld | vCenter Server (workload) |
 | 10.0.10.10 | nsx-mgr-wld | NSX Manager (workload) |
 | 10.0.10.11 | esxi-01 | Management domain ESXi host |
@@ -251,6 +252,7 @@ With FTT=1 RAID-1, each object is mirrored — raw capacity is halved for data p
 | SDDC Manager | sddc-manager | 10.0.10.5 | VCF lifecycle and domain management |
 | NSX Manager | nsx-mgr-mgmt | 10.0.10.6 | Management domain NSX (single node) |
 | VCF Operations | vcf-ops | 10.0.10.7 | Monitoring, capacity, and analytics |
+| VCF Operations for Logs | vcf-ops-logs | 10.0.10.18 | Centralised log collection (Simple model) |
 | VCF Automation | vcf-auto | 10.0.10.8 | Infrastructure automation |
 
 ### Installer Prerequisites
@@ -469,10 +471,11 @@ These run inside the nested environment and consume resources from the ESXi host
 | NSX Manager (Workload) | 6 | 24 | 200 |
 | NSX Edge (2x) | 16 | 64 | 400 |
 | VCF Operations | 4 | 16 | 100 |
+| VCF Operations for Logs | 4 | 8 | 530 |
 | VCF Automation | 4 | 24 | 100 |
-| **Nested Total** | **52** | **234** | **1,800** |
+| **Nested Total** | **56** | **242** | **2,330** |
 
-> **Note**: The nested appliance resources are consumed from the 896 GB RAM and 1,792 GB storage provisioned to the ESXi VMs. The remaining ~662 GB RAM is available for VKS workloads and Supervisor VMs.
+> **Note**: The nested appliance resources are consumed from the 896 GB RAM and 1,792 GB storage provisioned to the ESXi VMs. The remaining ~654 GB RAM is available for VKS workloads and Supervisor VMs.
 
 ### 9.1 Capacity Headroom Analysis
 
@@ -487,11 +490,12 @@ The management domain hosts run all VCF infrastructure appliances. The VCF Insta
 | SDDC Manager | 4 | 16 |
 | NSX Manager (management) | 6 | 24 |
 | VCF Operations | 4 | 16 |
+| VCF Operations for Logs | 4 | 8 |
 | VCF Automation | 4 | 24 |
-| **Appliance subtotal** | **22** | **101** |
+| **Appliance subtotal** | **26** | **109** |
 | VCF Installer (temporary, reclaimed after bringup) | 4 | 24 |
-| **Remaining after bringup** | **74** | **411** |
-| **Utilisation** | **~23%** | **~20%** |
+| **Remaining after bringup** | **70** | **403** |
+| **Utilisation** | **~27%** | **~21%** |
 
 > **Note**: Management domain hosts have substantial headroom. The surplus provides a comfortable buffer for SDDC Manager lifecycle operations (e.g., in-place upgrades that temporarily run two appliance instances).
 

@@ -405,6 +405,7 @@ This lab's architecture follows several models from the [VCF 9 Design Library](h
 | NSX-03: Centralised VPC | [Multi-Tenancy Pattern 1: Single VPC for Multiple Businesses](https://techdocs.broadcom.com/us/en/vmware-cis/vcf/vcf-9-0-and-later/9-0/design/design-library/vcf-automation-deployment-models(1)/multi-tenancy-design-patterns/pattern-1.html) | Multi-tenancy |
 | SVC-07: Identity and SSO | [Embedded VCF Identity Broker Model](https://techdocs.broadcom.com/us/en/vmware-cis/vcf/vcf-9-0-and-later/9-0/design/design-library/vcf-identity-broker-design.html) + [Single VCF Instance SSO Model](https://techdocs.broadcom.com/us/en/vmware-cis/vcf/vcf-9-0-and-later/9-0/design/design-library/single-sign-on-design.html) | Identity |
 | VKS-01: Shared workload domain | [Tenancy Model 2: Shared Workload Domain for Multiple Organizations](https://techdocs.broadcom.com/us/en/vmware-cis/vcf/vcf-9-0-and-later/9-0/design/design-library/vcf-automation-deployment-models(1)/tenancy-deployment-models-with-vmware-cloud-foundation/model-3.html) | Tenancy |
+| VCF-05: Centralised logging | [VCF Operations for Logs — Simple Model](https://techdocs.broadcom.com/us/en/vmware-cis/vcf/vcf-9-0-and-later/9-0/design/design-library/vcf-operations-design/vcf-operations-for-logs-deployment-models.html) | Operations |
 | VKS-01: Supervisor zones | [Single Management Zone with Combined Workload Zones Model](https://techdocs.broadcom.com/us/en/vmware-cis/vcf/vcf-9-0-and-later/9-0/design/design-library/self-service-iaas-deployment-models/vsphere-supervisor-zone-models.html) | Supervisor |
 
 ### Management vs Workload Domain Separation
@@ -423,6 +424,7 @@ The management domain follows the **VCF Fleet in a Single Site with Minimal Foot
 | SDDC Manager | VCF lifecycle and domain management |
 | NSX Manager | Management domain NSX (single node for lab) |
 | VCF Operations | Monitoring, capacity, and analytics |
+| VCF Operations for Logs | Centralised log collection (single node, Simple model) |
 | VCF Automation | Infrastructure-as-code and self-service |
 
 ### Workload Domain Components
@@ -446,6 +448,7 @@ The workload domain is created via SDDC Manager by commissioning the workload ES
 | C-004 | VCF-02 | Single-node NSX Manager in each domain | Aligns with minimal footprint blueprint — singleton appliances with vSphere HA for availability | Risk: No NSX Manager HA. Mitigation: Acceptable for lab; can redeploy NSX Manager from SDDC Manager if needed |
 | R-004 | VCF-03 | VCF Operations and VCF Automation deployed in management domain | Follows "Simple VCF Operations Model" and "Simple VCF Automation Model" — single-node deployments on the management cluster | Risk: Additional resource consumption. Mitigation: Optional components — can be removed if resources are constrained |
 | R-004 | VCF-04 | VCF Installer drives initial bringup then is decommissioned | Standard VCF deployment method — installer is temporary | Risk: Installer VM consumes resources during bringup. Mitigation: Remove after bringup to reclaim resources |
+| R-017 | VCF-05 | VCF Operations for Logs deployed in management domain (Simple model — single node) | Follows "VCF Operations for Logs — Simple Model" — centralised log collection for VCF management components; single-node deployment with vSphere HA for availability | Risk: Single-node — no log HA. Mitigation: Acceptable for lab; vSphere HA restarts the appliance on host failure |
 
 ## 7. NSX Networking Architecture
 

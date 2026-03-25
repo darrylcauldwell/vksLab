@@ -45,6 +45,7 @@ Demonstrate vSphere Kubernetes Services (VKS) on VMware Cloud Foundation (VCF) 9
 | R-014 | Lab SHOULD provide L7 ingress routing for Kubernetes services |
 | R-015 | Lab SHOULD provide Kubernetes backup and restore for persistent workloads |
 | R-016 | Lab SHOULD provide GitOps-based application deployment across VKS clusters |
+| R-017 | Lab SHOULD provide centralised log collection for VCF management components |
 
 ## 5. Service Level Objectives
 
@@ -188,6 +189,7 @@ See [Logical Design](logical-design.md) for phase details and [Delivery Guide](d
 | R-014 | L7 ingress routing for Kubernetes services | VKS-10 | Phase 7 — Contour installation (§10.3) | `kubectl get pods -n projectcontour` all Running |
 | R-015 | Kubernetes backup and restore | VKS-12 | Phase 7 — Velero installation (§10.6) | `velero backup get` shows recent Completed backup |
 | R-016 | GitOps-based application deployment | VKS-13 | Phase 7 — ArgoCD installation (§10.7) | `argocd app list` shows Synced/Healthy |
+| R-017 | Centralised log collection | VCF-05 | Phase 3 — VCF Operations for Logs deployment | VCF Operations for Logs UI accessible; log sources connected |
 
 ### Constraint Traceability
 
