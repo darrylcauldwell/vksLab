@@ -130,16 +130,14 @@
             state: absent
 
     - name: Wait for VCF Installer to be accessible
-      ansible.builtin.uri:
-        url: "https://{{ vcf_installer_fqdn }}"
-        validate_certs: false
-        status_code: [200, 301, 302, 403]
+      ansible.builtin.shell: >
+        curl -sk -o /dev/null -w '%{http_code}'
+        https://{{ vcf_installer_fqdn }}
       register: installer_ready
-      until: installer_ready.status in [200, 301, 302, 403]
+      until: installer_ready.stdout in ['200', '301', '302', '403']
       retries: 60
       delay: 10
-      delegate_to: localhost
-      become: false
+      changed_when: false
 
     - name: VCF Installer deployment summary
       ansible.builtin.debug:
@@ -148,8 +146,8 @@
           {{ 'VM was already deployed.' if vm_check.rc == 0 else 'OVA deployed and powered on.' }}
 
 - name: Phase 3 — VCF management domain bringup
-  hosts: localhost
-  connection: local
+  hosts: gateways
   gather_facts: false
+  become: true
   roles:
     - vcf_bringup
