@@ -36,7 +36,7 @@ vcf_bringup_spec:
     sshPassword: "{{ sddc_admin_password }}"
     localUserPassword: "{{ sddc_admin_password }}"
   nsxtSpec:
-    nsxtManagerSize: small
+    nsxtManagerSize: medium
     rootNsxtManagerPassword: "{{ nsx_admin_password }}"
     nsxtAdminPassword: "{{ nsx_admin_password }}"
     nsxtAuditPassword: "{{ nsx_admin_password }}"
