@@ -62,6 +62,10 @@
           vars:
             overrides:
               Name: "{{ vcf_installer_vm_name }}"
+              DiskProvisioning: thin
+              NetworkMapping:
+                - Name: "Network 1"
+                  Network: "VM Network"
               PowerOn: true
               InjectOvfEnv: true
               WaitForIP: false
