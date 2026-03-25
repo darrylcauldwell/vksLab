@@ -10,9 +10,14 @@
 #   Runs from gateway via sshpass to avoid Ansible SSH ControlMaster
 #   corruption when hostd restarts drop connections.
 #
-# Play 3 — Prepare hosts (Ansible direct, parallel):
-#   DNS, NTP, gateway, services, vSAN, CA cert, validation.
-#   All esxcli/vim-cmd tasks that don't disrupt SSH.
+# Play 3 — Configure networking and services (gateway-delegated):
+#   Switches vmk0 DHCP→static, DNS, NTP, SSH/Shell, lockdown, CEIP.
+#   Runs via sshpass because the network switch disrupts Ansible's
+#   ProxyJump SSH connections.
+#
+# Play 4 — Prepare hosts (Ansible direct, serial):
+#   Storage (NVMe discovery, VMFS), CA cert, validation.
+#   All tasks that don't disrupt SSH connectivity.
 
 - name: Phase 2 — Bootstrap ESXi passwords (via gateway)
   hosts: gateways
@@ -91,6 +96,21 @@
   tasks:
     - name: Set hostname, regenerate SSL cert, restart hostd
       ansible.builtin.include_tasks: phase2_identity_host.yml
+      loop: "{{ esxi_hosts }}"
+      loop_control:
+        loop_var: esxi_host
+        label: "{{ esxi_host }}"
+
+- name: Phase 2 — Configure ESXi networking and services (via gateway)
+  hosts: gateways
+  gather_facts: false
+  become: true
+  vars:
+    ssh_opts: "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10"
+    esxi_hosts: "{{ groups['esxi'] }}"
+  tasks:
+    - name: Configure networking, services, and settings
+      ansible.builtin.include_tasks: phase2_configure_host.yml
       loop: "{{ esxi_hosts }}"
       loop_control:
         loop_var: esxi_host

@@ -1,0 +1,98 @@
+---
+# Included by phase2_esxi.yml — runs once per ESXi host from the gateway.
+# Switches vmk0 from DHCP to static, configures DNS/NTP/gateway, enables
+# SSH/Shell services, disables lockdown and CEIP.
+#
+# Runs via sshpass from the gateway because the network switch disrupts
+# Ansible's ProxyJump SSH connections, causing transient unreachable errors.
+
+- name: "{{ esxi_host }} — Wait for hostd to be ready"
+  ansible.builtin.shell: >
+    sshpass -e ssh {{ ssh_opts }}
+    root@{{ hostvars[esxi_host]['ansible_host'] }}
+    "vim-cmd hostsvc/hostsummary > /dev/null 2>&1"
+  environment:
+    SSHPASS: "{{ bootstrap_password }}"
+  register: hostd_pre
+  until: hostd_pre.rc == 0
+  retries: 30
+  delay: 5
+  changed_when: false
+
+- name: "{{ esxi_host }} — Switch vmk0 to static IP with DNS, gateway, and NTP"
+  ansible.builtin.shell: >
+    sshpass -e ssh {{ ssh_opts }}
+    root@{{ hostvars[esxi_host]['ansible_host'] }}
+    "esxcli network ip interface ipv4 set -i vmk0
+    -I {{ hostvars[esxi_host]['ansible_host'] }} -N 255.255.255.0 -t static &&
+    for srv in $(esxcli network ip dns server list | awk '/^[0-9]/ {print $1}'); do
+    esxcli network ip dns server remove --server=$srv 2>/dev/null; done &&
+    esxcli network ip dns server add --server={{ esxi_dns_server }} 2>/dev/null;
+    for dom in $(esxcli network ip dns search list | awk '/^[a-zA-Z]/ && !/DNSSearch/ {print $1}'); do
+    esxcli network ip dns search remove --domain=$dom 2>/dev/null; done &&
+    esxcli network ip dns search add --domain={{ esxi_domain }} 2>/dev/null;
+    esxcfg-route {{ esxi_gateway }} &&
+    esxcli system ntp set --server={{ esxi_ntp_servers | join(',') }} &&
+    esxcli system ntp set --enabled=true"
+  environment:
+    SSHPASS: "{{ bootstrap_password }}"
+  changed_when: true
+
+- name: "{{ esxi_host }} — Enable SSH service auto-start"
+  ansible.builtin.shell: >
+    sshpass -e ssh {{ ssh_opts }}
+    root@{{ hostvars[esxi_host]['ansible_host'] }}
+    "vim-cmd hostsvc/enable_ssh && vim-cmd hostsvc/start_ssh"
+  environment:
+    SSHPASS: "{{ bootstrap_password }}"
+  changed_when: true
+
+- name: "{{ esxi_host }} — Enable ESXi Shell service"
+  ansible.builtin.shell: >
+    sshpass -e ssh {{ ssh_opts }}
+    root@{{ hostvars[esxi_host]['ansible_host'] }}
+    "vim-cmd hostsvc/enable_esx_shell"
+  environment:
+    SSHPASS: "{{ bootstrap_password }}"
+  changed_when: true
+
+- name: "{{ esxi_host }} — Disable shell timeouts"
+  ansible.builtin.shell: >
+    sshpass -e ssh {{ ssh_opts }}
+    root@{{ hostvars[esxi_host]['ansible_host'] }}
+    "esxcli system settings advanced set -o /UserVars/ESXiShellInteractiveTimeOut -i 0 &&
+    esxcli system settings advanced set -o /UserVars/ESXiShellTimeOut -i 0"
+  environment:
+    SSHPASS: "{{ bootstrap_password }}"
+  changed_when: true
+
+- name: "{{ esxi_host }} — Disable lockdown mode"
+  ansible.builtin.shell: >
+    sshpass -e ssh {{ ssh_opts }}
+    root@{{ hostvars[esxi_host]['ansible_host'] }}
+    "vim-cmd hostsvc/advopt/update Config.HostAgent.plugins.hostsvc.esxAdminsGroup string ''"
+  environment:
+    SSHPASS: "{{ bootstrap_password }}"
+  changed_when: true
+
+- name: "{{ esxi_host }} — Disable CEIP"
+  ansible.builtin.shell: >
+    sshpass -e ssh {{ ssh_opts }}
+    root@{{ hostvars[esxi_host]['ansible_host'] }}
+    "esxcli system settings advanced set -o /UserVars/HostClientCEIPOptIn -i 2"
+  environment:
+    SSHPASS: "{{ bootstrap_password }}"
+  changed_when: true
+
+- name: "{{ esxi_host }} — Wait for SSH to stabilise"
+  ansible.builtin.shell: >
+    sshpass -e ssh {{ ssh_opts }}
+    root@{{ hostvars[esxi_host]['ansible_host'] }}
+    "echo ok"
+  environment:
+    SSHPASS: "{{ bootstrap_password }}"
+  register: ssh_stable
+  until: ssh_stable.rc == 0
+  retries: 12
+  delay: 5
+  changed_when: false

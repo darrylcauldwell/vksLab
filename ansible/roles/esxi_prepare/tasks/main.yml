@@ -1,15 +1,14 @@
 ---
-# ESXi host preparation — configure for VCF bringup
+# ESXi host preparation — storage, CA certificate, and validation
 #
 # Prerequisites:
-#   - Reset System Configuration (§4.3) has already cleared stale template
-#     state (hostname, UUID, MAC mapping, root password).
-#   - Phase 1b MAC discovery has assigned static IPs.
-#   - Phase 2 bootstrap play has set the root password.
+#   - Phase 2 gateway-delegated plays have already run: bootstrap password,
+#     identity (hostname, SSL cert, hostd restart), and configure
+#     (vmk0 static, DNS, NTP, SSH/Shell, lockdown, CEIP).
+#   - SSH is stable — networking and service changes ran via sshpass
+#     from the gateway to avoid ProxyJump connection disruption.
 
 # --- Pre-flight: ensure hostd is responsive ---
-# Identity tasks (hostname, SSL cert, hostd restart) run in a prior play
-# from the gateway via sshpass. Verify hostd is ready before we continue.
 - name: Verify hostd is ready
   ansible.builtin.shell: >
     vim-cmd hostsvc/hostsummary > /dev/null 2>&1
@@ -18,85 +17,6 @@
   retries: 15
   delay: 5
   changed_when: false
-
-# --- Switch vmk0 from DHCP to static and configure networking ---
-# ESXi hosts obtain their management IP via DHCP (phase1b). DHCP also sets
-# DNS, gateway, and NTP — but VCF bringup requires static configuration.
-# Switch to static and set all networking in one step to avoid the
-# "Can't add DNS server when IPv4 DHCP DNS is enabled" error.
-
-- name: Switch vmk0 to static IP with DNS, gateway, and NTP
-  ansible.builtin.shell: |
-    # Switch vmk0 from DHCP to static (same IP)
-    esxcli network ip interface ipv4 set -i vmk0 -I {{ ansible_host }} -N 255.255.255.0 -t static
-
-    # DNS — clear DHCP-inherited servers, set lab DNS
-    for srv in $(esxcli network ip dns server list | awk '/^[0-9]/ {print $1}'); do
-      esxcli network ip dns server remove --server="$srv" 2>/dev/null
-    done
-    esxcli network ip dns server add --server={{ esxi_dns_server }} 2>/dev/null || true
-
-    # DNS search domain
-    for dom in $(esxcli network ip dns search list | awk '/^[a-zA-Z]/ && !/DNSSearch/ {print $1}'); do
-      esxcli network ip dns search remove --domain="$dom" 2>/dev/null
-    done
-    esxcli network ip dns search add --domain={{ esxi_domain }} 2>/dev/null || true
-
-    # Default gateway
-    esxcfg-route {{ esxi_gateway }}
-
-    # NTP
-    esxcli system ntp set --server={{ esxi_ntp_servers | join(',') }}
-    esxcli system ntp set --enabled=true
-  changed_when: true
-
-# --- Services and security ---
-
-# SSH must auto-start — VCF Installer requires it, not just current session
-- name: Enable SSH service auto-start
-  ansible.builtin.shell: >
-    vim-cmd hostsvc/enable_ssh
-  register: ssh_enable
-  changed_when: true
-  failed_when: false
-
-- name: Start SSH service
-  ansible.builtin.shell: >
-    vim-cmd hostsvc/start_ssh
-  register: ssh_start
-  changed_when: true
-  failed_when: false
-
-- name: Enable ESXi Shell service
-  ansible.builtin.shell: >
-    vim-cmd hostsvc/enable_esx_shell
-  register: shell_enable
-  changed_when: true
-  failed_when: false
-
-# Prevent SSH/Shell timeouts during long VCF operations
-- name: Disable shell interactive timeout
-  ansible.builtin.shell: >
-    esxcli system settings advanced set -o /UserVars/ESXiShellInteractiveTimeOut -i 0
-  changed_when: true
-
-- name: Disable shell timeout
-  ansible.builtin.shell: >
-    esxcli system settings advanced set -o /UserVars/ESXiShellTimeOut -i 0
-  changed_when: true
-
-# Ensure lockdown mode is off — blocks SSH and API access
-- name: Disable lockdown mode
-  ansible.builtin.shell: >
-    vim-cmd hostsvc/advopt/update Config.HostAgent.plugins.hostsvc.esxAdminsGroup string ""
-  changed_when: true
-  failed_when: false
-
-# Opt out of CEIP — no phone-home from nested lab
-- name: Disable CEIP
-  ansible.builtin.shell: >
-    esxcli system settings advanced set -o /UserVars/HostClientCEIPOptIn -i 2
-  changed_when: true
 
 # --- Storage preparation ---
 #
