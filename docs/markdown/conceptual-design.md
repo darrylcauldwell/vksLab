@@ -175,7 +175,7 @@ See [Logical Design](logical-design.md) for phase details and [Delivery Guide](d
 | R-001 | Lab hosted in single vCD vApp | VCD-01, VCD-02 | Phase 0 — vApp creation (§3.1) | vApp visible in vCD console |
 | R-002 | Remote access via RDP gateway | NET-01, SVC-06 | Phase 0 — gateway deploy (§3.2) | RDP connection on port 3389 |
 | R-003 | DNS, NTP, CA on gateway | NET-05, SVC-01, SVC-03, SVC-04, SVC-05 | Phase 1 — gateway config (§4.2) | `dig`, `chronyc sources`, `step ca health` |
-| R-004 | Two VCF domains (mgmt + wld) | NET-03, NET-04, ESX-02, VCF-01, VCF-02, VCF-03, VCF-04 | Phase 3 (§6) + Phase 4 (§7) | SDDC Manager shows both domains Active |
+| R-004 | Two VCF domains (mgmt + wld) — follows "VCF Fleet in a Single Site with Minimal Footprint" blueprint + "Workload Domain Model: Simple" | NET-03, NET-04, ESX-02, VCF-01, VCF-02, VCF-03, VCF-04 | Phase 3 (§6) + Phase 4 (§7) | SDDC Manager shows both domains Active |
 | R-005 | VKS cluster via Supervisor with NSX VPC | VKS-01, VKS-02, VKS-03, VKS-04, VKS-05, VKS-06, VKS-07, VKS-08 | Phase 6 — Supervisor + VKS (§9) | `kubectl get nodes` shows 6 Ready |
 | R-006 | BGP peering between NSX and gateway | NET-02, NSX-01, NSX-02 | Phase 5 — BGP config (§8.2–8.3) | `sudo vtysh -c 'show ip bgp summary'` — Established |
 | R-007 | vSAN ESA with FTT=1 | ESX-03 | Phase 2 — ESXi prep (§5.2) | `esxcli vsan health cluster list` green |

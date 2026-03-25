@@ -389,9 +389,22 @@ Inside each ESXi host, a vSphere Distributed Switch (VDS), created during VCF br
 
 ## 6. VCF Domain Architecture
 
+### VCF 9 Design Library Alignment
+
+This lab's architecture follows several models from the [VCF 9 Design Library](https://techdocs.broadcom.com/us/en/vmware-cis/vcf/vcf-9-0-and-later/9-0/design/design-library.html). Each design decision references the specific model it implements:
+
+| Design Decision | VCF 9 Design Library Model | Reference |
+|-----------------|---------------------------|-----------|
+| VCF-01: Domain separation | [VCF Fleet in a Single Site with Minimal Footprint](https://techdocs.broadcom.com/us/en/vmware-cis/vcf/vcf-9-0-and-later/9-0/design/blueprints/vcf-fleet-basic-management-design.html) (management domain) + [Workload Domain Model: Simple](https://techdocs.broadcom.com/us/en/vmware-cis/vcf/vcf-9-0-and-later/9-0/design/design-library/workload-domain-deployment-models/workload-domain-deployment-model.html) (consumption domain) | Blueprint + WLD model |
+| VCF-02: Single-node NSX Manager | Minimal footprint blueprint — singleton appliances with vSphere HA | Blueprint |
+| VCF-03: VCF Operations | [Simple VCF Operations Model](https://techdocs.broadcom.com/us/en/vmware-cis/vcf/vcf-9-0-and-later/9-0/design/design-library/vcf-operations-design/simple.html) | Operations design |
+| VCF-03: VCF Automation | [Simple VCF Automation Model](https://techdocs.broadcom.com/us/en/vmware-cis/vcf/vcf-9-0-and-later/9-0/design/design-library/vcf-automation-deployment-models(1)/vcf-automation-simple-deployment-model.html) | Automation design |
+| NSX-03: Centralised VPC | [Multi-Tenancy Pattern 1: Single VPC for Multiple Businesses](https://techdocs.broadcom.com/us/en/vmware-cis/vcf/vcf-9-0-and-later/9-0/design/design-library/vcf-automation-deployment-models(1)/multi-tenancy-design-patterns/pattern-1.html) | Multi-tenancy pattern |
+| VKS-01: Shared workload domain | [Tenancy Model 2: Shared Workload Domain for Multiple Organizations](https://techdocs.broadcom.com/us/en/vmware-cis/vcf/vcf-9-0-and-later/9-0/design/design-library/vcf-automation-deployment-models(1)/tenancy-deployment-models-with-vmware-cloud-foundation/model-3.html) | Tenancy model |
+
 ### Management vs Workload Domain Separation
 
-VCF best practice separates management infrastructure from tenant workloads:
+The management domain follows the **VCF Fleet in a Single Site with Minimal Footprint** blueprint — a single management cluster with singleton appliances protected by vSphere HA. The workload domain is a separate VI domain following the **Workload Domain Model: Simple**, acting as the consumption cluster for VCF Automation All Apps and VKS workloads.
 
 - **Management domain**: lifecycle management components. Created by the VCF Installer during initial bringup.
 - **Workload domain**: application workloads, NSX Edges, vSphere Supervisor, and vSphere Kubernetes Services (VKS). Created via SDDC Manager after the management domain is operational.
@@ -424,9 +437,9 @@ The workload domain is created via SDDC Manager by commissioning the workload ES
 
 | Req. | Decision ID | Design Decision | Design Justification | Risk / Mitigation |
 |------|-------------|-----------------|----------------------|-------------------|
-| R-004 | VCF-01 | Separate management and workload domains | VCF best practice — isolates lifecycle management from tenant workloads | Risk: Doubles resource consumption for vCenter and NSX Manager. Mitigation: Sized ESXi hosts to accommodate both |
-| C-004 | VCF-02 | Single-node NSX Manager in each domain | Minimum viable deployment — reduces resource consumption | Risk: No NSX Manager HA. Mitigation: Acceptable for lab; can redeploy NSX Manager from SDDC Manager if needed |
-| R-004 | VCF-03 | VCF Operations and VCF Automation deployed in management domain | Provides monitoring, capacity analytics, and IaC capabilities for the lab | Risk: Additional resource consumption. Mitigation: Optional components — can be removed if resources are constrained |
+| R-004 | VCF-01 | Separate management and workload domains | Follows "VCF Fleet in a Single Site with Minimal Footprint" blueprint for the management domain, with a separate VI workload domain ("Workload Domain Model: Simple") to support VCF Automation All Apps consumption | Risk: Doubles resource consumption for vCenter and NSX Manager. Mitigation: Sized ESXi hosts to accommodate both |
+| C-004 | VCF-02 | Single-node NSX Manager in each domain | Aligns with minimal footprint blueprint — singleton appliances with vSphere HA for availability | Risk: No NSX Manager HA. Mitigation: Acceptable for lab; can redeploy NSX Manager from SDDC Manager if needed |
+| R-004 | VCF-03 | VCF Operations and VCF Automation deployed in management domain | Follows "Simple VCF Operations Model" and "Simple VCF Automation Model" — single-node deployments on the management cluster | Risk: Additional resource consumption. Mitigation: Optional components — can be removed if resources are constrained |
 | R-004 | VCF-04 | VCF Installer drives initial bringup then is decommissioned | Standard VCF deployment method — installer is temporary | Risk: Installer VM consumes resources during bringup. Mitigation: Remove after bringup to reclaim resources |
 
 ## 7. NSX Networking Architecture
@@ -611,7 +624,7 @@ Infrastructure VLANs (10.0.10–60.0/24)
 |------|-------------|-----------------|----------------------|-------------------|
 | R-006 | NSX-01 | Two-node NSX Edge cluster sized Large | Minimum for Active-Standby HA; Large sizing required for VKS workloads | Risk: Large Edges consume significant resources (8 vCPU, 32 GB each). Mitigation: Workload domain hosts sized accordingly |
 | R-006 | NSX-02 | Active-Standby Tier-0 with BGP uplink to gateway (FRR) (keepalive 60s, hold 180s) | Provides dynamic route exchange; gateway advertises infrastructure subnets, NSX advertises VPC prefixes; conservative timers tolerate nested virtualisation overhead | Risk: BGP misconfiguration breaks north-south routing. Mitigation: Verify adjacency and route tables in Phase 5 |
-| R-008 | NSX-03 | Centralised VPC connectivity model (via Edge cluster) | All north-south traffic traverses Edge — simpler than distributed model for lab | Risk: Edge cluster becomes throughput bottleneck. Mitigation: Acceptable for lab traffic volumes |
+| R-008 | NSX-03 | Centralised VPC connectivity model (via Edge cluster) | Follows "Multi-Tenancy Pattern 1: Single VPC for Multiple Businesses in One Supervisor Zone" — all north-south traffic traverses Edge; simpler than distributed model for lab | Risk: Edge cluster becomes throughput bottleneck. Mitigation: Acceptable for lab traffic volumes |
 | R-008 | NSX-04 | Source NAT on Tier-0 for outbound VPC traffic | Simplifies return routing — external networks see traffic from Tier-0 uplink IP | Risk: NAT hides source IPs. Mitigation: Acceptable for lab; can add specific SNAT rules if needed |
 
 ## 8. VKS Architecture
@@ -754,7 +767,7 @@ This is set via the Kubernetes `securityContext.appArmorProfile` field (Kubernet
 
 | Req. | Decision ID | Design Decision | Design Justification | Risk / Mitigation |
 |------|-------------|-----------------|----------------------|-------------------|
-| R-005 | VKS-01 | Supervisor enabled on workload domain cluster with NSX networking | Required for VKS; Supervisor uses NSX VPC for namespace networking and load balancing (VKS-06, VKS-07); guest cluster pod networking uses Antrea CNI (VKS-08) | Risk: Supervisor enablement requires stable NSX and vSAN. Mitigation: Validate both before enabling Supervisor |
+| R-005 | VKS-01 | Supervisor enabled on workload domain cluster with NSX networking | Follows "Tenancy Model 2: Shared Workload Domain for Multiple Organizations" — Supervisor uses NSX VPC for namespace networking and load balancing (VKS-06, VKS-07); guest cluster pod networking uses Antrea CNI (VKS-08) | Risk: Supervisor enablement requires stable NSX and vSAN. Mitigation: Validate both before enabling Supervisor |
 | R-005 | VKS-02 | 3 control plane + 3 worker nodes for VKS cluster | HA control plane with 3 workers provides realistic cluster topology | Risk: 6 VMs consume significant workload domain resources. Mitigation: Use best-effort-medium VM class (2 vCPU, 8 GB) |
 | R-005 | VKS-03 | Subscribed content library for VKr images | Automatic sync of Kubernetes release images from VMware | Risk: Requires internet access from nested environment. Mitigation: Route via gateway → vCD public network |
 | C-004 | VKS-04 | best-effort-medium VM class for VKS nodes | Balances resource use against lab constraints | Risk: Insufficient resources for complex workloads. Mitigation: Scale VM class up if needed; monitor resource utilisation |
