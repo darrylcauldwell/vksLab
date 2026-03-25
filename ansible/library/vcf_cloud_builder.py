@@ -11,8 +11,8 @@ DOCUMENTATION = r"""
 module: vcf_cloud_builder
 short_description: Drive VCF Cloud Builder bringup
 description:
-  - Validates or deploys a VCF management domain via the Cloud Builder REST API.
-  - Uses Basic Auth against the Cloud Builder appliance.
+  - Validates or deploys a VCF management domain via the VCF Installer REST API.
+  - Authenticates via token (POST /v1/tokens) then uses Bearer auth.
 options:
   hostname:
     description: Cloud Builder hostname or IP.
@@ -56,7 +56,6 @@ options:
     default: false
 """
 
-import base64
 import json
 import os
 import time
@@ -110,10 +109,31 @@ def run_module():
         module.exit_json(changed=False, msg="Check mode — no action taken")
 
     base_url = f"https://{module.params['hostname']}"
-    creds = f"{module.params['username']}:{module.params['password']}"
-    auth_header = f"Basic {base64.b64encode(creds.encode()).decode()}"
     state = module.params["state"]
     validate_certs = module.params["validate_certs"]
+
+    # Obtain bearer token via /v1/tokens
+    try:
+        token_data = {
+            "username": module.params["username"],
+            "password": module.params["password"],
+        }
+        token_payload = json.dumps(token_data).encode()
+        token_req = Request(
+            f"{base_url}/v1/tokens",
+            data=token_payload,
+            method="POST",
+        )
+        token_req.add_header("Content-Type", "application/json")
+        ctx = make_ssl_context(validate_certs)
+        token_resp = urlopen(token_req, context=ctx)
+        token_result = json.loads(token_resp.read().decode())
+        access_token = token_result.get("accessToken")
+        if not access_token:
+            module.fail_json(msg=f"Token response missing accessToken: {token_result}")
+        auth_header = f"Bearer {access_token}"
+    except (URLError, HTTPError) as e:
+        module.fail_json(msg=f"Failed to obtain API token: {e}")
 
     # Load spec — either a dict or a path to a JSON file
     spec = module.params["spec"]
