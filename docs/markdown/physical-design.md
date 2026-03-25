@@ -130,7 +130,7 @@ All VCF components point to 10.0.10.1 for DNS and NTP. systemd-resolved is disab
 
 ### Dynamic Host Configuration Protocol (DHCP) Reservations (VLAN 10)
 
-ESXi hosts receive their management IP via DHCP with static MAC→IP reservations. MAC addresses are discovered automatically by the `phase1b_discover_macs.yml` playbook, which reads dnsmasq dynamic leases and writes static reservations — see [Delivery Guide](deliver.md) §4.5.
+ESXi hosts receive their management IP via DHCP with static MAC→IP reservations. MAC addresses are discovered automatically by the `phase1b_discover_macs.yml` playbook, which reads dnsmasq dynamic leases and writes static reservations — see [Delivery Guide](deliver.md) §4.4.
 
 | Hostname | IP Address |
 |----------|------------|

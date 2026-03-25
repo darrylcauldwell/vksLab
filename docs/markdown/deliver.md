@@ -26,18 +26,68 @@ The lab is built in two tiers. **Phase 0** is a one-time operation that creates 
 
 ## 2. Prerequisites
 
-> Before starting deployment, verify that all assumptions from [Conceptual Design](conceptual-design.md) Section 7 hold true. See Section 2.2 below for the verification checklist.
+> Before starting deployment, verify that all assumptions from [Conceptual Design](conceptual-design.md) Section 7 hold true.
 
-The following must be in place before starting Phase 1.
+The following must be in place before starting Phase 0.
 
 | # | Prerequisite | Status |
 |---|-------------|--------|
 | 1 | vCD resources approved (170 vCPU, 906 GB RAM, 1.9 TB storage) | ☐ |
 | 2 | Ubuntu ISO available in vCD Content Hub (`ubuntu-24.04.2-live-server-amd64.iso`), ESXi vApp template available (`[baked]esxi-9.0.2-2514807`) | ☐ |
-| 3 | VCF Installer OVA (`VCF-SDDC-Manager-Appliance-9.0.2.0.25151285.ova`, 2.03 GB) — download from support.broadcom.com to operator laptop (formerly Cloud Builder; consolidated into SDDC Manager appliance in VCF 9.0) | ☐ |
+| 3 | VCF Installer OVA (`VCF-SDDC-Manager-Appliance-9.0.2.0.25151285.ova`, 2.03 GB) — download from support.broadcom.com to `~/Downloads/` on operator laptop (formerly Cloud Builder; consolidated into SDDC Manager appliance in VCF 9.0) | ☐ |
 | 4 | RDP client installed on operator Mac — [Windows App](https://apps.apple.com/app/windows-app/id1295203466) from App Store | ☐ |
 | 5 | VCF offline depot accessible: `curl -s https://depot.vcf-gcp.broadcom.net` returns a response | ☐ |
-| 6 | Operator SSH key pair exists (`~/.ssh/id_ed25519.pub`), or will be generated in Phase 1 | ☐ |
+| 6 | Operator SSH key pair exists (`~/.ssh/id_ed25519.pub`), or generate one: `ssh-keygen -t ed25519` | ☐ |
+
+### 2.1 1Password Secret Store
+
+Ansible retrieves all lab credentials from 1Password at runtime (from the "Employee" vault). Install the CLI and create password items:
+
+```bash
+# Install 1Password CLI (macOS)
+brew install --cask 1password-cli
+
+# Enable CLI integration in 1Password desktop app:
+#   Settings → Security → enable "Unlock using system authentication"
+#   Settings → Developer → enable "Integrate with 1Password CLI"
+# After this, op commands authenticate via Touch ID — no manual signin needed.
+
+# Create 1Password items (first time only)
+op item create --vault Employee --category login --title "Lab Bootstrap" \
+  password='VMware1!VMware1!' username=ubuntu
+op item create --vault Employee --category login --title "ESXi Root" \
+  password='VMware1!VMware1!' username=root
+op item create --vault Employee --category login --title "vCenter SSO" \
+  password='VMware1!VMware1!' username='administrator@vsphere.local'
+op item create --vault Employee --category login --title "SDDC Manager" \
+  password='VMware1!VMware1!' username='admin@local'
+op item create --vault Employee --category login --title "NSX Manager" \
+  password='VMware1!VMware1!' username=admin
+op item create --vault Employee --category login --title "Keycloak Admin" \
+  password='VMware1!VMware1!' username=admin
+
+```
+
+Verify: `op item list --vault Employee` shows all 6 items.
+
+### 2.2 Ansible
+
+Ansible runs from the operator's laptop (not the gateway) and connects to lab hosts via SSH ProxyJump through the gateway.
+
+```bash
+# Install sshpass (required for password-based SSH to ESXi hosts)
+brew install hudochenkov/sshpass/sshpass
+
+# Create and activate virtual environment (from repo root)
+python3 -m venv .venv
+source .venv/bin/activate
+
+# Install Ansible and required collections
+pip install ansible-core
+ansible-galaxy collection install -r ansible/collections/requirements.yml
+```
+
+> **Note**: Activate the virtual environment (`source .venv/bin/activate`) and run all `ansible-playbook` commands from the `ansible/` directory (where `ansible.cfg` lives). The `.venv/` directory is already in `.gitignore`.
 
 ## 3. Phase 0 — vApp Template (One-Time)
 
@@ -56,7 +106,7 @@ The following must be in place before starting Phase 1.
 | Step | Action | Expected Result | Verification |
 |------|--------|-----------------|--------------|
 | 3.2.1 | In the vApp, click **Add VM** > **New**. Select Ubuntu 24.04 ISO from Content Hub (2 vCPU, 10 GB RAM, 60 GB disk). Assign NIC1 to the Public network and NIC2 to `lab-trunk` | The gateway VM is created with the specified configuration | The VM is visible in the vApp inventory |
-| 3.2.2 | Power on and complete Ubuntu installer via vCD console — set server name `gateway`, username `ubuntu`, set a simple temporary password (e.g. `VMware1!`). This password is saved to 1Password as the "Lab Bootstrap" item in step 4.1.1 | Ubuntu 24.04 is installed on the gateway VM | A login prompt appears on the vCD console |
+| 3.2.2 | Power on and complete Ubuntu installer via vCD console — set server name `gateway`, username `ubuntu`, set a simple temporary password (e.g. `VMware1!`). This password matches the "Lab Bootstrap" item created in §2.1 | Ubuntu 24.04 is installed on the gateway VM | A login prompt appears on the vCD console |
 | 3.2.3 | Note public IP assigned by DHCP to NIC1 (ens33): `ip addr show ens33` | The public IP address is obtained | — |
 | 3.2.4 | Store gateway IP in 1Password: `op item edit "Lab Bootstrap" ip_address=<gateway-ip>` | The gateway IP is stored in 1Password | `op item get "Lab Bootstrap" --fields ip_address` returns the IP |
 | 3.2.5 | Copy SSH key to gateway: `ssh-copy-id ubuntu@<gateway-ip>` | The SSH public key is deployed to the gateway | `ssh ubuntu@<gateway-ip>` connects without a password prompt |
@@ -107,85 +157,30 @@ ansible-playbook playbooks/phase0_operator.yml --tags ova
 
 > Phase 1 implements R-001, R-002, R-003, R-009 via VCD-01, VCD-02, NET-01, NET-05, SVC-01 through SVC-08.
 
-### 4.1 Operator Laptop Setup
-
-#### 4.1.1 1Password Secret Store
-
-Ansible retrieves all lab credentials from 1Password at runtime (from the "Employee" vault). Install the CLI and generate passwords:
-
-```bash
-# Install 1Password CLI (macOS)
-brew install --cask 1password-cli
-
-# Enable CLI integration in 1Password desktop app:
-#   Settings → Security → enable "Unlock using system authentication"
-#   Settings → Developer → enable "Integrate with 1Password CLI"
-# After this, op commands authenticate via Touch ID — no manual signin needed.
-
-# Create 1Password items (first time only)
-op item create --vault Employee --category login --title "Lab Bootstrap" \
-  password='VMware1!VMware1!' username=ubuntu
-op item create --vault Employee --category login --title "ESXi Root" \
-  password='VMware1!VMware1!' username=root
-op item create --vault Employee --category login --title "vCenter SSO" \
-  password='VMware1!VMware1!' username='administrator@vsphere.local'
-op item create --vault Employee --category login --title "SDDC Manager" \
-  password='VMware1!VMware1!' username='admin@local'
-op item create --vault Employee --category login --title "NSX Manager" \
-  password='VMware1!VMware1!' username=admin
-op item create --vault Employee --category login --title "Keycloak Admin" \
-  password='VMware1!VMware1!' username=admin
-
-```
-
-Verify: `op item list --vault Employee` shows all 6 items.
-
-#### 4.1.2 Ansible
-
-Ansible runs from the operator's laptop (not the gateway) and connects to lab hosts via SSH ProxyJump through the gateway.
-
-```bash
-# Install sshpass (required for password-based SSH to ESXi hosts)
-brew install hudochenkov/sshpass/sshpass
-
-# Create and activate virtual environment (from repo root)
-python3 -m venv .venv
-source .venv/bin/activate
-
-# Install Ansible and required collections
-pip install ansible-core
-ansible-galaxy collection install -r ansible/collections/requirements.yml
-```
-
-> **Note**: Activate the virtual environment (`source .venv/bin/activate`) and run all `ansible-playbook` commands from the `ansible/` directory (where `ansible.cfg` lives). The `.venv/` directory is already in `.gitignore`.
-
-### 4.2 Deploy vApp from Template (Manual in vCD)
+### 4.1 Deploy vApp from Template (Manual in vCD)
 
 | Step | Action | Expected Result | Verification |
 |------|--------|-----------------|--------------|
-| 4.2.1 | In vCD catalog, deploy vApp from template `[baseline]vcf-9.0.2-lab-8vm` | A vApp is created containing all 8 VMs | The vApp is visible with all VMs listed |
-| 4.2.2 | Power on all 8 VMs (allow 5–10 minutes for all VMs to complete POST) | All 8 VMs are running | The gateway obtains a public IP via Dynamic Host Configuration Protocol (DHCP) |
-| 4.2.3 | Note gateway public IP: `ip addr show ens33` via vCD console | The public IP address is obtained | — |
-| 4.2.4 | Store gateway IP in 1Password: `op item edit "Lab Bootstrap" ip_address=<gateway-ip>` | The gateway IP is stored in 1Password | `op item get "Lab Bootstrap" --fields ip_address` returns the IP |
-| 4.2.5 | If no SSH key exists, generate one: `ssh-keygen -t ed25519` | An ed25519 key pair is created | `~/.ssh/id_ed25519.pub` exists |
-| 4.2.6 | Copy SSH key to gateway: `ssh-copy-id ubuntu@<gateway-ip>` | The SSH public key is deployed to the gateway | `ssh ubuntu@<gateway-ip>` connects without a password prompt |
+| 4.1.1 | In vCD catalog, deploy vApp from template `[baseline]vcf-9.0.2-lab-8vm` | A vApp is created containing all 8 VMs | The vApp is visible with all VMs listed |
+| 4.1.2 | Power on all 8 VMs (allow 5–10 minutes for all VMs to complete POST) | All 8 VMs are running | The gateway obtains a public IP via Dynamic Host Configuration Protocol (DHCP) |
+| 4.1.3 | Note gateway public IP: `ip addr show ens33` via vCD console | The public IP address is obtained | — |
+| 4.1.4 | Store gateway IP in 1Password: `op item edit "Lab Bootstrap" ip_address=<gateway-ip>` | The gateway IP is stored in 1Password | `op item get "Lab Bootstrap" --fields ip_address` returns the IP |
+| 4.1.5 | Copy SSH key to gateway: `ssh-copy-id ubuntu@<gateway-ip>` | The SSH public key is deployed to the gateway | `ssh ubuntu@<gateway-ip>` connects without a password prompt |
 
-> **Note**: vCD assigns new MAC addresses each time a vApp is deployed from a template. MAC discovery is automated in §4.5 — no manual lookup is required.
+> **Note**: vCD assigns new MAC addresses each time a vApp is deployed from a template. MAC discovery is automated in §4.4 — no manual lookup is required.
 
-### 4.3 Reset ESXi System Configuration (Manual in vCD)
+### 4.2 Reset ESXi System Configuration (Manual in vCD)
 
 ESXi hosts deployed from the vApp template carry stale configuration from the previous deployment (hostname, MAC-based network mapping, UUID). Resetting the system configuration via the Direct Console User Interface (DCUI) provides a clean baseline before MAC discovery.
 
 | Step | Action | Expected Result | Verification |
 |------|--------|-----------------|--------------|
-| 4.3.1 | For each ESXi VM (esxi-01 through esxi-07), open the VM console in vCD | The DCUI is displayed | — |
-| 4.3.2 | Press **F2** > **Reset System Configuration** > **F11** to confirm | The host begins resetting its configuration | The DCUI shows a reset progress indicator |
-| 4.3.3 | Wait for the host to reboot and obtain a new DHCP lease (1–2 minutes per host) | The host reboots and obtains an IP in the `.100–.199` dynamic range | The DCUI shows a management IP in the dynamic range |
-| 4.3.4 | On each host via DCUI: press **F2** > **Troubleshooting Options** > **Enable SSH** > **Enter** | SSH is enabled on the host | — |
+| 4.2.1 | For each ESXi VM (esxi-01 through esxi-07), open the VM console in vCD. Press **F2** > **Reset System Configuration** > **F11** to confirm. Wait for the host to reboot (1–2 minutes per host) | Each host reboots with a clean configuration | The DCUI shows a management IP in the `.100–.199` dynamic range |
+| 4.2.2 | On each host via DCUI: press **F2** > **Troubleshooting Options** > **Enable SSH** > **Enter**, then **Enable ESXi Shell** > **Enter** | SSH and ESXi Shell are enabled on all hosts | The DCUI shows SSH and Shell as enabled |
 
-> **Note**: Reset System Configuration clears the hostname, UUID, and network configuration from the template. It also resets the root password to blank and disables SSH/ESXi Shell. Step 4.3.4 re-enables SSH for Ansible connectivity. The root password is set automatically by the Phase 2 playbook (§5.1) — no manual password configuration is needed.
+> **Note**: Reset System Configuration clears the hostname, UUID, and network configuration from the template. It also resets the root password to blank and disables SSH/ESXi Shell. Step 4.2.2 re-enables SSH for Ansible connectivity. The root password is set automatically by the Phase 2 playbook (§5.1) — no manual password configuration is needed.
 
-### 4.4 Configure Gateway (Automated)
+### 4.3 Configure Gateway (Automated)
 
 All gateway configuration (VLAN sub-interfaces, dnsmasq DNS/DHCP, chrony NTP, step-ca, GNOME/gnome-remote-desktop, IP masquerading, FRR BGP, Firefox, Keycloak) is automated by the `gateway` and `docker_services` Ansible roles. The playbook takes approximately **10–15 minutes** to complete:
 
@@ -195,9 +190,9 @@ cd ansible
 ansible-playbook playbooks/phase1_foundation.yml
 ```
 
-### 4.5 Discover ESXi MACs (Automated)
+### 4.4 Discover ESXi MACs (Automated)
 
-After the gateway is configured (§4.4), the 7 ESXi VMs will have obtained dynamic DHCP addresses in the `.100–.199` range. The `phase1b_discover_macs.yml` playbook reads these leases, maps each MAC to a static reservation (esxi-01 through esxi-07), writes the reservations into the dnsmasq config, and restarts dnsmasq so the hosts pick up their static IPs (`.11–.17`).
+After the gateway is configured (§4.3), the 7 ESXi VMs will have obtained dynamic DHCP addresses in the `.100–.199` range. The `phase1b_discover_macs.yml` playbook reads these leases, maps each MAC to a static reservation (esxi-01 through esxi-07), writes the reservations into the dnsmasq config, and restarts dnsmasq so the hosts pick up their static IPs (`.11–.17`).
 
 ```bash
 cd ansible
@@ -215,9 +210,9 @@ The playbook:
 
 > **Note**: The order in which MACs are assigned to hosts is arbitrary — all ESXi VMs are identical spec ("cattle not pets"), so any MAC-to-host mapping is valid. The first 4 MACs are assigned to management hosts (esxi-01 through esxi-04), the remaining 3 to workload hosts (esxi-05 through esxi-07).
 
-The playbook is idempotent: if reservations already exist and hosts are reachable on their static IPs, it skips discovery and verifies connectivity only. On rebuild, if reservations exist but hosts are unreachable on static IPs (e.g. after Reset System Configuration in §4.3), the playbook clears stale reservations and re-discovers MACs from fresh DHCP leases.
+The playbook is idempotent: if reservations already exist and hosts are reachable on their static IPs, it skips discovery and verifies connectivity only. On rebuild, if reservations exist but hosts are unreachable on static IPs (e.g. after Reset System Configuration in §4.2), the playbook clears stale reservations and re-discovers MACs from fresh DHCP leases.
 
-### 4.6 Foundation Verification
+### 4.5 Foundation Verification
 
 The `phase1_foundation.yml` playbook runs automated verification checks at the end of the play. All checks below except RDP are validated automatically — the playbook will fail with a clear message if any check does not pass.
 
@@ -239,7 +234,7 @@ The `phase1_foundation.yml` playbook runs automated verification checks at the e
 
 ### 5.1 Prepare Hosts (Automated)
 
-The playbook first bootstraps the root password on each host. After Reset System Configuration (§4.3), the root password is blank — the bootstrap play connects with a blank password and sets it to the 1Password "Lab Bootstrap" credential. On re-runs where the password is already set, this step is skipped automatically.
+The playbook first bootstraps the root password on each host. After Reset System Configuration (§4.2), the root password is blank — the bootstrap play connects with a blank password and sets it to the 1Password "Lab Bootstrap" credential. On re-runs where the password is already set, this step is skipped automatically.
 
 The `esxi_prepare` role then configures all hosts — hostname, DNS, NTP, root password (upgraded to the runtime credential from 1Password "ESXi Root"), and vSAN Express Storage Architecture (ESA) preparation. The playbook takes approximately **5–10 minutes** to complete:
 
