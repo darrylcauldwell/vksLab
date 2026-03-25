@@ -167,20 +167,9 @@ ansible-playbook playbooks/phase0_operator.yml --tags ova
 | 4.1.4 | Store gateway IP in 1Password: `op item edit "Lab Bootstrap" ip_address=<gateway-ip>` | The gateway IP is stored in 1Password | `op item get "Lab Bootstrap" --fields ip_address` returns the IP |
 | 4.1.5 | Copy SSH key to gateway: `ssh-copy-id ubuntu@<gateway-ip>` | The SSH public key is deployed to the gateway | `ssh ubuntu@<gateway-ip>` connects without a password prompt |
 
-> **Note**: vCD assigns new MAC addresses each time a vApp is deployed from a template. MAC discovery is automated in §4.4 — no manual lookup is required.
+> **Note**: vCD assigns new MAC addresses each time a vApp is deployed from a template. MAC discovery is automated in §4.3 — no manual lookup is required. ESXi hosts do not need a DCUI reset on rebuild — the template was saved after Reset System Configuration (§3.5.3) with SSH and Shell already enabled (§3.5.4).
 
-### 4.2 Reset ESXi System Configuration (Manual in vCD)
-
-ESXi hosts deployed from the vApp template carry stale configuration from the previous deployment (hostname, MAC-based network mapping, UUID). Resetting the system configuration via the Direct Console User Interface (DCUI) provides a clean baseline before MAC discovery.
-
-| Step | Action | Expected Result | Verification |
-|------|--------|-----------------|--------------|
-| 4.2.1 | For each ESXi VM (esxi-01 through esxi-07), open the VM console in vCD. Press **F2** > **Reset System Configuration** > **F11** to confirm. Wait for the host to reboot (1–2 minutes per host) | Each host reboots with a clean configuration | The DCUI shows a management IP in the `.100–.199` dynamic range |
-| 4.2.2 | On each host via DCUI: press **F2** > **Troubleshooting Options** > **Enable SSH** > **Enter**, then **Enable ESXi Shell** > **Enter** | SSH and ESXi Shell are enabled on all hosts | The DCUI shows SSH and Shell as enabled |
-
-> **Note**: Reset System Configuration clears the hostname, UUID, and network configuration from the template. It also resets the root password to blank and disables SSH/ESXi Shell. Step 4.2.2 re-enables SSH for Ansible connectivity. The root password is set automatically by the Phase 2 playbook (§5.1) — no manual password configuration is needed.
-
-### 4.3 Configure Gateway (Automated)
+### 4.2 Configure Gateway (Automated)
 
 All gateway configuration (VLAN sub-interfaces, dnsmasq DNS/DHCP, chrony NTP, step-ca, GNOME/gnome-remote-desktop, IP masquerading, FRR BGP, Firefox, Keycloak) is automated by the `gateway` and `docker_services` Ansible roles. The playbook takes approximately **10–15 minutes** to complete:
 
@@ -190,9 +179,9 @@ cd ansible
 ansible-playbook playbooks/phase1_foundation.yml
 ```
 
-### 4.4 Discover ESXi MACs (Automated)
+### 4.3 Discover ESXi MACs (Automated)
 
-After the gateway is configured (§4.3), the 7 ESXi VMs will have obtained dynamic DHCP addresses in the `.100–.199` range. The `phase1b_discover_macs.yml` playbook reads these leases, maps each MAC to a static reservation (esxi-01 through esxi-07), writes the reservations into the dnsmasq config, and restarts dnsmasq so the hosts pick up their static IPs (`.11–.17`).
+After the gateway is configured (§4.2), the 7 ESXi VMs will have obtained dynamic DHCP addresses in the `.100–.199` range. The `phase1b_discover_macs.yml` playbook reads these leases, maps each MAC to a static reservation (esxi-01 through esxi-07), writes the reservations into the dnsmasq config, and restarts dnsmasq so the hosts pick up their static IPs (`.11–.17`).
 
 ```bash
 cd ansible
@@ -210,9 +199,9 @@ The playbook:
 
 > **Note**: The order in which MACs are assigned to hosts is arbitrary — all ESXi VMs are identical spec ("cattle not pets"), so any MAC-to-host mapping is valid. The first 4 MACs are assigned to management hosts (esxi-01 through esxi-04), the remaining 3 to workload hosts (esxi-05 through esxi-07).
 
-The playbook is idempotent: if reservations already exist and hosts are reachable on their static IPs, it skips discovery and verifies connectivity only. On rebuild, if reservations exist but hosts are unreachable on static IPs (e.g. after Reset System Configuration in §4.2), the playbook clears stale reservations and re-discovers MACs from fresh DHCP leases.
+The playbook is idempotent: if reservations already exist and hosts are reachable on their static IPs, it skips discovery and verifies connectivity only. On rebuild, the playbook clears stale reservations and re-discovers MACs from fresh DHCP leases (vCD assigns new MACs on each deploy from template).
 
-### 4.5 Foundation Verification
+### 4.4 Foundation Verification
 
 The `phase1_foundation.yml` playbook runs automated verification checks at the end of the play. All checks below except RDP are validated automatically — the playbook will fail with a clear message if any check does not pass.
 
@@ -234,7 +223,7 @@ The `phase1_foundation.yml` playbook runs automated verification checks at the e
 
 ### 5.1 Prepare Hosts (Automated)
 
-The playbook first bootstraps the root password on each host. After Reset System Configuration (§4.2), the root password is blank — the bootstrap play connects with a blank password and sets it to the 1Password "Lab Bootstrap" credential. On re-runs where the password is already set, this step is skipped automatically.
+The playbook first bootstraps the root password on each host. After Reset System Configuration (Phase 0 §3.5.3), the root password is blank — the bootstrap play connects with a blank password and sets it to the 1Password "Lab Bootstrap" credential. On re-runs where the password is already set, this step is skipped automatically.
 
 The `esxi_prepare` role then configures all hosts — hostname, DNS, NTP, root password (upgraded to the runtime credential from 1Password "ESXi Root"), and vSAN Express Storage Architecture (ESA) preparation. The playbook takes approximately **5–10 minutes** to complete:
 
