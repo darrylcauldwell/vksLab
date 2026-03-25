@@ -25,6 +25,9 @@
       Authorization: "Bearer {{ token_response.json.accessToken }}"
     body_format: json
     body:
+      offlineAccount:
+        username: ""
+        password: ""
       depotConfiguration:
         isOfflineDepot: true
         hostname: "{{ vcf_depot_url }}"
