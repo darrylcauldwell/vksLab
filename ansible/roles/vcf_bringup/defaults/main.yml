@@ -3,73 +3,123 @@ vcf_bringup_username: admin@local
 vcf_bringup_password: "{{ sddc_admin_password }}"
 
 vcf_bringup_spec:
+  sddcId: vcf-m01
+  workflowType: VCF
+  ceipEnabled: false
+  skipEsxThumbprintValidation: true
+  deployWithoutLicenseKeys: true
+  managementPoolName: mgmt-network-pool
   dnsSpec:
-    domain: "{{ lab_domain }}"
-    nameserver: "{{ lab_dns_server }}"
+    nameservers:
+      - "{{ lab_dns_server }}"
+    subdomain: "{{ lab_domain }}"
   ntpServers:
-    - ipAddress: "{{ lab_ntp_servers[0] }}"
-  managementPoolSpec:
-    subnet: "{{ vlans.management.subnet }}"
-    gateway: "{{ vlans.management.gateway }}"
+    - "{{ lab_ntp_servers[0] }}"
+  vcenterSpec:
+    vcenterHostname: "vcenter-mgmt.{{ lab_domain }}"
+    rootVcenterPassword: "{{ vcenter_sso_password }}"
+    adminUserSsoPassword: "{{ vcenter_sso_password }}"
+    vmSize: small
+    storageSize: lstorage
+    ssoDomain: vsphere.local
+  clusterSpec:
+    clusterName: vcf-m01-cl01
+    datacenterName: vcf-m01-dc01
+  datastoreSpec:
+    vsanSpec:
+      datastoreName: vcf-m01-cl01-ds-vsan01
+      esaConfig:
+        enabled: true
+  sddcManagerSpec:
+    hostname: "sddc-manager.{{ lab_domain }}"
+    rootPassword: "{{ sddc_admin_password }}"
+    sshPassword: "{{ sddc_admin_password }}"
+    localUserPassword: "{{ sddc_admin_password }}"
+  nsxtSpec:
+    nsxtManagerSize: small
+    rootNsxtManagerPassword: "{{ nsx_admin_password }}"
+    nsxtAdminPassword: "{{ nsx_admin_password }}"
+    nsxtAuditPassword: "{{ nsx_admin_password }}"
+    rootLoginEnabledForNsxtManager: true
+    sshEnabledForNsxtManager: true
+    skipNsxOverlayOverManagementNetwork: true
+    nsxtManagers:
+      - hostname: "nsx-mgr-mgmt.{{ lab_domain }}"
+    vipFqdn: "nsx-mgr-mgmt.{{ lab_domain }}"
+    transportVlanId: "{{ vlans.host_overlay.id }}"
+    ipAddressPoolSpec:
+      name: tep-ip-pool
+      description: ESXi Host Overlay TEP IP Pool
+      subnets:
+        - cidr: "{{ vlans.host_overlay.subnet }}"
+          gateway: "{{ vlans.host_overlay.gateway }}"
+          ipAddressPoolRanges:
+            - start: "{{ lab_overlay_prefix }}.11"
+              end: "{{ lab_overlay_prefix }}.14"
+  hostSpecs:
+    - hostname: "esxi-01.{{ lab_domain }}"
+      credentials:
+        username: root
+        password: "{{ bootstrap_password }}"
+    - hostname: "esxi-02.{{ lab_domain }}"
+      credentials:
+        username: root
+        password: "{{ bootstrap_password }}"
+    - hostname: "esxi-03.{{ lab_domain }}"
+      credentials:
+        username: root
+        password: "{{ bootstrap_password }}"
+    - hostname: "esxi-04.{{ lab_domain }}"
+      credentials:
+        username: root
+        password: "{{ bootstrap_password }}"
   networkSpecs:
     - networkType: MANAGEMENT
       subnet: "{{ vlans.management.subnet }}"
       gateway: "{{ vlans.management.gateway }}"
       vlanId: "{{ vlans.management.id }}"
       mtu: "{{ vlans.management.mtu }}"
+      portGroupKey: vcf-m01-cl01-vds01-pg-mgmt
     - networkType: VMOTION
       subnet: "{{ vlans.vmotion.subnet }}"
       gateway: "{{ vlans.vmotion.gateway }}"
       vlanId: "{{ vlans.vmotion.id }}"
       mtu: "{{ vlans.vmotion.mtu }}"
-      ipPools:
-        - start: "{{ lab_vmotion_prefix }}.11"
-          end: "{{ lab_vmotion_prefix }}.14"
+      portGroupKey: vcf-m01-cl01-vds01-pg-vmotion
+      includeIpAddressRanges:
+        - startIpAddress: "{{ lab_vmotion_prefix }}.11"
+          endIpAddress: "{{ lab_vmotion_prefix }}.14"
     - networkType: VSAN
       subnet: "{{ vlans.vsan.subnet }}"
       gateway: "{{ vlans.vsan.gateway }}"
       vlanId: "{{ vlans.vsan.id }}"
       mtu: "{{ vlans.vsan.mtu }}"
-      ipPools:
-        - start: "{{ lab_vsan_prefix }}.11"
-          end: "{{ lab_vsan_prefix }}.14"
-    - networkType: HOST_OVERLAY
-      subnet: "{{ vlans.host_overlay.subnet }}"
-      gateway: "{{ vlans.host_overlay.gateway }}"
-      vlanId: "{{ vlans.host_overlay.id }}"
-      mtu: "{{ vlans.host_overlay.mtu }}"
-      ipPools:
-        - start: "{{ lab_overlay_prefix }}.11"
-          end: "{{ lab_overlay_prefix }}.14"
-  vcenterSpec:
-    name: vcenter-mgmt
-    hostname: "vcenter-mgmt.{{ lab_domain }}"
-    ip: "{{ lab_mgmt_prefix }}.4"
-    rootPassword: "{{ vcenter_sso_password }}"
-  sddcManagerSpec:
-    hostname: "sddc-manager.{{ lab_domain }}"
-    ip: "{{ lab_mgmt_prefix }}.5"
-    rootPassword: "{{ sddc_admin_password }}"
-    adminPassword: "{{ sddc_admin_password }}"
-  nsxManagerSpec:
-    hostname: "nsx-mgr-mgmt.{{ lab_domain }}"
-    ip: "{{ lab_mgmt_prefix }}.6"
-    adminPassword: "{{ nsx_admin_password }}"
-    deploymentSize: small
-  hostSpecs:
-    - hostname: "esxi-01.{{ lab_domain }}"
-      ip: "{{ lab_mgmt_prefix }}.11"
-      username: root
-      password: "{{ bootstrap_password }}"
-    - hostname: "esxi-02.{{ lab_domain }}"
-      ip: "{{ lab_mgmt_prefix }}.12"
-      username: root
-      password: "{{ bootstrap_password }}"
-    - hostname: "esxi-03.{{ lab_domain }}"
-      ip: "{{ lab_mgmt_prefix }}.13"
-      username: root
-      password: "{{ bootstrap_password }}"
-    - hostname: "esxi-04.{{ lab_domain }}"
-      ip: "{{ lab_mgmt_prefix }}.14"
-      username: root
-      password: "{{ bootstrap_password }}"
+      portGroupKey: vcf-m01-cl01-vds01-pg-vsan
+      includeIpAddressRanges:
+        - startIpAddress: "{{ lab_vsan_prefix }}.11"
+          endIpAddress: "{{ lab_vsan_prefix }}.14"
+  dvsSpecs:
+    - dvsName: vcf-m01-cl01-vds01
+      networks:
+        - MANAGEMENT
+        - VMOTION
+        - VSAN
+      mtu: 9000
+      nsxtSwitchConfig:
+        hostSwitchOperationalMode: STANDARD
+        transportZones:
+          - name: nsx-vlan-transportzone
+            transportType: VLAN
+          - name: overlay-tz-vcf-m01
+            transportType: OVERLAY
+      vmnicsToUplinks:
+        - id: vmnic0
+          uplink: uplink1
+        - id: vmnic1
+          uplink: uplink2
+      nsxTeamings:
+        - policy: LOADBALANCE_SRCID
+          standByUplinks: []
+          activeUplinks:
+            - uplink1
+            - uplink2
