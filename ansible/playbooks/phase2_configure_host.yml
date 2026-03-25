@@ -27,12 +27,12 @@
     -I {{ hostvars[esxi_host]['ansible_host'] }} -N 255.255.255.0 -t static &&
     for srv in $(esxcli network ip dns server list | awk '/^[0-9]/ {print $1}'); do
     esxcli network ip dns server remove --server=$srv 2>/dev/null; done &&
-    esxcli network ip dns server add --server={{ esxi_dns_server }} 2>/dev/null;
+    esxcli network ip dns server add --server={{ lab_dns_server }} 2>/dev/null;
     for dom in $(esxcli network ip dns search list | awk '/^[a-zA-Z]/ && !/DNSSearch/ {print $1}'); do
     esxcli network ip dns search remove --domain=$dom 2>/dev/null; done &&
-    esxcli network ip dns search add --domain={{ esxi_domain }} 2>/dev/null;
-    esxcfg-route {{ esxi_gateway }} &&
-    esxcli system ntp set --server={{ esxi_ntp_servers | join(',') }} &&
+    esxcli network ip dns search add --domain={{ lab_domain }} 2>/dev/null;
+    esxcfg-route {{ lab_gateway }} &&
+    esxcli system ntp set --server={{ lab_ntp_servers | join(',') }} &&
     esxcli system ntp set --enabled=true"
   environment:
     SSHPASS: "{{ bootstrap_password }}"
