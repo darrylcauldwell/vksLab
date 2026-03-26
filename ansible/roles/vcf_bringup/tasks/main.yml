@@ -50,9 +50,21 @@
     validate_certs: false
   register: bundles_response
 
+- name: Extract bundle list from response
+  ansible.builtin.set_fact:
+    bundle_list: "{{ bundles_response.json.elements | default(bundles_response.json) }}"
+
 - name: Display available bundles
   ansible.builtin.debug:
-    msg: "{{ bundles_response.json | map(attribute='id') | list }} ({{ bundles_response.json | length }} bundles)"
+    msg: "{{ bundle_list | length }} bundles found"
+
+- name: Display bundle details
+  ansible.builtin.debug:
+    msg: "{{ item.id | default('unknown') }} — {{ item.downloadStatus | default('unknown') }}"
+  loop: "{{ bundle_list }}"
+  loop_control:
+    label: "{{ item.id | default('unknown') }}"
+  when: bundle_list | length > 0
 
 - name: Download bundles not yet downloaded
   ansible.builtin.uri:
@@ -66,19 +78,19 @@
         downloadNow: true
     validate_certs: false
     status_code: [200, 202]
-  loop: "{{ bundles_response.json | selectattr('downloadStatus', 'ne', 'SUCCESSFUL') | list }}"
+    timeout: 120
+  loop: "{{ bundle_list | selectattr('downloadStatus', 'ne', 'SUCCESSFUL') | list }}"
   loop_control:
     label: "{{ item.id }}"
   register: download_tasks
-  when: bundles_response.json | selectattr('downloadStatus', 'ne', 'SUCCESSFUL') | list | length > 0
+  when: bundle_list | selectattr('downloadStatus', 'ne', 'SUCCESSFUL') | list | length > 0
 
-- name: Display bundle download status
+- name: Display bundle download summary
   ansible.builtin.debug:
     msg: >-
-      {{ bundles_response.json | selectattr('downloadStatus', 'ne', 'SUCCESSFUL') | list | length }} bundles
-      need downloading, {{ bundles_response.json | selectattr('downloadStatus', 'eq', 'SUCCESSFUL') | list | length }}
+      {{ bundle_list | selectattr('downloadStatus', 'ne', 'SUCCESSFUL') | list | length }} bundles
+      need downloading, {{ bundle_list | selectattr('downloadStatus', 'eq', 'SUCCESSFUL') | list | length }}
       already downloaded.
-  when: bundles_response.json is defined
 
 # --- Bringup validation and deployment ---
 
