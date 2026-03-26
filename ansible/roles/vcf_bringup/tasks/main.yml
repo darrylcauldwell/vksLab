@@ -52,56 +52,83 @@
 # All SSH commands use a script block to avoid shell escaping issues.
 # Each step is independent — failures are handled individually.
 
-- name: Apply vSAN ESA nested lab workarounds on VCF Installer
-  ansible.builtin.shell: |
-    sshpass -e ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-      root@{{ vcf_bringup_hostname }} bash -s << 'REMOTE_SCRIPT'
-    set -e
+- name: Create vSAN ESA workaround script
+  ansible.builtin.copy:
+    dest: /tmp/vcf-vsan-workaround.sh
+    mode: "0755"
+    content: |
+      #!/bin/bash
+      set -e
 
-    # 1. Enable vSAN ESA HCL bypass (idempotent)
-    PROP_FILE=/etc/vmware/vcf/domainmanager/application-prod.properties
-    PROP_KEY="vsan.esa.sddc.managed.disk.claim=true"
-    if grep -q "$PROP_KEY" "$PROP_FILE" 2>/dev/null; then
-      echo "HCL_BYPASS: already configured"
-    else
-      echo "$PROP_KEY" >> "$PROP_FILE"
-      echo "HCL_BYPASS: added property"
-    fi
-
-    # 2. Restart domainmanager to pick up the property change
-    systemctl restart domainmanager
-    echo "DOMAINMANAGER: restarted"
-
-    # 3. Wait for domainmanager to be ready
-    for i in $(seq 1 12); do
-      if systemctl is-active --quiet domainmanager; then
-        echo "DOMAINMANAGER: ready"
-        break
+      # 1. Enable vSAN ESA HCL bypass (idempotent)
+      PROP_FILE=/etc/vmware/vcf/domainmanager/application-prod.properties
+      PROP_KEY="vsan.esa.sddc.managed.disk.claim=true"
+      if grep -q "$PROP_KEY" "$PROP_FILE" 2>/dev/null; then
+        echo "HCL_BYPASS: already configured"
+      else
+        echo "$PROP_KEY" >> "$PROP_FILE"
+        echo "HCL_BYPASS: added property"
       fi
-      sleep 5
-    done
 
-    # 4. Patch HCL timestamp (if file exists)
-    HCL_FILE=/nfs/vmware/vcf/nfs-mount/vsan-hcl/all.json
-    if [ -f "$HCL_FILE" ]; then
-      NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-      sed -i "s/\"timestamp\":\"[^\"]*\"/\"timestamp\":\"$NOW\"/" "$HCL_FILE"
-      sed -i "s/\"jsonUpdatedTime\":\"[^\"]*\"/\"jsonUpdatedTime\":\"$NOW\"/" "$HCL_FILE"
-      echo "HCL_TIMESTAMP: patched to $NOW"
-    else
-      echo "HCL_TIMESTAMP: file not found (skipped)"
-    fi
+      # 2. Restart domainmanager to pick up the property change
+      systemctl restart domainmanager
+      echo "DOMAINMANAGER: restarted"
 
-    echo "WORKAROUNDS: complete"
-    REMOTE_SCRIPT
+      # 3. Wait for domainmanager to be ready
+      for i in $(seq 1 12); do
+        if systemctl is-active --quiet domainmanager; then
+          echo "DOMAINMANAGER: ready"
+          break
+        fi
+        sleep 5
+      done
+
+      # 4. Patch HCL timestamp (if file exists)
+      HCL_FILE=/nfs/vmware/vcf/nfs-mount/vsan-hcl/all.json
+      if [ -f "$HCL_FILE" ]; then
+        NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+        sed -i "s/\"timestamp\":\"[^\"]*\"/\"timestamp\":\"$NOW\"/" "$HCL_FILE"
+        sed -i "s/\"jsonUpdatedTime\":\"[^\"]*\"/\"jsonUpdatedTime\":\"$NOW\"/" "$HCL_FILE"
+        echo "HCL_TIMESTAMP: patched to $NOW"
+      else
+        echo "HCL_TIMESTAMP: file not found (skipped)"
+      fi
+
+      echo "WORKAROUNDS: complete"
+
+- name: Copy workaround script to VCF Installer
+  ansible.builtin.shell: >
+    sshpass -e scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null
+    /tmp/vcf-vsan-workaround.sh root@{{ vcf_bringup_hostname }}:/tmp/vcf-vsan-workaround.sh
+  environment:
+    SSHPASS: "{{ vcf_bringup_password }}"
+
+- name: Execute vSAN ESA workarounds on VCF Installer
+  ansible.builtin.shell: >
+    sshpass -e ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null
+    root@{{ vcf_bringup_hostname }} /tmp/vcf-vsan-workaround.sh
   environment:
     SSHPASS: "{{ vcf_bringup_password }}"
   register: workarounds
-  changed_when: "'WORKAROUNDS: complete' in workarounds.stdout | default('')"
 
 - name: Display workaround results
   ansible.builtin.debug:
     msg: "{{ workarounds.stdout_lines | default(['No output']) }}"
+
+- name: Wait for VCF Installer API to be ready after domainmanager restart
+  ansible.builtin.uri:
+    url: "https://{{ vcf_bringup_hostname }}/v1/tokens"
+    method: POST
+    body_format: json
+    body:
+      username: "{{ vcf_bringup_username }}"
+      password: "{{ vcf_bringup_password }}"
+    validate_certs: false
+    status_code: 200
+  register: api_ready
+  until: api_ready.status == 200
+  retries: 24
+  delay: 10
 
 # --- Bringup validation and deployment ---
 
