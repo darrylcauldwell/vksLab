@@ -34,6 +34,7 @@
         port: 443
     validate_certs: false
     status_code: [200, 202, 204]
+    timeout: 300
   register: depot_result
 
 - name: Display depot configuration result
