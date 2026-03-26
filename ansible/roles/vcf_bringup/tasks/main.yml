@@ -48,41 +48,60 @@
 # Nested ESXi uses virtual NVMe disks not on the vSAN HCL. VCF 9.0.1+
 # has a built-in bypass via the domainmanager property below. Also patch
 # the HCL timestamp in case the OVA is > 90 days old.
+#
+# All SSH commands use a script block to avoid shell escaping issues.
+# Each step is independent — failures are handled individually.
 
-- name: Enable vSAN ESA HCL bypass on VCF Installer
-  ansible.builtin.shell: >
-    sshpass -e ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null
-    root@{{ vcf_bringup_hostname }}
-    "grep -q 'vsan.esa.sddc.managed.disk.claim=true' /etc/vmware/vcf/domainmanager/application-prod.properties 2>/dev/null ||
-    (echo 'vsan.esa.sddc.managed.disk.claim=true' >> /etc/vmware/vcf/domainmanager/application-prod.properties &&
-    systemctl restart domainmanager &&
-    echo restarted)"
+- name: Apply vSAN ESA nested lab workarounds on VCF Installer
+  ansible.builtin.shell: |
+    sshpass -e ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+      root@{{ vcf_bringup_hostname }} bash -s << 'REMOTE_SCRIPT'
+    set -e
+
+    # 1. Enable vSAN ESA HCL bypass (idempotent)
+    PROP_FILE=/etc/vmware/vcf/domainmanager/application-prod.properties
+    PROP_KEY="vsan.esa.sddc.managed.disk.claim=true"
+    if grep -q "$PROP_KEY" "$PROP_FILE" 2>/dev/null; then
+      echo "HCL_BYPASS: already configured"
+    else
+      echo "$PROP_KEY" >> "$PROP_FILE"
+      echo "HCL_BYPASS: added property"
+    fi
+
+    # 2. Restart domainmanager to pick up the property change
+    systemctl restart domainmanager
+    echo "DOMAINMANAGER: restarted"
+
+    # 3. Wait for domainmanager to be ready
+    for i in $(seq 1 12); do
+      if systemctl is-active --quiet domainmanager; then
+        echo "DOMAINMANAGER: ready"
+        break
+      fi
+      sleep 5
+    done
+
+    # 4. Patch HCL timestamp (if file exists)
+    HCL_FILE=/nfs/vmware/vcf/nfs-mount/vsan-hcl/all.json
+    if [ -f "$HCL_FILE" ]; then
+      NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+      sed -i "s/\"timestamp\":\"[^\"]*\"/\"timestamp\":\"$NOW\"/" "$HCL_FILE"
+      sed -i "s/\"jsonUpdatedTime\":\"[^\"]*\"/\"jsonUpdatedTime\":\"$NOW\"/" "$HCL_FILE"
+      echo "HCL_TIMESTAMP: patched to $NOW"
+    else
+      echo "HCL_TIMESTAMP: file not found (skipped)"
+    fi
+
+    echo "WORKAROUNDS: complete"
+    REMOTE_SCRIPT
   environment:
     SSHPASS: "{{ vcf_bringup_password }}"
-  register: hcl_bypass
-  changed_when: "'restarted' in hcl_bypass.stdout | default('')"
+  register: workarounds
+  changed_when: "'WORKAROUNDS: complete' in workarounds.stdout | default('')"
 
-- name: Wait for domainmanager to recover after restart
-  ansible.builtin.pause:
-    seconds: 30
-  when: "'restarted' in hcl_bypass.stdout | default('')"
-
-- name: Patch vSAN HCL timestamp on VCF Installer
-  ansible.builtin.shell: >
-    sshpass -e ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null
-    root@{{ vcf_bringup_hostname }}
-    "sed -i 's/\"timestamp\":\"[^\"]*\"/\"timestamp\":\"'$(date -u +%%Y-%%m-%%dT%%H:%%M:%%SZ)'\"/' /nfs/vmware/vcf/nfs-mount/vsan-hcl/all.json &&
-    sed -i 's/\"jsonUpdatedTime\":\"[^\"]*\"/\"jsonUpdatedTime\":\"'$(date -u +%%Y-%%m-%%dT%%H:%%M:%%SZ)'\"/' /nfs/vmware/vcf/nfs-mount/vsan-hcl/all.json &&
-    echo patched"
-  environment:
-    SSHPASS: "{{ vcf_bringup_password }}"
-  register: hcl_patch
-  failed_when: false
-  changed_when: "'patched' in hcl_patch.stdout | default('')"
-
-- name: Display HCL patch result
+- name: Display workaround results
   ansible.builtin.debug:
-    msg: "{{ 'HCL timestamp patched' if hcl_patch.rc | default(1) == 0 else 'HCL patch skipped (file may not exist or VCF 9.0.1+ bypass active)' }}"
+    msg: "{{ workarounds.stdout_lines | default(['No output']) }}"
 
 # --- Bringup validation and deployment ---
 
