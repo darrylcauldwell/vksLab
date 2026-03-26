@@ -324,7 +324,7 @@ sudo sed -i 's/"jsonUpdatedTime":"[^"]*"/"jsonUpdatedTime":"'"$(date -u +%Y-%m-%
 
 ### 6.3 Run VCF Bringup
 
-> The bringup workflow takes approximately **2–3 hours** to complete end-to-end.
+> The bringup workflow takes approximately **2–3 hours** to complete end-to-end. Run `caffeinate -d` in a separate terminal to prevent the operator laptop from sleeping during this process.
 
 | Step | Action | Expected Result | Verification |
 |------|--------|-----------------|--------------|
@@ -376,7 +376,7 @@ sudo sed -i 's/"jsonUpdatedTime":"[^"]*"/"jsonUpdatedTime":"'"$(date -u +%Y-%m-%
 | 7.2.2 | Configure domain name `workload-domain`, cluster name `workload-cluster`, datastore name `workload-vsan-ds`, vSAN ESA enabled, 3 hosts | The domain configuration is accepted | Validation passes without errors |
 | 7.2.3 | Specify appliance FQDNs: `vcenter-wld.lab.dreamfold.dev` (10.0.10.9) and `nsx-mgr-wld.lab.dreamfold.dev` (10.0.10.10) | The appliance configuration is accepted | — |
 | 7.2.4 | Start domain creation | The domain deployment begins | Task progress is visible in the SDDC Manager UI |
-| 7.2.5 | Wait for workload domain deployment (60-90 minutes) | The workload domain is created | SDDC Manager shows the domain as Active |
+| 7.2.5 | Wait for workload domain deployment (60-90 minutes). Ensure `caffeinate -d` is running to prevent laptop sleep | The workload domain is created | SDDC Manager shows the domain as Active |
 
 ### 7.3 Workload Domain Verification
 
@@ -532,7 +532,7 @@ SNAT rule parameters:
 | 9.2.3 | Configure management network on VLAN 10, workload network linked to `vks-vpc` | The networking stack is configured | — |
 | 9.2.4 | Configure storage policy: `vsan-default-storage-policy` | The storage policy is configured | — |
 | 9.2.5 | Start Supervisor enablement | The Supervisor deployment begins | Task progress is visible in the vCenter UI |
-| 9.2.6 | Wait for Supervisor deployment (30-45 minutes) | The vSphere Supervisor is running | The Supervisor status shows Running |
+| 9.2.6 | Wait for Supervisor deployment (30-45 minutes). Ensure `caffeinate -d` is running to prevent laptop sleep | The vSphere Supervisor is running | The Supervisor status shows Running |
 
 ### 9.3 Create vSphere Namespace
 
