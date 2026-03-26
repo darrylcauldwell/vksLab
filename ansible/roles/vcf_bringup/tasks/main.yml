@@ -92,6 +92,28 @@
       need downloading, {{ bundle_list | selectattr('downloadStatus', 'eq', 'SUCCESSFUL') | list | length }}
       already downloaded.
 
+# --- Pre-validation: vSAN HCL timestamp patch ---
+# VCF validates the HCL file timestamp is < 90 days old. Patch it to
+# today's date to avoid false failures with older OVAs. Non-blocking
+# since VCF 9.0.1+ has a built-in bypass for nested environments.
+
+- name: Patch vSAN HCL timestamp on VCF Installer
+  ansible.builtin.shell: >
+    sshpass -e ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null
+    vcf@{{ vcf_bringup_hostname }}
+    "sudo sed -i 's/\"timestamp\":\"[^\"]*\"/\"timestamp\":\"'$(date -u +%%Y-%%m-%%dT%%H:%%M:%%SZ)'\"/' /nfs/vmware/vcf/nfs-mount/vsan-hcl/all.json &&
+    sudo sed -i 's/\"jsonUpdatedTime\":\"[^\"]*\"/\"jsonUpdatedTime\":\"'$(date -u +%%Y-%%m-%%dT%%H:%%M:%%SZ)'\"/' /nfs/vmware/vcf/nfs-mount/vsan-hcl/all.json &&
+    echo patched"
+  environment:
+    SSHPASS: "{{ vcf_bringup_password }}"
+  register: hcl_patch
+  failed_when: false
+  changed_when: "'patched' in hcl_patch.stdout | default('')"
+
+- name: Display HCL patch result
+  ansible.builtin.debug:
+    msg: "{{ 'HCL timestamp patched' if hcl_patch.rc | default(1) == 0 else 'HCL patch skipped (file may not exist or VCF 9.0.1+ bypass active)' }}"
+
 # --- Bringup validation and deployment ---
 
 - name: Display bringup spec being submitted

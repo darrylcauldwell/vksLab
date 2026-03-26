@@ -77,7 +77,7 @@ vcf_bringup_spec:
     - networkType: MANAGEMENT
       subnet: "{{ vlans.management.subnet }}"
       gateway: "{{ vlans.management.gateway }}"
-      vlanId: "{{ vlans.management.id }}"
+      vlanId: 0
       mtu: "{{ vlans.management.mtu }}"
       portGroupKey: vcf-m01-cl01-vds01-pg-mgmt
       teamingPolicy: loadbalance_loadbased
@@ -87,7 +87,7 @@ vcf_bringup_spec:
     - networkType: VM_MANAGEMENT
       subnet: "{{ vlans.management.subnet }}"
       gateway: "{{ vlans.management.gateway }}"
-      vlanId: "{{ vlans.management.id }}"
+      vlanId: 0
       mtu: "{{ vlans.management.mtu }}"
       portGroupKey: vcf-m01-cl01-vds01-pg-vm-mgmt
       teamingPolicy: loadbalance_loadbased
