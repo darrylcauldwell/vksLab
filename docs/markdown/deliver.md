@@ -65,10 +65,12 @@ op item create --vault Employee --category login --title "NSX Manager" \
   password='VMware1!VMware1!' username=admin
 op item create --vault Employee --category login --title "Keycloak Admin" \
   password='VMware1!VMware1!' username=admin
+op item create --vault Employee --category login --title "Offline Depot" \
+  password='<depot-password>' username=depot_user
 
 ```
 
-Verify: `op item list --vault Employee` shows all 6 items.
+Verify: `op item list --vault Employee` shows all 7 items.
 
 ### 2.2 Ansible
 
