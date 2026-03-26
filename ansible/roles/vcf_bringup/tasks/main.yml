@@ -41,9 +41,9 @@
   ansible.builtin.debug:
     msg: "Depot configured: {{ depot_result.status }}"
 
-- name: List available bundles
+- name: List available bundles (compliant with current version)
   ansible.builtin.uri:
-    url: "https://{{ vcf_bringup_hostname }}/v1/bundles"
+    url: "https://{{ vcf_bringup_hostname }}/v1/bundles?isCompliant=true"
     method: GET
     headers:
       Authorization: "Bearer {{ token_response.json.accessToken }}"
