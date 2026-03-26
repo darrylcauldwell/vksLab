@@ -304,6 +304,20 @@ The first play deploys the VCF Installer OVA to esxi-01 with the correct network
 | 6.2.2 | `govc import.ova` deploys to esxi-01 with IP `10.0.10.3`, subnet `255.255.255.0`, gateway `10.0.10.1`, DNS `10.0.10.1` | VCF Installer VM deployed and powered on |
 | 6.2.3 | Playbook polls `https://vcf-installer.lab.dreamfold.dev` until accessible (up to 10 minutes) | All installer services are ready |
 
+### 6.2.1 Download VCF Installer Bundles (Manual)
+
+The VCF Installer requires software bundles downloaded from the offline depot before bringup can proceed. This is a manual step via the VCF Installer UI.
+
+1. Open an SSH SOCKS tunnel: `ssh -D 1080 -N ubuntu@<gateway-public-ip>`
+2. Configure Firefox to use SOCKS5 proxy: `localhost:1080` (enable "Proxy DNS when using SOCKS v5")
+3. Browse to `https://vcf-installer.lab.dreamfold.dev` and log in with `admin@local` / SDDC Manager password
+4. Navigate to **Binary Management** > **Downloads**
+5. Filter by version **9.0.2.0** (matches the installed VCF Installer version)
+6. Download all 7 product bundles (~56 GB total)
+7. Wait for all downloads to complete before proceeding to bringup
+
+> **Verification**: All 7 bundles show download status "Completed" in the UI.
+
 #### VCF Deployment Parameter Workbook
 
 The bringup spec is defined as a YAML dict in `ansible/roles/vcf_bringup/defaults/main.yml`. All IPs are derived from `lab_network_prefix` and credentials are injected from 1Password at runtime — no manual JSON editing required. The Ansible `vcf_bringup` role validates and submits the spec to the VCF Installer API.

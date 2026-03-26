@@ -41,56 +41,8 @@
   ansible.builtin.debug:
     msg: "Depot configured: {{ depot_result.status }}"
 
-- name: List available bundles
-  ansible.builtin.uri:
-    url: "https://{{ vcf_bringup_hostname }}/v1/bundles"
-    method: GET
-    headers:
-      Authorization: "Bearer {{ token_response.json.accessToken }}"
-    validate_certs: false
-  register: bundles_response
-
-- name: Extract bundle list from response
-  ansible.builtin.set_fact:
-    bundle_list: "{{ bundles_response.json.elements | default(bundles_response.json) }}"
-
-- name: Display available bundles
-  ansible.builtin.debug:
-    msg: "{{ bundle_list | length }} bundles found"
-
-- name: Display bundle details
-  ansible.builtin.debug:
-    msg: "{{ item.id | default('unknown') }} — {{ item.downloadStatus | default('unknown') }}"
-  loop: "{{ bundle_list }}"
-  loop_control:
-    label: "{{ item.id | default('unknown') }}"
-  when: bundle_list | length > 0
-
-- name: Download bundles not yet downloaded
-  ansible.builtin.uri:
-    url: "https://{{ vcf_bringup_hostname }}/v1/bundles/{{ item.id }}"
-    method: PATCH
-    headers:
-      Authorization: "Bearer {{ token_response.json.accessToken }}"
-    body_format: json
-    body:
-      bundleDownloadSpec:
-        downloadNow: true
-    validate_certs: false
-    status_code: [200, 202]
-    timeout: 120
-  loop: "{{ bundle_list | selectattr('downloadStatus', 'ne', 'SUCCESSFUL') | list }}"
-  loop_control:
-    label: "{{ item.id }}"
-  register: download_tasks
-  when: bundle_list | selectattr('downloadStatus', 'ne', 'SUCCESSFUL') | list | length > 0
-
-- name: Display bundle download summary
-  ansible.builtin.debug:
-    msg: >-
-      {{ bundle_list | selectattr('downloadStatus', 'ne', 'SUCCESSFUL') | list | length }} bundles
-      need downloading, {{ bundle_list | selectattr('downloadStatus', 'eq', 'SUCCESSFUL') | list | length }}
-      already downloaded.
+# Bundle download is a manual step via the VCF Installer UI (see deliver guide §6.2.1).
+# Automation tracked in GitHub issue #80.
 
 # --- Pre-validation: vSAN HCL timestamp patch ---
 # VCF validates the HCL file timestamp is < 90 days old. Patch it to
