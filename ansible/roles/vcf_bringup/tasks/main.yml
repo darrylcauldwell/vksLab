@@ -52,10 +52,10 @@
 - name: Enable vSAN ESA HCL bypass on VCF Installer
   ansible.builtin.shell: >
     sshpass -e ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null
-    vcf@{{ vcf_bringup_hostname }}
+    root@{{ vcf_bringup_hostname }}
     "grep -q 'vsan.esa.sddc.managed.disk.claim=true' /etc/vmware/vcf/domainmanager/application-prod.properties 2>/dev/null ||
-    (echo 'vsan.esa.sddc.managed.disk.claim=true' | sudo tee -a /etc/vmware/vcf/domainmanager/application-prod.properties &&
-    sudo systemctl restart domainmanager &&
+    (echo 'vsan.esa.sddc.managed.disk.claim=true' >> /etc/vmware/vcf/domainmanager/application-prod.properties &&
+    systemctl restart domainmanager &&
     echo restarted)"
   environment:
     SSHPASS: "{{ vcf_bringup_password }}"
@@ -70,9 +70,9 @@
 - name: Patch vSAN HCL timestamp on VCF Installer
   ansible.builtin.shell: >
     sshpass -e ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null
-    vcf@{{ vcf_bringup_hostname }}
-    "sudo sed -i 's/\"timestamp\":\"[^\"]*\"/\"timestamp\":\"'$(date -u +%%Y-%%m-%%dT%%H:%%M:%%SZ)'\"/' /nfs/vmware/vcf/nfs-mount/vsan-hcl/all.json &&
-    sudo sed -i 's/\"jsonUpdatedTime\":\"[^\"]*\"/\"jsonUpdatedTime\":\"'$(date -u +%%Y-%%m-%%dT%%H:%%M:%%SZ)'\"/' /nfs/vmware/vcf/nfs-mount/vsan-hcl/all.json &&
+    root@{{ vcf_bringup_hostname }}
+    "sed -i 's/\"timestamp\":\"[^\"]*\"/\"timestamp\":\"'$(date -u +%%Y-%%m-%%dT%%H:%%M:%%SZ)'\"/' /nfs/vmware/vcf/nfs-mount/vsan-hcl/all.json &&
+    sed -i 's/\"jsonUpdatedTime\":\"[^\"]*\"/\"jsonUpdatedTime\":\"'$(date -u +%%Y-%%m-%%dT%%H:%%M:%%SZ)'\"/' /nfs/vmware/vcf/nfs-mount/vsan-hcl/all.json &&
     echo patched"
   environment:
     SSHPASS: "{{ vcf_bringup_password }}"
