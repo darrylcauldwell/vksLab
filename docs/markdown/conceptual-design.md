@@ -75,7 +75,7 @@ The lab is designed to be **disposable and reproducible**. The delivery guide en
 
 | ID    | Assumption |
 |-------|------------|
-| A-001 | The vCloud Director provider supports nested virtualisation and jumbo frames (Maximum Transmission Unit (MTU) 9000) |
+| A-001 | The vCloud Director provider supports nested virtualisation and jumbo frames (Maximum Transmission Unit (MTU) 9000 on the provider network). Nested VLAN sub-interfaces use MTU 8900 to account for the 4-byte 802.1Q VLAN tag overhead — a 9000-byte payload on a tagged VLAN produces a 9004-byte frame that would exceed the provider's 9000 MTU |
 | A-002 | Sufficient vCD resources are available (338 vCPU, 906 GB RAM, 1.5 TB storage) |
 | A-003 | VCF offline depot is reachable at `depot.vcf-gcp.broadcom.net` |
 | A-004 | The lab.dreamfold.dev DNS zone is delegated or used internally only |
@@ -205,7 +205,7 @@ See [Logical Design](logical-design.md) for phase details and [Delivery Guide](d
 
 | Assumption | Description | Verification Method | Where Verified |
 |------------|-------------|-------------------|----------------|
-| A-001 | vCD supports nested virtualisation and jumbo frames | Deploy test VM, enable nested virt flag, ping with MTU 9000 | Deliver Guide §3.1 (vApp network creation) |
+| A-001 | vCD supports nested virtualisation and jumbo frames | Deploy test VM, enable nested virt flag, ping with MTU 8900 (accounts for 4-byte VLAN tag overhead within 9000 provider MTU) | Deliver Guide §3.1 (vApp network creation) |
 | A-002 | Sufficient vCD resources (338 vCPU, 906 GB RAM, 1.5 TB) | Check vCD tenant quota before deployment | Deliver Guide §2 prerequisites #1 |
 | A-003 | VCF offline depot reachable | `curl -s https://depot.vcf-gcp.broadcom.net` from gateway | Deliver Guide §2 prerequisites #5 |
 | A-004 | lab.dreamfold.dev DNS zone delegated or internal-only | Verify zone delegation or confirm internal-only use | Deliver Guide §4.2 (dnsmasq authoritative zone config) |

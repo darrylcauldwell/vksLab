@@ -128,7 +128,7 @@ All other lab VMs have a single NIC on the vCD private network. The gateway perf
 
 ### Gateway Routing (FRR)
 
-The gateway has a trunk interface (ens34, Maximum Transmission Unit (MTU) 9000) on the vCD private network carrying all VCF VLANs via 802.1Q sub-interfaces. It provides:
+The gateway has a trunk interface (ens34, Maximum Transmission Unit (MTU) 9000) on the vCD private network carrying all VCF VLANs via 802.1Q sub-interfaces (MTU 8900 — the 4-byte VLAN tag overhead means a 9000-byte payload on a tagged VLAN would produce a 9004-byte frame exceeding the provider's 9000 MTU). It provides:
 
 - **Inter-VLAN routing** between management, vMotion, and other VCF networks via VLAN sub-interfaces
 - **BGP peering** with the NSX Tier-0 gateway for north-south routing from VPC workloads (via FRR)
@@ -150,7 +150,7 @@ Six VLANs segment traffic by function, each on its own /24 subnet:
 
 ### MTU Strategy
 
-- **Jumbo frames (9000)** for overlay and storage VLANs — vMotion, vSAN, Host TEP, Edge TEP. Required for encapsulation overhead.
+- **Jumbo frames (8900)** for overlay and storage VLANs — vMotion, vSAN, Host TEP, Edge TEP. The nested environment uses 8900 instead of 9000 because the 4-byte 802.1Q VLAN tag overhead on tagged frames would produce 9004-byte frames that exceed the vCD provider's 9000 MTU. The trunk NIC (ens34) remains at 9000 to carry the tagged frames.
 - **Standard frames (1500)** for management and edge uplink VLANs — no encapsulation overhead.
 - The vCD private network portgroup must allow jumbo frames (MTU ≥ 9000).
 
@@ -165,7 +165,7 @@ The gateway runs dnsmasq, authoritative for the `lab.dreamfold.dev` zone. Unknow
 | R-002 | NET-01 | Dual-homed gateway provides the only external entry point | Single ingress point simplifies security and avoids exposing VCF management interfaces directly | Risk: Gateway outage removes all external access. Mitigation: Acceptable for lab; vCD console access remains available |
 | R-006 | NET-02 | Gateway provides inter-VLAN routing (VLAN sub-interfaces) and BGP peering (FRR) | Consolidates routing onto the gateway — eliminates a separate router VM, saves 2 vCPU / 4 GB RAM, removes Arista licence dependency | Risk: FRR is less feature-rich than a dedicated network OS. Mitigation: Only basic L3 routing and BGP needed for lab |
 | R-004 | NET-03 | Six VLANs segment traffic by function | Matches VCF reference architecture VLAN model — management, vMotion, vSAN, host TEP, edge TEP, edge uplink | Risk: Over-segmentation for a lab. Mitigation: Required by VCF — cannot reduce without breaking bringup |
-| R-004 | NET-04 | Jumbo frames (MTU 9000) for overlay and storage VLANs | Required for NSX Geneve encapsulation overhead and optimal vSAN performance | Risk: vCD private network must support MTU 9000. Mitigation: Verify provider portgroup MTU before deployment |
+| R-004 | NET-04 | Jumbo frames (MTU 8900) for overlay and storage VLANs | Required for NSX Geneve encapsulation overhead and optimal vSAN performance. Uses 8900 (not 9000) because the 4-byte 802.1Q VLAN tag on tagged frames would exceed the vCD provider's 9000 MTU | Risk: vCD private network must support MTU 9000. Mitigation: Verify provider portgroup MTU before deployment |
 | R-003 | NET-05 | dnsmasq on gateway provides authoritative DNS for lab.dreamfold.dev | Lightweight, simple configuration, dual-homed gateway can forward to upstream DNS | Risk: Single DNS server — no redundancy. Mitigation: Acceptable for lab; dnsmasq restarts quickly |
 
 ## 4. Infrastructure Services Design
@@ -621,7 +621,7 @@ Infrastructure VLANs (10.0.10–60.0/24)
 | Segment | Encapsulation | Notes |
 |---------|---------------|-------|
 | Pod → ESXi host | Container networking (VPC overlay) | Pod-to-pod within same host is local |
-| ESXi host → Edge VM | Geneve tunnel (VLAN 40 → VLAN 50) | NSX overlay, MTU 9000 required |
+| ESXi host → Edge VM | Geneve tunnel (VLAN 40 → VLAN 50) | NSX overlay, MTU 8900 (nested lab) |
 | Edge VM → Tier-0 uplink | Standard Ethernet (VLAN 60) | Geneve decapsulated at Edge; MTU 1500 |
 | Tier-0 uplink → Gateway | Standard Ethernet (VLAN 60) | Routed L3, no encapsulation |
 | Gateway ens34.60 → ens33 | IP forwarding + iptables masquerade | NAT for internet-bound |

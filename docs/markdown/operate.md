@@ -374,7 +374,7 @@ VKS Standard Packages (cert-manager, Contour, Harbor, Velero) are updated via th
 
 | Symptom | Possible Cause | Resolution |
 |---------|---------------|------------|
-| Transport node disconnected | Host Tunnel Endpoint (TEP) interface down | Check vmk3 (VLAN 40) on ESXi host; verify Maximum Transmission Unit (MTU) 9000 end-to-end |
+| Transport node disconnected | Host Tunnel Endpoint (TEP) interface down | Check vmk3 (VLAN 40) on ESXi host; verify Maximum Transmission Unit (MTU) 8900 end-to-end (nested lab uses 8900 — the 4-byte VLAN tag overhead means 9000-byte payloads would exceed the vCD provider's 9000 MTU) |
 | Transport node config not realised | NSX Manager communication failure | Restart nsx-proxy on ESXi host: `/etc/init.d/nsx-proxy restart` |
 | VPC subnet not reachable | NSX Tier-1 Gateway route advertisement disabled | NSX Manager → Tier-1 → Route Advertisement: enable connected subnets |
 | VPC to external connectivity broken | Tier-0 uplink down or NAT rule missing | Check Tier-0 uplink interface status; verify SNAT rule exists |
@@ -470,7 +470,7 @@ esxcli system health status get
 
 # Check network connectivity
 vmkping -I vmk0 10.0.10.1    # Management gateway
-vmkping -I vmk2 10.0.30.1 -s 8972  # vSAN with jumbo frames
+vmkping -I vmk2 10.0.30.1 -s 8872  # vSAN with jumbo frames (8900 MTU - 28 byte header)
 
 # Check NTP
 esxcli system ntp get
