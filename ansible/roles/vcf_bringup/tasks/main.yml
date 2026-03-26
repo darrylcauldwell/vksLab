@@ -44,10 +44,28 @@
 # Bundle download is a manual step via the VCF Installer UI (see deliver guide §6.2.1).
 # Automation tracked in GitHub issue #80.
 
-# --- Pre-validation: vSAN HCL timestamp patch ---
-# VCF validates the HCL file timestamp is < 90 days old. Patch it to
-# today's date to avoid false failures with older OVAs. Non-blocking
-# since VCF 9.0.1+ has a built-in bypass for nested environments.
+# --- Pre-validation: vSAN ESA HCL bypass and timestamp patch ---
+# Nested ESXi uses virtual NVMe disks not on the vSAN HCL. VCF 9.0.1+
+# has a built-in bypass via the domainmanager property below. Also patch
+# the HCL timestamp in case the OVA is > 90 days old.
+
+- name: Enable vSAN ESA HCL bypass on VCF Installer
+  ansible.builtin.shell: >
+    sshpass -e ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null
+    vcf@{{ vcf_bringup_hostname }}
+    "grep -q 'vsan.esa.sddc.managed.disk.claim=true' /etc/vmware/vcf/domainmanager/application-prod.properties 2>/dev/null ||
+    (echo 'vsan.esa.sddc.managed.disk.claim=true' | sudo tee -a /etc/vmware/vcf/domainmanager/application-prod.properties &&
+    sudo systemctl restart domainmanager &&
+    echo restarted)"
+  environment:
+    SSHPASS: "{{ vcf_bringup_password }}"
+  register: hcl_bypass
+  changed_when: "'restarted' in hcl_bypass.stdout | default('')"
+
+- name: Wait for domainmanager to recover after restart
+  ansible.builtin.pause:
+    seconds: 30
+  when: "'restarted' in hcl_bypass.stdout | default('')"
 
 - name: Patch vSAN HCL timestamp on VCF Installer
   ansible.builtin.shell: >
