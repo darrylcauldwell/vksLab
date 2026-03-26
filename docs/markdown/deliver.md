@@ -308,15 +308,33 @@ The first play deploys the VCF Installer OVA to esxi-01 with the correct network
 
 The VCF Installer requires software bundles downloaded from the offline depot before bringup can proceed. This is a manual step via the VCF Installer UI.
 
-1. Open an SSH SOCKS tunnel: `ssh -D 1080 -N ubuntu@<gateway-public-ip>`
-2. Configure Firefox to use SOCKS5 proxy: `localhost:1080` (enable "Proxy DNS when using SOCKS v5")
-3. Browse to `https://vcf-installer.lab.dreamfold.dev` and log in with `admin@local` / SDDC Manager password
+1. Open an SSH SOCKS tunnel from the operator laptop (runs in the foreground — leave the terminal open):
+
+   ```bash
+   ssh -D 1080 -N ubuntu@<gateway-public-ip>
+   ```
+
+2. Configure Firefox to proxy through the tunnel:
+   - Open **Settings** > **General** > scroll to **Network Settings** > click **Settings...**
+   - Select **Manual proxy configuration**
+   - Set **SOCKS Host**: `localhost`, **Port**: `1080`
+   - Select **SOCKS v5**
+   - Tick **Proxy DNS when using SOCKS v5** (required — lab DNS names must resolve via the gateway)
+   - Click **OK**
+
+3. Browse to `https://vcf-installer.lab.dreamfold.dev` and accept the self-signed certificate warning. Log in with username `admin@local` and the password from 1Password "SDDC Manager" item.
+
 4. Navigate to **Binary Management** > **Downloads**
-5. Filter by version **9.0.2.0** (matches the installed VCF Installer version)
-6. Download all 7 product bundles (~56 GB total)
-7. Wait for all downloads to complete before proceeding to bringup
+
+5. Filter by version **9.0.2.0** (matches the installed VCF Installer version) — this reduces the list to 7 product bundles (~56 GB total)
+
+6. Select all 7 bundles and click **Download**
+
+7. Wait for all downloads to complete before proceeding to bringup. Downloads run on the VCF Installer VM — the SOCKS tunnel and browser can be closed while downloads continue.
 
 > **Verification**: All 7 bundles show download status "Completed" in the UI.
+
+> **Note**: Remember to revert Firefox proxy settings after this step (Settings > Network Settings > **No proxy**), otherwise normal browsing will fail when the SOCKS tunnel is closed.
 
 #### VCF Deployment Parameter Workbook
 
