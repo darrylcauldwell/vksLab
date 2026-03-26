@@ -45,56 +45,8 @@
 # Automation tracked in GitHub issue #80.
 
 # --- Pre-validation: vSAN ESA HCL bypass and timestamp patch ---
-# Nested ESXi uses virtual NVMe disks not on the vSAN HCL. VCF 9.0.1+
-# has a built-in bypass via the domainmanager property below. Also patch
-# the HCL timestamp in case the OVA is > 90 days old.
-#
-# These tasks delegate to the vcf-installer host via Ansible's native
-# SSH (ProxyJump through gateway) as the vcf user with sudo. sshpass
-# doesn't work with the VCF Installer because its SSH welcome banner
-# confuses sshpass's password prompt detection. Root SSH is disabled.
-
-- name: Check if vSAN ESA HCL bypass is already configured
-  ansible.builtin.shell: >
-    grep -q 'vsan.esa.sddc.managed.disk.claim=true'
-    /etc/vmware/vcf/domainmanager/application-prod.properties
-  delegate_to: vcf-installer
-  become: true
-  vars: &vcf_installer_ssh
-    ansible_user: vcf
-    ansible_password: "{{ vcf_bringup_password }}"
-    ansible_become_password: "{{ vcf_bringup_password }}"
-    ansible_ssh_common_args: "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ControlMaster=no -o ProxyJump=ubuntu@{{ gateway_public_ip }}"
-  register: hcl_check
-  failed_when: false
-  changed_when: false
-
-- name: Add vSAN ESA HCL bypass property
-  ansible.builtin.shell: >
-    echo 'vsan.esa.sddc.managed.disk.claim=true' >>
-    /etc/vmware/vcf/domainmanager/application-prod.properties
-  delegate_to: vcf-installer
-  become: true
-  vars: *vcf_installer_ssh
-  when: hcl_check.rc != 0
-
-- name: Restart domainmanager service
-  ansible.builtin.shell: systemctl restart domainmanager
-  delegate_to: vcf-installer
-  become: true
-  vars: *vcf_installer_ssh
-  when: hcl_check.rc != 0
-
-- name: Patch vSAN HCL timestamp
-  ansible.builtin.shell: |
-    NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-    sed -i "s/\"timestamp\":\"[^\"]*\"/\"timestamp\":\"$NOW\"/" /nfs/vmware/vcf/nfs-mount/vsan-hcl/all.json
-    sed -i "s/\"jsonUpdatedTime\":\"[^\"]*\"/\"jsonUpdatedTime\":\"$NOW\"/" /nfs/vmware/vcf/nfs-mount/vsan-hcl/all.json
-  delegate_to: vcf-installer
-  become: true
-  vars: *vcf_installer_ssh
-  failed_when: false
-  changed_when: true
+# These are manual steps — see deliver guide §6.2.2.
+# Automation tracked in GitHub issue #81.
 
 - name: Wait for VCF Installer API to be ready
   ansible.builtin.uri:
