@@ -26,8 +26,8 @@
     body_format: json
     body:
       offlineAccount:
-        username: depot
-        password: depot
+        username: "{{ depot_username }}"
+        password: "{{ depot_password }}"
       depotConfiguration:
         isOfflineDepot: true
         hostname: "{{ vcf_depot_url }}"
