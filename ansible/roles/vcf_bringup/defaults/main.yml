@@ -126,7 +126,7 @@ vcf_bringup_spec:
         - VM_MANAGEMENT
         - VMOTION
         - VSAN
-      mtu: 9000
+      mtu: 8900
       nsxtSwitchConfig:
         hostSwitchOperationalMode: STANDARD
         transportZones:

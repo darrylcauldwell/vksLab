@@ -34,10 +34,10 @@ gateway_vscode_packages:
 # Management (VLAN 10) is the native/untagged VLAN on ens34 — no sub-interface.
 # This allows ESXi hosts to DHCP without VLAN tagging on their management port group.
 gateway_vlan_interfaces:
-  - {vlan: 20, description: vMotion, ip: "{{ lab_vmotion_prefix }}.1/24", mtu: 9000}
-  - {vlan: 30, description: vSAN, ip: "{{ lab_vsan_prefix }}.1/24", mtu: 9000}
-  - {vlan: 40, description: "Host Overlay (TEP)", ip: "{{ lab_overlay_prefix }}.1/24", mtu: 9000}
-  - {vlan: 50, description: "Edge Overlay (TEP)", ip: "{{ lab_edge_tep_prefix }}.1/24", mtu: 9000}
+  - {vlan: 20, description: vMotion, ip: "{{ lab_vmotion_prefix }}.1/24", mtu: 8900}
+  - {vlan: 30, description: vSAN, ip: "{{ lab_vsan_prefix }}.1/24", mtu: 8900}
+  - {vlan: 40, description: "Host Overlay (TEP)", ip: "{{ lab_overlay_prefix }}.1/24", mtu: 8900}
+  - {vlan: 50, description: "Edge Overlay (TEP)", ip: "{{ lab_edge_tep_prefix }}.1/24", mtu: 8900}
   - {vlan: 60, description: "Edge Uplink / BGP", ip: "{{ lab_uplink_prefix }}.1/24", mtu: 1500}
 
 # Upstream DNS forwarders

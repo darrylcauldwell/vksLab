@@ -58,22 +58,22 @@ vlans:
     id: "{{ vlan_id_vmotion }}"
     subnet: "{{ lab_network_prefix }}.{{ vlan_id_vmotion }}.0/24"
     gateway: "{{ lab_network_prefix }}.{{ vlan_id_vmotion }}.1"
-    mtu: 9000
+    mtu: 8900
   vsan:
     id: "{{ vlan_id_vsan }}"
     subnet: "{{ lab_network_prefix }}.{{ vlan_id_vsan }}.0/24"
     gateway: "{{ lab_network_prefix }}.{{ vlan_id_vsan }}.1"
-    mtu: 9000
+    mtu: 8900
   host_overlay:
     id: "{{ vlan_id_host_overlay }}"
     subnet: "{{ lab_network_prefix }}.{{ vlan_id_host_overlay }}.0/24"
     gateway: "{{ lab_network_prefix }}.{{ vlan_id_host_overlay }}.1"
-    mtu: 9000
+    mtu: 8900
   edge_overlay:
     id: "{{ vlan_id_edge_overlay }}"
     subnet: "{{ lab_network_prefix }}.{{ vlan_id_edge_overlay }}.0/24"
     gateway: "{{ lab_network_prefix }}.{{ vlan_id_edge_overlay }}.1"
-    mtu: 9000
+    mtu: 8900
   edge_uplink:
     id: "{{ vlan_id_edge_uplink }}"
     subnet: "{{ lab_network_prefix }}.{{ vlan_id_edge_uplink }}.0/24"

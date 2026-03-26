@@ -14,10 +14,10 @@ date: "March 2026"
 | VLAN ID | Name | Subnet | Purpose | Maximum Transmission Unit (MTU) |
 |---------|------|--------|---------|-----|
 | 10 | Management | 10.0.10.0/24 | ESXi management, vCenter, Software-Defined Data Center (SDDC) Manager, VMware Cloud Foundation (VCF) Networking (NSX) Manager | 1500 |
-| 20 | vMotion | 10.0.20.0/24 | vMotion traffic | 9000 |
-| 30 | vSAN | 10.0.30.0/24 | vSAN storage traffic | 9000 |
-| 40 | Host Overlay (TEP) | 10.0.40.0/24 | NSX host Tunnel Endpoint (TEP) tunnels | 9000 |
-| 50 | Edge Overlay | 10.0.50.0/24 | NSX Edge TEP tunnels | 9000 |
+| 20 | vMotion | 10.0.20.0/24 | vMotion traffic | 8900 |
+| 30 | vSAN | 10.0.30.0/24 | vSAN storage traffic | 8900 |
+| 40 | Host Overlay (TEP) | 10.0.40.0/24 | NSX host Tunnel Endpoint (TEP) tunnels | 8900 |
+| 50 | Edge Overlay | 10.0.50.0/24 | NSX Edge TEP tunnels | 8900 |
 | 60 | Edge Uplink | 10.0.60.0/24 | NSX Tier-0 Gateway ↔ Gateway Border Gateway Protocol (BGP) peering | 1500 |
 
 ## 2. IP Addressing Scheme
@@ -91,7 +91,7 @@ date: "March 2026"
 | RAM | 10 GB |
 | Disk | 60 GB |
 | NIC1 | vCD public network (Dynamic Host Configuration Protocol (DHCP) or static from vCD) |
-| NIC2 | vCD private network — 802.1Q trunk (MTU 9000), VLAN sub-interfaces |
+| NIC2 | vCD private network — 802.1Q trunk (MTU 9000), VLAN sub-interfaces (MTU 8900 — accounts for VLAN tag overhead in nested environment) |
 
 ### Network Configuration
 
@@ -100,10 +100,10 @@ See [Delivery Guide](deliver.md) for netplan configuration. Key parameters:
 - NIC1 (ens33): vCD public network, DHCP
 - NIC2 (ens34): vCD private network, 802.1Q trunk (MTU 9000)
   - ens34: 10.0.10.1/24 (Management, native/untagged — ESXi DHCP works without VLAN config)
-  - ens34.20: 10.0.20.1/24 (vMotion, MTU 9000)
-  - ens34.30: 10.0.30.1/24 (vSAN, MTU 9000)
-  - ens34.40: 10.0.40.1/24 (Host Overlay, MTU 9000)
-  - ens34.50: 10.0.50.1/24 (Edge Overlay, MTU 9000)
+  - ens34.20: 10.0.20.1/24 (vMotion, MTU 8900)
+  - ens34.30: 10.0.30.1/24 (vSAN, MTU 8900)
+  - ens34.40: 10.0.40.1/24 (Host Overlay, MTU 8900)
+  - ens34.50: 10.0.50.1/24 (Edge Overlay, MTU 8900)
   - ens34.60: 10.0.60.1/24 (Edge Uplink / BGP, MTU 1500)
 - IP forwarding enabled — gateway is the inter-VLAN router
 - FRR provides BGP peering with NSX Tier-0
