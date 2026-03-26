@@ -53,6 +53,7 @@ gateway_dns_records:
   - {hostname: vcenter-mgmt, ip: "{{ lab_mgmt_prefix }}.4"}
   - {hostname: sddc-manager, ip: "{{ lab_mgmt_prefix }}.5"}
   - {hostname: nsx-mgr-mgmt, ip: "{{ lab_mgmt_prefix }}.6"}
+  - {hostname: nsx-mgr-mgmt-01, ip: "{{ lab_mgmt_prefix }}.19"}
   - {hostname: vcf-ops, ip: "{{ lab_mgmt_prefix }}.7"}
   - {hostname: vcf-auto, ip: "{{ lab_mgmt_prefix }}.8"}
   - {hostname: vcf-ops-logs, ip: "{{ lab_mgmt_prefix }}.18"}

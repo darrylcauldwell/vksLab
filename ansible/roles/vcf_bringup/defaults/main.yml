@@ -44,7 +44,7 @@ vcf_bringup_spec:
     sshEnabledForNsxtManager: true
     skipNsxOverlayOverManagementNetwork: true
     nsxtManagers:
-      - hostname: "nsx-mgr-mgmt.{{ lab_domain }}"
+      - hostname: "nsx-mgr-mgmt-01.{{ lab_domain }}"
     vipFqdn: "nsx-mgr-mgmt.{{ lab_domain }}"
     transportVlanId: "{{ vlans.host_overlay.id }}"
     ipAddressPoolSpec:
