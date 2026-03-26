@@ -45,6 +45,7 @@ vcf_bringup_spec:
     skipNsxOverlayOverManagementNetwork: true
     nsxtManagers:
       - hostname: "nsx-mgr-mgmt.{{ lab_domain }}"
+    vipFqdn: "nsx-mgr-mgmt.{{ lab_domain }}"
     transportVlanId: "{{ vlans.host_overlay.id }}"
     ipAddressPoolSpec:
       name: tep-ip-pool
