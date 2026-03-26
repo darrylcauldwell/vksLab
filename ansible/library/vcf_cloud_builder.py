@@ -198,15 +198,26 @@ def run_module():
 
                 if exec_status == "COMPLETED":
                     result_status = status_resp.get("resultStatus", "UNKNOWN")
-                    if result_status == "SUCCEEDED":
+                    if result_status in ("SUCCEEDED", "FAILED_WITH_WARNINGS"):
+                        # SUCCEEDED = all checks passed
+                        # FAILED_WITH_WARNINGS = only warnings, no errors
+                        # Both allow bringup to proceed (warnings are acknowledged)
+                        checks = status_resp.get("validationChecks", [])
+                        warnings = [
+                            c for c in checks
+                            if c.get("severity") == "WARNING"
+                            or c.get("resultStatus") == "FAILED"
+                            and c.get("severity") != "ERROR"
+                        ]
                         module.exit_json(
                             changed=False,
                             validation_id=validation_id,
                             result_status=result_status,
+                            warnings=warnings,
                             result=status_resp,
                         )
                     else:
-                        # FAILED or FAILED_WITH_WARNINGS
+                        # FAILED — has blocking errors
                         checks = status_resp.get("validationChecks", [])
                         failed_checks = [
                             c for c in checks
