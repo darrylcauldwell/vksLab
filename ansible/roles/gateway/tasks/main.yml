@@ -296,21 +296,33 @@
     HOME: /home/ubuntu
   tags: shell
 
-- name: Install zsh-autosuggestions Oh My Zsh plugin
+- name: Create Oh My Zsh custom plugins directory
   become: true
   ansible.builtin.file:
-    src: /usr/share/zsh-autosuggestions
-    dest: /home/ubuntu/.oh-my-zsh/custom/plugins/zsh-autosuggestions
+    path: /home/ubuntu/.oh-my-zsh/custom/plugins/{{ item }}
+    state: directory
+    owner: ubuntu
+    group: ubuntu
+  loop:
+    - zsh-autosuggestions
+    - zsh-syntax-highlighting
+  tags: shell
+
+- name: Link zsh-autosuggestions plugin file
+  become: true
+  ansible.builtin.file:
+    src: /usr/share/zsh-autosuggestions/zsh-autosuggestions.zsh
+    dest: /home/ubuntu/.oh-my-zsh/custom/plugins/zsh-autosuggestions/zsh-autosuggestions.plugin.zsh
     state: link
     owner: ubuntu
     group: ubuntu
   tags: shell
 
-- name: Install zsh-syntax-highlighting Oh My Zsh plugin
+- name: Link zsh-syntax-highlighting plugin file
   become: true
   ansible.builtin.file:
-    src: /usr/share/zsh-syntax-highlighting
-    dest: /home/ubuntu/.oh-my-zsh/custom/plugins/zsh-syntax-highlighting
+    src: /usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
+    dest: /home/ubuntu/.oh-my-zsh/custom/plugins/zsh-syntax-highlighting/zsh-syntax-highlighting.plugin.zsh
     state: link
     owner: ubuntu
     group: ubuntu
