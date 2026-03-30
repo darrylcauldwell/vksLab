@@ -340,32 +340,40 @@ The VCF Installer requires software bundles downloaded from the offline depot be
 
 Nested ESXi hosts use virtual NVMe disks that are not on the vSAN Hardware Compatibility List (HCL). VMware Cloud Foundation (VCF) 9.0.1+ includes a built-in bypass via a domainmanager property. The vSAN HCL timestamp must also be current (< 90 days old).
 
-SSH to the VCF Installer and apply both workarounds:
+SSH to the VCF Installer and switch to root (the `vcf` user does not have sudo privileges — use `su -` with the root password from 1Password "SDDC Manager" item):
 
 ```bash
 ssh vcf@vcf-installer.lab.dreamfold.dev
+su -
 
-# 1. Enable vSAN ESA HCL bypass (idempotent — check before adding)
-sudo grep -q 'vsan.esa.sddc.managed.disk.claim=true' \
+# 1. Enable vSAN ESA HCL bypass in both properties files (idempotent)
+grep -q 'vsan.esa.sddc.managed.disk.claim=true' \
   /etc/vmware/vcf/domainmanager/application-prod.properties || \
-  sudo bash -c 'echo "vsan.esa.sddc.managed.disk.claim=true" >> \
-  /etc/vmware/vcf/domainmanager/application-prod.properties'
+  echo 'vsan.esa.sddc.managed.disk.claim=true' >> \
+  /etc/vmware/vcf/domainmanager/application-prod.properties
+
+grep -q 'vsan.esa.sddc.managed.disk.claim=true' \
+  /etc/vmware/vcf/domainmanager/application.properties || \
+  echo 'vsan.esa.sddc.managed.disk.claim=true' >> \
+  /etc/vmware/vcf/domainmanager/application.properties
 
 # 2. Restart domainmanager to pick up the property change
-sudo systemctl restart domainmanager
+systemctl restart domainmanager
 
 # 3. Wait for domainmanager to be ready (~30 seconds)
-sleep 30 && sudo systemctl is-active domainmanager
+sleep 30 && systemctl is-active domainmanager
 
 # 4. Patch vSAN HCL timestamp (prevents 90-day staleness check)
 NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-sudo sed -i "s/\"timestamp\":\"[^\"]*\"/\"timestamp\":\"$NOW\"/" \
+sed -i "s/\"timestamp\":\"[^\"]*\"/\"timestamp\":\"$NOW\"/" \
   /nfs/vmware/vcf/nfs-mount/vsan-hcl/all.json
-sudo sed -i "s/\"jsonUpdatedTime\":\"[^\"]*\"/\"jsonUpdatedTime\":\"$NOW\"/" \
+sed -i "s/\"jsonUpdatedTime\":\"[^\"]*\"/\"jsonUpdatedTime\":\"$NOW\"/" \
   /nfs/vmware/vcf/nfs-mount/vsan-hcl/all.json
+
+exit
 ```
 
-> **Verification**: `sudo grep vsan.esa.sddc.managed.disk.claim /etc/vmware/vcf/domainmanager/application-prod.properties` returns `true`. `sudo systemctl is-active domainmanager` returns `active`.
+> **Verification**: `grep vsan.esa.sddc.managed.disk.claim /etc/vmware/vcf/domainmanager/application-prod.properties` returns `true`. `systemctl is-active domainmanager` returns `active`.
 
 #### VCF Deployment Parameter Workbook
 
