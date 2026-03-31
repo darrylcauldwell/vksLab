@@ -128,7 +128,7 @@ All other lab VMs have a single NIC on the vCD private network. The gateway perf
 
 ### Gateway Routing (FRR)
 
-The gateway has a trunk interface (ens34, Maximum Transmission Unit (MTU) 9000) on the vCD private network carrying all VCF VLANs via 802.1Q sub-interfaces (MTU 8900 — the 4-byte VLAN tag overhead means a 9000-byte payload on a tagged VLAN would produce a 9004-byte frame exceeding the provider's 9000 MTU). It provides:
+The gateway has a trunk interface (ens34, Maximum Transmission Unit (MTU) 9000) on the vCD private network carrying all VCF VLANs — including management — via 802.1Q sub-interfaces. Data VLANs use MTU 8900 (the 4-byte VLAN tag overhead means a 9000-byte payload on a tagged VLAN would produce a 9004-byte frame exceeding the provider's 9000 MTU); management and edge uplink use standard MTU 1500. It provides:
 
 - **Inter-VLAN routing** between management, vMotion, and other VCF networks via VLAN sub-interfaces
 - **BGP peering** with the NSX Tier-0 gateway for north-south routing from VPC workloads (via FRR)
@@ -334,7 +334,7 @@ Nested vSAN operates on virtual NVMe devices backed by the vCD provider's physic
 
 1. **Double virtualisation overhead** — I/O passes through the nested ESXi storage stack, then the outer ESXi/vCD stack
 2. **vCD provider storage backend** — IOPS and latency depend on the physical storage behind vCD (SAN, NFS, vSAN)
-3. **Shared trunk NIC** — vSAN traffic (VLAN 30) shares the single trunk vNIC with vMotion, TEP, and Edge traffic
+3. **Shared vNICs** — vSAN traffic (VLAN 30) shares both vNICs with all other VLANs (management, vMotion, TEP, Edge)
 
 **Expected performance ranges** (highly variable by vCD provider):
 
@@ -343,7 +343,7 @@ Nested vSAN operates on virtual NVMe devices backed by the vCD provider's physic
 | Read latency | 2-10 ms | vs <1 ms on bare-metal vSAN |
 | Write latency | 5-20 ms | Higher due to FTT=1 synchronous mirror write |
 | Random 4K IOPS | 500-2,000 | vs 50,000+ on bare-metal NVMe vSAN |
-| Sequential throughput | 200-500 MB/s | Limited by trunk NIC bandwidth |
+| Sequential throughput | 200-500 MB/s | Limited by vNIC bandwidth |
 
 **This is not suitable for performance benchmarking** (C-002, C-004). Nested vSAN provides functional storage for VCF operations and VKS workloads but performance metrics are not representative of production environments.
 
@@ -366,8 +366,8 @@ Each nested ESXi host has two virtual NICs:
 
 | vNIC | Connected To | Carries |
 |------|-------------|---------|
-| vmnic0 | vCD private network (access mode) | Management traffic only |
-| vmnic1 | vCD private network (trunk mode) | vMotion, vSAN, TEP, Edge VLANs |
+| vmnic0 | vCD private network | All VLANs (802.1Q tagged) |
+| vmnic1 | vCD private network | All VLANs (802.1Q tagged) |
 
 Inside each ESXi host, a vSphere Distributed Switch (VDS), created during VCF bringup, maps VLANs to VMkernel ports:
 
@@ -385,7 +385,7 @@ Inside each ESXi host, a vSphere Distributed Switch (VDS), created during VCF br
 | C-001 | ESX-01 | All ESXi hosts run as nested VMs on vCloud Director | Enables full VCF stack without dedicated hardware | Risk: Significant performance overhead from nested virtualisation. Mitigation: Acceptable for lab; not for benchmarking |
 | R-004 | ESX-02 | 4 hosts for management domain, 3 hosts for workload domain | Minimum for vSAN FTT=1; 4 management hosts provide headroom for management appliances | Risk: No N+1 redundancy. Mitigation: Lab-grade — host failure tolerated via vSAN RAID-1 |
 | R-007 | ESX-03 | vSAN ESA (Express Storage Architecture) with FTT=1 | Follows "vSAN ESA Single-Rack HCI Model" — single storage pool eliminates cache/capacity tier management; NVMe-based; ESA is the VMware-recommended architecture for vSAN 8+ | Risk: Nested NVMe requires SSD marking and FakeSCSIReservations. Mitigation: Automated via Ansible esxi_prepare role; VCF 9.0.1+ includes built-in HCL bypass for nested environments |
-| C-001 | ESX-04 | Two vNICs per host — access (management) and trunk (all other VLANs) | Separates management from data traffic while minimising vNIC count | Risk: Single trunk NIC is a bandwidth bottleneck. Mitigation: Acceptable for lab traffic volumes |
+| C-001 | ESX-04 | Two vNICs per host — both trunking all VLANs via 802.1Q | Provides NIC redundancy for the VDS with both uplinks active; VLAN 10 set in ESXi template for management bootstrap | Risk: Both NICs share the same vCD network — no physical path diversity. Mitigation: Acceptable for lab; vCD network provides underlying redundancy |
 
 ## 6. VCF Domain Architecture
 

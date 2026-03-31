@@ -142,7 +142,8 @@ ansible-playbook playbooks/phase0_operator.yml --tags ova
 | 3.5.1 | In the vApp, click **Add VM** > **From Template**. Select `[baked]esxi-9.0.2-2514807` from the catalog. Create esxi-01 through esxi-07 (24 vCPU, 128 GB RAM, 64 GB boot Non-Volatile Memory Express (NVMe) + 256 GB local NVMe + 2,048 GB vSAN NVMe). Assign both NICs to `lab-trunk` | All 7 ESXi VMs are cloning from the template | The vApp shows 7 ESXi VMs plus the gateway |
 | 3.5.2 | Power on all 7 ESXi VMs (allow 5–10 minutes for POST) | All ESXi VMs are running | Each VM shows the Direct Console User Interface (DCUI) |
 | 3.5.3 | For each ESXi VM (esxi-01 through esxi-07), open the VM console in vCD. Press **F2** > **Reset System Configuration** > **F11** to confirm. Wait for the host to reboot (1–2 minutes per host) | Each host reboots with a clean configuration | The DCUI shows a management IP in the DHCP dynamic range |
-| 3.5.4 | On each host via DCUI: press **F2** > **Troubleshooting Options** > **Enable SSH** > **Enter**, then **Enable ESXi Shell** > **Enter** | SSH and ESXi Shell are enabled on all hosts | The DCUI shows SSH and Shell as enabled |
+| 3.5.4 | On each host via DCUI: press **F2** > **Configure Management Network** > **VLAN (optional)** > enter **10** > **Enter** > **Esc** > **Y** to apply and restart the management network | Management traffic is tagged with VLAN 10 | The DCUI shows the management IP after the network restart |
+| 3.5.5 | On each host via DCUI: press **F2** > **Troubleshooting Options** > **Enable SSH** > **Enter**, then **Enable ESXi Shell** > **Enter** | SSH and ESXi Shell are enabled on all hosts | The DCUI shows SSH and Shell as enabled |
 
 ### 3.6 Power Off and Save to Catalog
 
@@ -169,7 +170,7 @@ ansible-playbook playbooks/phase0_operator.yml --tags ova
 | 4.1.4 | Store gateway IP in 1Password: `op item edit "Lab Bootstrap" ip_address=<gateway-ip>` | The gateway IP is stored in 1Password | `op item get "Lab Bootstrap" --fields ip_address` returns the IP |
 | 4.1.5 | Copy SSH key to gateway: `ssh-copy-id ubuntu@<gateway-ip>` | The SSH public key is deployed to the gateway | `ssh ubuntu@<gateway-ip>` connects without a password prompt |
 
-> **Note**: vCD assigns new MAC addresses each time a vApp is deployed from a template. MAC discovery is automated in §4.3 — no manual lookup is required. ESXi hosts do not need a DCUI reset on rebuild — the template was saved after Reset System Configuration (§3.5.3) with SSH and Shell already enabled (§3.5.4).
+> **Note**: vCD assigns new MAC addresses each time a vApp is deployed from a template. MAC discovery is automated in §4.3 — no manual lookup is required. ESXi hosts do not need a DCUI reset on rebuild — the template was saved after Reset System Configuration (§3.5.3) with VLAN 10 on the management port group (§3.5.4) and SSH/Shell already enabled (§3.5.5).
 
 ### 4.2 Configure Gateway (Automated)
 
@@ -213,8 +214,7 @@ The `phase1_foundation.yml` playbook runs automated verification checks at the e
 | Gateway DNS | Yes | Forward lookup of `gateway.lab.dreamfold.dev` returns the gateway IP |
 | Gateway NTP | Yes | Chrony shows a synchronised upstream source |
 | Gateway CA | Yes | `step ca health` returns "ok" |
-| Management IP | Yes | `ens34` has the expected management CIDR |
-| VLAN sub-interfaces | Yes | All 5 VLAN sub-interfaces have their expected CIDRs |
+| VLAN sub-interfaces | Yes | All 6 VLAN sub-interfaces have their expected CIDRs (including management on ens34.10) |
 | Inter-VLAN routing | Yes | Ping to vMotion gateway succeeds |
 | FRR service | Yes | FRR is active |
 | FRR BGP config | Yes | `router bgp 65000` block is present (BGP adjacency establishes in Phase 5 when the NSX Tier-0 is configured) |

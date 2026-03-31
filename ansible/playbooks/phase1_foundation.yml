@@ -62,15 +62,7 @@
       failed_when: "'ok' not in ca_result.stdout"
       tags: verify
 
-    - name: "Verify management IP on {{ gateway_vlan_trunk_nic }}"
-      ansible.builtin.shell:
-        cmd: "ip addr show {{ gateway_vlan_trunk_nic }} | grep 'inet {{ gateway_ip }}/'"
-      register: mgmt_ip_result
-      changed_when: false
-      failed_when: mgmt_ip_result.rc != 0
-      tags: verify
-
-    - name: "Verify VLAN sub-interfaces"
+    - name: "Verify VLAN sub-interfaces (including management on VLAN {{ vlan_id_mgmt }})"
       ansible.builtin.shell:
         cmd: "ip addr show {{ gateway_vlan_trunk_nic }}.{{ item.vlan }} | grep 'inet {{ item.ip }}'"
       loop: "{{ gateway_vlan_interfaces }}"

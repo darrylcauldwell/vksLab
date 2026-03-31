@@ -5,8 +5,6 @@ network:
     {{ gateway_public_nic }}:
       dhcp4: true
     {{ gateway_vlan_trunk_nic }}:
-      addresses:
-        - {{ gateway_ip }}/24
       mtu: 9000
       nameservers:
         addresses:

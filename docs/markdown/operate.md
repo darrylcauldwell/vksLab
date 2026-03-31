@@ -414,7 +414,7 @@ VKS Standard Packages (cert-manager, Contour, Harbor, Velero) are updated via th
 | ESXi host not getting IP | MAC address mismatch | Verify MAC in vCD matches `dhcp-host` entry in `/etc/dnsmasq.d/lab.conf`; restart dnsmasq |
 | Host gets wrong IP | Duplicate DHCP reservation | Check for duplicate MAC entries in dnsmasq config |
 | DHCP lease expired | Host powered off too long | Restart dnsmasq; host will get new lease on next boot |
-| No DHCP offers | dnsmasq not listening on VLAN 10 | Verify dnsmasq is bound to ens34 (management VLAN, native/untagged); check `dhcp-range` config |
+| No DHCP offers | dnsmasq not listening on VLAN 10 | Verify dnsmasq is bound to ens34.10 (management VLAN 10); check `dhcp-range` config |
 
 #### 1Password Issues
 

@@ -99,7 +99,7 @@ See [Delivery Guide](deliver.md) for netplan configuration. Key parameters:
 
 - NIC1 (ens33): vCD public network, DHCP
 - NIC2 (ens34): vCD private network, 802.1Q trunk (MTU 9000)
-  - ens34: 10.0.10.1/24 (Management, native/untagged — ESXi DHCP works without VLAN config)
+  - ens34.10: 10.0.10.1/24 (Management, MTU 1500)
   - ens34.20: 10.0.20.1/24 (vMotion, MTU 8900)
   - ens34.30: 10.0.30.1/24 (vSAN, MTU 8900)
   - ens34.40: 10.0.40.1/24 (Host Overlay, MTU 8900)
@@ -127,7 +127,7 @@ All VCF components point to 10.0.10.1 for DNS and NTP. systemd-resolved is disab
 
 **CA certificate distribution**: The step-ca root certificate is fetched from the gateway to the Ansible controller during Phase 1, then pushed to each ESXi host during Phase 2 via `ansible.builtin.copy` and imported with `esxcli security cert import`. See [Logical Design](logical-design.md) SVC-10 and "Certificate Distribution" for details.
 
-**DNS configuration**: dnsmasq listens on ens34 (management VLAN 10, native/untagged) for lab DNS/DHCP. The gateway's own `/etc/resolv.conf` points to upstream DNS (192.19.189.20) — not through its own dnsmasq — so that package installation and external resolution work independently of dnsmasq state.
+**DNS configuration**: dnsmasq listens on ens34.10 (management VLAN 10) for lab DNS/DHCP. The gateway's own `/etc/resolv.conf` points to upstream DNS (192.19.189.20) — not through its own dnsmasq — so that package installation and external resolution work independently of dnsmasq state.
 
 ### Dynamic Host Configuration Protocol (DHCP) Reservations (VLAN 10)
 
@@ -177,8 +177,8 @@ ESXi hosts receive their management IP via DHCP with static MAC→IP reservation
 
 | vNIC | Connected To | Carries |
 |------|-------------|---------|
-| vmnic0 | vCD private network (access, VLAN 10) | Management traffic |
-| vmnic1 | vCD private network (trunk) | vMotion, vSAN, TEP, Edge VLANs |
+| vmnic0 | vCD private network | All VLANs (802.1Q tagged) |
+| vmnic1 | vCD private network | All VLANs (802.1Q tagged) |
 
 ### VMkernel Assignments
 
@@ -331,7 +331,7 @@ After NSX networking is configured and BGP is established, the following routes 
 ```text
 default via <public-gw> dev ens33              ← internet via public NIC
 
-10.0.10.0/24 dev ens34 scope link              ← Management (native VLAN)
+10.0.10.0/24 dev ens34.10 scope link            ← Management (VLAN 10)
 10.0.20.0/24 dev ens34.20 scope link           ← vMotion
 10.0.30.0/24 dev ens34.30 scope link           ← vSAN
 10.0.40.0/24 dev ens34.40 scope link           ← Host Overlay

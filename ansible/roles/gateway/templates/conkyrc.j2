@@ -48,7 +48,6 @@ ${color3}VCF COMPONENTS${color}
   NSX wld       ${color1}nsx-mgr-wld.{{ lab_domain }}${color}
 
 ${color3}VLANS${color}
-  Native        ${color1}Management${color}  {{ gateway_ip }}/24
 {% for iface in gateway_vlan_interfaces %}
   VLAN {{ "%-4s" | format(iface.vlan) }}      ${color1}{{ iface.description }}${color}  {{ iface.ip }}
 {% endfor %}
