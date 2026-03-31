@@ -16,8 +16,8 @@ gateway_packages:
   - sshpass                     # Used by Phase 2 bootstrap to set ESXi passwords
   - zsh
   - git                          # Required for Oh My Zsh, plugin installs, and repo clone
-  - zsh-autosuggestions
-  - zsh-syntax-highlighting
+  # zsh-autosuggestions and zsh-syntax-highlighting are cloned from git
+  # into Oh My Zsh custom plugins directory (apt packages lack full structure)
   - ansible                     # Phases 2+ run from gateway
   - python3-pip                 # For Ansible collection dependencies
 

@@ -296,36 +296,18 @@
     HOME: /home/ubuntu
   tags: shell
 
-- name: Create Oh My Zsh custom plugins directory
-  become: true
-  ansible.builtin.file:
-    path: /home/ubuntu/.oh-my-zsh/custom/plugins/{{ item }}
-    state: directory
-    owner: ubuntu
-    group: ubuntu
-  loop:
-    - zsh-autosuggestions
-    - zsh-syntax-highlighting
+- name: Clone zsh-autosuggestions plugin
+  ansible.builtin.git:
+    repo: https://github.com/zsh-users/zsh-autosuggestions.git
+    dest: /home/ubuntu/.oh-my-zsh/custom/plugins/zsh-autosuggestions
+    depth: 1
   tags: shell
 
-- name: Link zsh-autosuggestions plugin file
-  become: true
-  ansible.builtin.file:
-    src: /usr/share/zsh-autosuggestions/zsh-autosuggestions.zsh
-    dest: /home/ubuntu/.oh-my-zsh/custom/plugins/zsh-autosuggestions/zsh-autosuggestions.plugin.zsh
-    state: link
-    owner: ubuntu
-    group: ubuntu
-  tags: shell
-
-- name: Link zsh-syntax-highlighting plugin file
-  become: true
-  ansible.builtin.file:
-    src: /usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
-    dest: /home/ubuntu/.oh-my-zsh/custom/plugins/zsh-syntax-highlighting/zsh-syntax-highlighting.plugin.zsh
-    state: link
-    owner: ubuntu
-    group: ubuntu
+- name: Clone zsh-syntax-highlighting plugin
+  ansible.builtin.git:
+    repo: https://github.com/zsh-users/zsh-syntax-highlighting.git
+    dest: /home/ubuntu/.oh-my-zsh/custom/plugins/zsh-syntax-highlighting
+    depth: 1
   tags: shell
 
 - name: Configure .zshrc
