@@ -198,10 +198,11 @@ def run_module():
 
                 if exec_status == "COMPLETED":
                     result_status = status_resp.get("resultStatus", "UNKNOWN")
-                    if result_status in ("SUCCEEDED", "FAILED_WITH_WARNINGS"):
+                    if result_status in ("SUCCEEDED", "FAILED_WITH_WARNINGS",
+                                          "WARNING"):
                         # SUCCEEDED = all checks passed
-                        # FAILED_WITH_WARNINGS = only warnings, no errors
-                        # Both allow bringup to proceed (warnings are acknowledged)
+                        # FAILED_WITH_WARNINGS / WARNING = only warnings, no errors
+                        # All allow bringup to proceed (warnings are acknowledged)
                         checks = status_resp.get("validationChecks", [])
                         warnings = [
                             c for c in checks
