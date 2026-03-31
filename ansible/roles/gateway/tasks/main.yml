@@ -627,19 +627,28 @@
   register: vscode_repo
   tags: repos
 
+# Ghostty — GPU-accelerated terminal emulator
+- name: Add Ghostty PPA
+  become: true
+  ansible.builtin.apt_repository:
+    repo: ppa:mkasberg/ghostty-ubuntu
+    state: present
+  register: ghostty_repo
+  tags: repos
+
 # Single apt cache update after all third-party repos are added.
 # Skips on re-runs when repos haven't changed.
 - name: Update apt cache for third-party repos
   become: true
   ansible.builtin.apt:
     update_cache: true
-  when: k8s_repo is changed or smallstep_repo is changed or vscode_repo is changed
+  when: k8s_repo is changed or smallstep_repo is changed or vscode_repo is changed or ghostty_repo is changed
   tags: repos
 
 - name: Install third-party packages
   become: true
   ansible.builtin.apt:
-    name: "{{ gateway_step_packages + gateway_vscode_packages + ['kubectl'] }}"
+    name: "{{ gateway_step_packages + gateway_vscode_packages + ['kubectl', 'ghostty'] }}"
     state: present
   tags: repos
 
