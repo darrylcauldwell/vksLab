@@ -174,13 +174,24 @@ ansible-playbook playbooks/phase0_operator.yml --tags ova
 
 ### 4.2 Configure Gateway (Automated)
 
-All gateway configuration (VLAN sub-interfaces, dnsmasq DNS/DHCP, chrony NTP, step-ca, GNOME/gnome-remote-desktop, IP masquerading, FRR BGP, Firefox, Keycloak) is automated by the `gateway` and `docker_services` Ansible roles. The playbook takes approximately **10–15 minutes** to complete:
+All gateway configuration (VLAN sub-interfaces, dnsmasq DNS/DHCP, chrony NTP, step-ca, GNOME/gnome-remote-desktop, IP masquerading, FRR BGP, Firefox, Ansible, 1Password CLI, Keycloak) is automated by the `gateway` and `docker_services` Ansible roles. The playbook takes approximately **10–15 minutes** to complete:
 
 ```bash
 source .venv/bin/activate
 cd ansible
 ansible-playbook playbooks/phase1_foundation.yml
 ```
+
+Phase 1 also prepares the gateway as the Ansible control node for all subsequent phases. It installs Ansible, 1Password CLI, clones the lab repo to `~/vksLab`, and installs required Ansible collections. After Phase 1 completes, SSH to the gateway and run all subsequent playbooks locally:
+
+```bash
+ssh ubuntu@<gateway-ip>
+cd ~/vksLab/ansible
+op signin    # authenticate 1Password CLI
+ansible-playbook -i inventory/hosts-gateway.yml playbooks/phase2_esxi.yml
+```
+
+> **Note**: The gateway-local inventory (`hosts-gateway.yml`) eliminates SSH ProxyJump — the gateway connects directly to ESXi hosts on the management VLAN. This is faster and more reliable than running from the laptop over the internet. To pull latest changes before running: `cd ~/vksLab && git pull`.
 
 ### 4.3 Discover ESXi MACs (Automated)
 

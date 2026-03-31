@@ -15,9 +15,11 @@ gateway_packages:
   - conky-all
   - sshpass                     # Used by Phase 2 bootstrap to set ESXi passwords
   - zsh
-  - git                          # Required for Oh My Zsh and plugin installs
+  - git                          # Required for Oh My Zsh, plugin installs, and repo clone
   - zsh-autosuggestions
   - zsh-syntax-highlighting
+  - ansible                     # Phases 2+ run from gateway
+  - python3-pip                 # For Ansible collection dependencies
 
 gateway_keyboard_layout: gb
 

@@ -854,3 +854,60 @@
   retries: 30
   delay: 2
   tags: ca
+
+# --- Ansible execution environment ---
+# Phases 2+ run from the gateway for speed and reliability.
+# The laptop runs Phase 0 (OVA upload) and Phase 1 (gateway bootstrap),
+# then the gateway runs all subsequent phases locally.
+
+- name: Add 1Password apt repository key
+  become: true
+  ansible.builtin.get_url:
+    url: https://downloads.1password.com/linux/keys/1password.asc
+    dest: /etc/apt/keyrings/1password.asc
+    mode: "0644"
+  tags: [repos, ansible-env]
+
+- name: Add 1Password apt repository
+  become: true
+  ansible.builtin.copy:
+    content: |
+      Types: deb
+      URIs: https://downloads.1password.com/linux/debian/amd64
+      Suites: stable
+      Components: main
+      Architectures: amd64
+      Signed-By: /etc/apt/keyrings/1password.asc
+    dest: /etc/apt/sources.list.d/1password.sources
+    mode: "0644"
+  register: onepassword_repo
+  tags: [repos, ansible-env]
+
+- name: Update apt cache for 1Password repo
+  become: true
+  ansible.builtin.apt:
+    update_cache: true
+  when: onepassword_repo is changed
+  tags: [repos, ansible-env]
+
+- name: Install 1Password CLI
+  become: true
+  ansible.builtin.apt:
+    name: 1password-cli
+    state: present
+  tags: ansible-env
+
+- name: Clone lab repo to gateway
+  ansible.builtin.git:
+    repo: https://github.com/darrylcauldwell/vksLab.git
+    dest: /home/ubuntu/vksLab
+    version: main
+    force: true
+  tags: ansible-env
+
+- name: Install Ansible collections
+  ansible.builtin.command:
+    cmd: ansible-galaxy collection install -r /home/ubuntu/vksLab/ansible/collections/requirements.yml
+  register: collections_install
+  changed_when: "'was installed' in collections_install.stdout"
+  tags: ansible-env
