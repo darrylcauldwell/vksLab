@@ -290,7 +290,7 @@ DNS records for all VCF appliances are statically configured in the dnsmasq temp
 
 In VCF 9.0, the SDDC Manager appliance doubles as the VCF Installer (Cloud Builder functionality is consolidated into it). The OVA was pre-staged on the gateway in Phase 0 (`~/vcf-installer.ova`).
 
-The Phase 3 playbook automates the full deployment using `govc` on the gateway:
+The Phase 3 playbook (`phase3_vcf_mgmt.yml`) has two plays: the first deploys the VCF Installer, and the second (§6.3) drives the bringup workflow. Run the full playbook:
 
 ```bash
 cd ansible && ansible-playbook playbooks/phase3_vcf_mgmt.yml
@@ -397,16 +397,22 @@ sudo sed -i 's/"jsonUpdatedTime":"[^"]*"/"jsonUpdatedTime":"'"$(date -u +%Y-%m-%
 
 > The bringup workflow takes approximately **2–3 hours** to complete end-to-end. Run `caffeinate -d` in a separate terminal to prevent the operator laptop from sleeping during this process.
 
-| Step | Action | Expected Result | Verification |
-|------|--------|-----------------|--------------|
-| 6.3.1 | Access VCF Installer UI at `https://vcf-installer.lab.dreamfold.dev` | The VCF Installer login page is displayed | The browser loads the login page |
-| 6.3.2 | The `vcf_bringup` Ansible role validates and submits the deployment specification to the VCF Installer API | The deployment parameters are validated without errors | No validation errors are reported |
-| 6.3.3 | Start bringup workflow | The bringup deployment begins | The progress bar is advancing |
-| 6.3.4 | Wait for vCenter deployment | The vCenter Server is deployed successfully | `https://vcenter-mgmt.lab.dreamfold.dev` is accessible |
-| 6.3.5 | Wait for VDS and vSAN configuration | Networking and storage are configured | vSAN health shows green in vCenter |
-| 6.3.6 | Wait for SDDC Manager deployment | SDDC Manager is deployed successfully | `https://sddc-manager.lab.dreamfold.dev` is accessible |
-| 6.3.7 | Wait for NSX Manager deployment | NSX Manager is deployed successfully | `https://nsx-mgr-mgmt.lab.dreamfold.dev` is accessible |
-| 6.3.8 | Bringup completes | The management domain is operational | SDDC Manager shows the management domain as healthy |
+The second play of the Phase 3 playbook (`phase3_vcf_mgmt.yml`) drives bringup end-to-end via the `vcf_bringup` role. It configures the offline depot, validates the bringup spec against the VCF Installer API, then submits the deployment and polls until completion. If the VCF Installer was already deployed in a previous run, restart the playbook from the bringup tasks:
+
+```bash
+cd ansible && ansible-playbook playbooks/phase3_vcf_mgmt.yml --start-at-task="Get VCF Installer API token"
+```
+
+| Step | Automated Action | Expected Result | Verification |
+|------|-----------------|-----------------|--------------|
+| 6.3.1 | Configure offline depot credentials via VCF Installer API | Depot configured successfully | — |
+| 6.3.2 | Validate bringup spec via `POST /v1/sddcs/validations` | Validation completes with status SUCCEEDED or WARNING | Warnings for vSAN ESA HCL are expected in nested environments |
+| 6.3.3 | Submit bringup via `POST /v1/sddcs` | Bringup deployment begins | — |
+| 6.3.4 | Poll deployment status (up to 2 hours) — vCenter deployment | vCenter Server deployed | `https://vcenter-mgmt.lab.dreamfold.dev` is accessible |
+| 6.3.5 | Poll deployment status — VDS and vSAN configuration | Networking and storage configured | vSAN health shows green in vCenter |
+| 6.3.6 | Poll deployment status — SDDC Manager deployment | SDDC Manager deployed | `https://sddc-manager.lab.dreamfold.dev` is accessible |
+| 6.3.7 | Poll deployment status — NSX Manager deployment | NSX Manager deployed | `https://nsx-mgr-mgmt.lab.dreamfold.dev` is accessible |
+| 6.3.8 | Bringup completes, playbook verifies all management endpoints | Management domain is operational | SDDC Manager shows the management domain as healthy |
 
 ### 6.4 Post-Bringup Deployments
 
