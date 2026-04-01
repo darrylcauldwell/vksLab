@@ -32,6 +32,15 @@
       GOVC_INSECURE: "true"
       GOVC_DATASTORE: "{{ esxi_datastore }}"
   tasks:
+    - name: Set VLAN 10 on VM Network port group
+      ansible.builtin.shell: >
+        sshpass -e ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null
+        root@{{ hostvars['esxi-01']['ansible_host'] }}
+        "esxcli network vswitch standard portgroup set -p 'VM Network' -v {{ vlan_id_mgmt }}"
+      environment:
+        SSHPASS: "{{ bootstrap_password }}"
+      changed_when: true
+
     - name: Check if VCF Installer VM already exists
       ansible.builtin.shell: >
         govc vm.info {{ vcf_installer_vm_name }} 2>&1
