@@ -232,7 +232,48 @@ def run_module():
                             result=status_resp,
                         )
 
-                elif exec_status in ("FAILED", "CANCELLED"):
+                elif exec_status == "FAILED":
+                    # VCF may return executionStatus FAILED even when all
+                    # failures are expected nested-lab warnings (HCL, disks,
+                    # existing SDDC).  Check if every failed check is in the
+                    # known-safe list before failing the module.
+                    known_safe_codes = {
+                        "VSAN_ESA_HOST_NOT_HCL_COMPATIBLE",
+                        "NO_VSAN_ESA_CERTIFIED_DISKS",
+                        "EXISTING_SDDC_VALIDATION_WARNING",
+                    }
+                    checks = status_resp.get("validationChecks", [])
+                    failed_checks = [
+                        c for c in checks
+                        if c.get("resultStatus") == "FAILED"
+                    ]
+                    real_errors = [
+                        c for c in failed_checks
+                        if not any(
+                            err.get("errorCode") in known_safe_codes
+                            for err in c.get("nestedErrors", [])
+                        )
+                        and c.get("errorResponse", {}).get(
+                            "errorCode", "") not in known_safe_codes
+                    ]
+                    if not real_errors:
+                        # All failures are known-safe for nested labs
+                        module.exit_json(
+                            changed=False,
+                            validation_id=validation_id,
+                            result_status="WARNING",
+                            warnings=failed_checks,
+                            result=status_resp,
+                        )
+                    else:
+                        module.fail_json(
+                            msg=f"Validation execution {exec_status}",
+                            validation_id=validation_id,
+                            failed_checks=real_errors,
+                            result=status_resp,
+                        )
+
+                elif exec_status == "CANCELLED":
                     module.fail_json(
                         msg=f"Validation execution {exec_status}",
                         validation_id=validation_id,
