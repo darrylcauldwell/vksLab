@@ -2,6 +2,38 @@
 
 This project is a nested VMware Cloud Foundation (VCF) 9 lab demonstrating vSphere Kubernetes Services (VKS) with NSX VPC networking, hosted entirely within a vCloud Director vApp.
 
+## Change Review Process (MANDATORY)
+
+**Every change to automation or documentation must achieve two goals:**
+1. **Do the desired thing** — the change achieves what was intended
+2. **Cause no unintended consequences** — the change does not break anything else
+
+**There is no urgency.** Speed of delivery is not a priority. Correctness is. If a change requires discussion, assumptions need validating, or uncertainty exists — stop, discuss with the user, and reach sufficient certainty before writing any code.
+
+### Scope
+
+This process applies to ALL changes in this project — Ansible playbooks, roles, templates, inventory, bringup specs, and documentation.
+
+### Before proposing a change
+
+1. **State the change** — what exactly will be modified and why
+2. **State assumptions and uncertainty** — what assumptions are being made? What has not been verified? Be explicit. "I believe X but I have not confirmed it" is always better than presenting X as fact
+3. **Trace the impact** — for each changed value, trace its consequences:
+   - What other files reference this value or depend on it?
+   - What downstream systems validate or consume it (e.g., VCF validation, dnsmasq, netplan)?
+   - Could this change break connectivity, service startup, or bringup at any phase?
+4. **Verify against documentation** — check VCF behaviour via the `localexpert` MCP tool before proposing changes to bringup specs, VDS configuration, or networking. If localexpert is unavailable, state "UNVERIFIED — could not check VCF docs" and discuss with the user before proceeding
+5. **One logical change per commit** — do not bundle speculative or unrelated fixes together
+6. **Flag destructive operations** — any ESXi network reset, VDS reconfiguration, or vSwitch modification must include an explicit warning about what will break if it fails and whether it is reversible
+
+### Handling uncertainty
+
+When uncertain about any aspect of a change:
+- **Say so explicitly** — "I'm not sure this is correct because..."
+- **Do not guess and present the guess as a solution** — a wrong change that wastes a 3-hour rebuild is far worse than pausing to discuss
+- **Discuss until certainty is reached** — work through assumptions with the user. Ask questions. Research. There is no rush
+- **If certainty cannot be reached**, state the remaining risk clearly and let the user decide whether to proceed
+
 ## Documentation Set
 
 The five design documents in `docs/markdown/` form a cohesive set. Each document stands alone (a reader may open any single document), but they must remain consistent with each other.
