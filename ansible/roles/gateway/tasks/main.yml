@@ -518,7 +518,15 @@
     out_interface: "{{ gateway_public_nic }}"
     jump: MASQUERADE
     state: present
-  notify: save iptables
+  register: masquerade_result
+  tags: routing
+
+# Save immediately — handlers only run at end of play and are skipped
+# if a later task fails, causing the rule to be lost on reboot.
+- name: Persist iptables rules
+  become: true
+  ansible.builtin.shell: netfilter-persistent save
+  when: masquerade_result.changed
   tags: routing
 
 # FRR BGP peers with the NSX Tier-0 gateway on the edge uplink VLAN (60).
