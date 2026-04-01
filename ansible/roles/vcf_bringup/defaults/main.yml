@@ -83,6 +83,7 @@ vcf_bringup_spec:
       teamingPolicy: loadbalance_loadbased
       activeUplinks:
         - uplink1
+        - uplink2
     - networkType: VM_MANAGEMENT
       subnet: "{{ vlans.management.subnet }}"
       gateway: "{{ vlans.management.gateway }}"
@@ -92,6 +93,7 @@ vcf_bringup_spec:
       teamingPolicy: loadbalance_loadbased
       activeUplinks:
         - uplink1
+        - uplink2
     - networkType: VMOTION
       subnet: "{{ vlans.vmotion.subnet }}"
       gateway: "{{ vlans.vmotion.gateway }}"
@@ -101,6 +103,7 @@ vcf_bringup_spec:
       teamingPolicy: loadbalance_loadbased
       activeUplinks:
         - uplink1
+        - uplink2
       includeIpAddressRanges:
         - startIpAddress: "{{ lab_vmotion_prefix }}.11"
           endIpAddress: "{{ lab_vmotion_prefix }}.20"
@@ -113,6 +116,7 @@ vcf_bringup_spec:
       teamingPolicy: loadbalance_loadbased
       activeUplinks:
         - uplink1
+        - uplink2
       includeIpAddressRanges:
         - startIpAddress: "{{ lab_vsan_prefix }}.11"
           endIpAddress: "{{ lab_vsan_prefix }}.20"
@@ -131,14 +135,14 @@ vcf_bringup_spec:
             transportType: VLAN
           - name: overlay-tz-vcf-m01
             transportType: OVERLAY
-      # Single uplink during bringup — vmnic0 stays on vSwitch0 so the
-      # management vmknic migration to the VDS does not cause a connectivity
-      # gap on remote hosts.  Add vmnic0 as uplink2 post-bringup.
       vmnicsToUplinks:
-        - id: vmnic1
+        - id: vmnic0
           uplink: uplink1
+        - id: vmnic1
+          uplink: uplink2
       nsxTeamings:
         - policy: LOADBALANCE_SRCID
           standByUplinks: []
           activeUplinks:
             - uplink1
+            - uplink2
