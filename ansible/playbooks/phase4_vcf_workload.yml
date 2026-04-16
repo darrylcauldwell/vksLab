@@ -1,9 +1,11 @@
 ---
 # Phase 4 — VCF Workload Domain
-# Commissions workload hosts and creates a VI workload domain
+# Commissions workload hosts and creates a VI workload domain.
+# Runs on the gateway so lab DNS (dnsmasq) resolves SDDC Manager and
+# workload appliance FQDNs — the operator laptop cannot resolve them.
 - name: Phase 4 — VCF workload domain
-  hosts: localhost
-  connection: local
+  hosts: gateways
   gather_facts: false
+  become: true
   roles:
     - vcf_workload_domain
