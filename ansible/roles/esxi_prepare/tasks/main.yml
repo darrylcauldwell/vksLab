@@ -90,6 +90,21 @@
   register: datastore_check
   changed_when: false
 
+- name: Check for unmounted datastore1 volume
+  ansible.builtin.shell: >
+    esxcfg-volume -l 2>/dev/null | grep -q datastore1 && echo "found" || echo "not_found"
+  register: unmounted_check
+  changed_when: false
+  when: "'missing' in datastore_check.stdout"
+
+- name: Persistently mount existing datastore1 volume
+  ansible.builtin.shell: >
+    esxcfg-volume -M datastore1
+  when:
+    - "'missing' in datastore_check.stdout"
+    - unmounted_check.stdout | default('') == 'found'
+  changed_when: true
+
 - name: Verify disk path exists
   ansible.builtin.shell: >
     ls -la /vmfs/devices/disks/{{ local_datastore_device }}
@@ -109,6 +124,7 @@
   when:
     - local_datastore_device is defined
     - "'missing' in datastore_check.stdout"
+    - unmounted_check.stdout | default('') != 'found'
   changed_when: true
 
 # --- CA certificate ---
