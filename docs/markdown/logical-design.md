@@ -167,6 +167,7 @@ The gateway runs dnsmasq, authoritative for the `lab.dreamfold.dev` zone. Unknow
 | R-004 | NET-03 | Six VLANs segment traffic by function | Matches VCF reference architecture VLAN model — management, vMotion, vSAN, host TEP, edge TEP, edge uplink | Risk: Over-segmentation for a lab. Mitigation: Required by VCF — cannot reduce without breaking bringup |
 | R-004 | NET-04 | Jumbo frames (MTU 8900) for overlay and storage VLANs | Required for NSX Geneve encapsulation overhead and optimal vSAN performance. Uses 8900 (not 9000) because the 4-byte 802.1Q VLAN tag on tagged frames would exceed the vCD provider's 9000 MTU | Risk: vCD private network must support MTU 9000. Mitigation: Verify provider portgroup MTU before deployment |
 | R-003 | NET-05 | dnsmasq on gateway provides authoritative DNS for lab.dreamfold.dev | Lightweight, simple configuration, dual-homed gateway can forward to upstream DNS | Risk: Single DNS server — no redundancy. Mitigation: Acceptable for lab; dnsmasq restarts quickly |
+| C-001 | NET-06 | Single VDS uplink (vmnic0) per ESXi host during VCF bringup | The VCF Installer atomically migrates the management vmkernel (vmk0) and its uplink from vSwitch0 to the VDS. With multiple uplinks under load-based teaming, the VDS may select a different physical NIC for vmk0 after migration, causing a brief connectivity blip on remote hosts. vCenter's network rollback safety mechanism detects the blip and reverts the change, leaving the bringup workflow stuck. With a single uplink, vmk0 stays on vmnic0 before and after migration — no teaming hash decision, no path change. VCF 9.0 supports single-NIC bringup | Risk: No NIC redundancy at the VDS layer. Mitigation: Acceptable for nested lab — both vNICs would share the same vCD private network, providing only the appearance of redundancy; the vCD platform provides the underlying physical path |
 
 ## 4. Infrastructure Services Design
 
@@ -362,12 +363,13 @@ The lab's data protection model is deliberately simple:
 
 ### Host Networking Model
 
-Each nested ESXi host has two virtual NICs:
+Each nested ESXi host has a single virtual NIC carrying all VLANs as an 802.1Q trunk:
 
 | vNIC | Connected To | Carries |
 |------|-------------|---------|
-| vmnic0 | vCD private network | All VLANs (802.1Q tagged) |
-| vmnic1 | vCD private network | All VLANs (802.1Q tagged) |
+| vmnic0 | vCD private network (Allow Guest VLAN enabled) | All VLANs (802.1Q tagged) |
+
+This single-uplink model is required for reliable VCF bringup in nested vCD environments — see NET-06 for the rationale. A second vNIC would provide no functional redundancy because both would attach to the same vCD private network.
 
 Inside each ESXi host, a vSphere Distributed Switch (VDS), created during VCF bringup, maps VLANs to VMkernel ports:
 
@@ -385,7 +387,7 @@ Inside each ESXi host, a vSphere Distributed Switch (VDS), created during VCF br
 | C-001 | ESX-01 | All ESXi hosts run as nested VMs on vCloud Director | Enables full VCF stack without dedicated hardware | Risk: Significant performance overhead from nested virtualisation. Mitigation: Acceptable for lab; not for benchmarking |
 | R-004 | ESX-02 | 4 hosts for management domain, 3 hosts for workload domain | Minimum for vSAN FTT=1; 4 management hosts provide headroom for management appliances | Risk: No N+1 redundancy. Mitigation: Lab-grade — host failure tolerated via vSAN RAID-1 |
 | R-007 | ESX-03 | vSAN ESA (Express Storage Architecture) with FTT=1 | Follows "vSAN ESA Single-Rack HCI Model" — single storage pool eliminates cache/capacity tier management; NVMe-based; ESA is the VMware-recommended architecture for vSAN 8+ | Risk: Nested NVMe requires SSD marking and FakeSCSIReservations. Mitigation: Automated via Ansible esxi_prepare role; VCF 9.0.1+ includes built-in HCL bypass for nested environments |
-| C-001 | ESX-04 | Two vNICs per host — both trunking all VLANs via 802.1Q | Provides NIC redundancy for the VDS with both uplinks active; VLAN 10 set in ESXi template for management bootstrap | Risk: Both NICs share the same vCD network — no physical path diversity. Mitigation: Acceptable for lab; vCD network provides underlying redundancy |
+| C-001 | ESX-04 | Single vNIC per host trunking all VLANs via 802.1Q (see NET-06) | A single uplink avoids the VSS-to-VDS migration failure mode that occurs with multi-uplink VDS in nested vCD environments. VLAN 10 is set on the ESXi management port group via DCUI before the template is saved, so management traffic is correctly tagged from first boot | Risk: No host-level NIC redundancy. Mitigation: Acceptable for lab — a second vNIC on the same vCD network provides no real path diversity; the vCD platform provides underlying redundancy |
 
 ## 6. VCF Domain Architecture
 

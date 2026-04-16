@@ -195,7 +195,7 @@ See [Logical Design](logical-design.md) for phase details and [Delivery Guide](d
 
 | Constraint | Description | Design Decisions |
 |------------|-------------|-----------------|
-| C-001 | All resources from vCD — no bare-metal | VCD-01, ESX-01, ESX-04 |
+| C-001 | All resources from vCD — no bare-metal | VCD-01, ESX-01, ESX-04, NET-06 |
 | C-002 | Nested virtualisation accepted | ESX-01, ESX-03 |
 | C-003 | Single-site topology | VCF-01 |
 | C-004 | Lab-grade only — not production | VCF-02, VKS-04 |

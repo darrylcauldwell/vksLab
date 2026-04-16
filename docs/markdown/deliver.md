@@ -139,7 +139,7 @@ ansible-playbook playbooks/phase0_operator.yml --tags ova
 
 | Step | Action | Expected Result | Verification |
 |------|--------|-----------------|--------------|
-| 3.5.1 | In the vApp, click **Add VM** > **From Template**. Select `[baked]esxi-9.0.2-2514807` from the catalog. Create esxi-01 through esxi-07 (24 vCPU, 128 GB RAM, 64 GB boot Non-Volatile Memory Express (NVMe) + 256 GB local NVMe + 2,048 GB vSAN NVMe). Assign both NICs to `lab-trunk` | All 7 ESXi VMs are cloning from the template | The vApp shows 7 ESXi VMs plus the gateway |
+| 3.5.1 | In the vApp, click **Add VM** > **From Template**. Select `[baked]esxi-9.0.2-2514807` from the catalog. Create esxi-01 through esxi-07 (24 vCPU, 128 GB RAM, 64 GB boot Non-Volatile Memory Express (NVMe) + 256 GB local NVMe + 2,048 GB vSAN NVMe). Each ESXi VM has a single vNIC — assign it to `lab-trunk`. If the template was created with two vNICs, remove the second one before saving the template | All 7 ESXi VMs are cloning from the template | The vApp shows 7 ESXi VMs plus the gateway, each with a single NIC attached to `lab-trunk` |
 | 3.5.2 | Power on all 7 ESXi VMs (allow 5–10 minutes for POST) | All ESXi VMs are running | Each VM shows the Direct Console User Interface (DCUI) |
 | 3.5.3 | For each ESXi VM (esxi-01 through esxi-07), open the VM console in vCD. Press **F2** > **Reset System Configuration** > **F11** to confirm. Wait for the host to reboot (1–2 minutes per host) | Each host reboots with a clean configuration | The DCUI shows a management IP in the DHCP dynamic range |
 | 3.5.4 | On each host via DCUI: press **F2** > **Configure Management Network** > **VLAN (optional)** > enter **10** > **Enter** > **Esc** > **Y** to apply and restart the management network | Management traffic is tagged with VLAN 10 | The DCUI shows the management IP after the network restart |
@@ -351,6 +351,8 @@ The VCF Installer requires software bundles downloaded from the offline depot be
 
 Nested ESXi hosts use virtual NVMe disks that are not on the vSAN Hardware Compatibility List (HCL). VMware Cloud Foundation (VCF) 9.0.1+ includes a built-in bypass via a domainmanager property. The vSAN HCL timestamp must also be current (< 90 days old).
 
+The bypass is documented in [Broadcom KB 408300](https://knowledge.broadcom.com/external/article/408300), which also explains why the property must be set in both `application-prod.properties` and `application.properties` for the change to take effect.
+
 SSH to the VCF Installer and switch to root (the `vcf` user does not have sudo privileges — use `su -` with the root password from 1Password "SDDC Manager" item):
 
 ```bash
@@ -394,15 +396,27 @@ No licence keys are required at bringup — VCF 9.0 "License Later" mode provide
 
 #### Troubleshooting: vSAN HCL Timestamp Validation
 
-The VCF Installer validates that its embedded vSAN HCL file (`all.json`) is less than 90 days old. If the installer OVA was built more than 90 days ago, bringup fails with an HCL validation error. To work around this, SSH to the VCF Installer and patch the timestamp:
+The VCF Installer validates that its embedded vSAN HCL file (`all.json`) is less than 90 days old. If the installer OVA was built more than 90 days ago, bringup fails with an HCL validation error. See [Broadcom KB 412606](https://knowledge.broadcom.com/external/article/412606/vcf-9-installer-fails-to-deploy-during-t.html) for the authoritative resolution.
+
+The fix is to replace `all.json` with a fresh download. The lab gateway is airgapped, so download on the operator laptop first and SCP through the gateway:
 
 ```bash
+# On operator laptop — download fresh HCL database
+curl -o ~/Downloads/all.json https://vvs.broadcom.com/service/vsan/all.json
+
+# SCP to gateway, then to VCF Installer
+scp ~/Downloads/all.json gateway.lab.dreamfold.dev:/tmp/all.json
+ssh gateway.lab.dreamfold.dev \
+  "scp /tmp/all.json vcf@vcf-installer.lab.dreamfold.dev:/nfs/vmware/vcf/nfs-mount/all.json"
+
+# On the VCF Installer — move to HCL directory and fix ownership
 ssh vcf@vcf-installer.lab.dreamfold.dev
-sudo sed -i 's/"timestamp":"[^"]*"/"timestamp":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'"/' \
-  /nfs/vmware/vcf/nfs-mount/vsan-hcl/all.json
-sudo sed -i 's/"jsonUpdatedTime":"[^"]*"/"jsonUpdatedTime":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'"/' \
-  /nfs/vmware/vcf/nfs-mount/vsan-hcl/all.json
+su -
+mv /nfs/vmware/vcf/nfs-mount/all.json /nfs/vmware/vcf/nfs-mount/vsan-hcl/all.json
+chown vcf_lcm:vcf /nfs/vmware/vcf/nfs-mount/vsan-hcl/all.json
 ```
+
+Then select **Re-run Validations** in the VCF Installer UI.
 
 ### 6.3 Run VCF Bringup
 
@@ -987,6 +1001,8 @@ For additional troubleshooting, see [Operations Guide](operate.md) Section 4.
 | Bringup stalls on DNS resolution — "AAAA record delay" | dnsmasq is returning AAAA (IPv6) records that cause lookup delays in the bringup workflow | Add `dns-option:no-aaaa` to the dnsmasq configuration on the gateway, then restart dnsmasq |
 | vSAN cluster creation fails with "FakeSCSIReservations not enabled" | The `Disk.FakeSCSIReservations` advanced setting was not applied on one or more management hosts | SSH to the affected host and run: `esxcli system settings advanced set -o /Disk/FakeSCSIReservations -i 1`, then reboot the host |
 | Bringup times out waiting for SDDC Manager deployment | The VCF Installer VM has insufficient resources or network connectivity issues | Verify the installer VM can ping all management hosts and the DNS server. Check `/var/log/vmware/vcf/bringup/` logs on the installer for specific errors |
+| Bringup fails at *Migrate ESXi Host Management vmknic(s) to vSphere Distributed Switch* with "Network configuration change disconnected the host from vCenter Server and has been rolled back" on remote hosts | ESXi VMs have more than one vNIC, causing the VDS to use load-based teaming. The atomic VSS-to-VDS migration of vmnic + vmk0 introduces a brief connectivity blip on remote hosts that triggers vCenter's network rollback safety mechanism | Confirm each ESXi VM has only a single vNIC attached to `lab-trunk` (see Logical Design [NET-06](logical-design.md) and [ESX-04](logical-design.md)). If a second vNIC is present, power off the VM and remove it in vCD, then redeploy from a corrected template |
+| Bringup spec validation fails with `VMNIC_IN_USE_MISSING_FROM_SPEC` | A vmnic (e.g. `vmnic1`) is currently attached to vSwitch0 on an ESXi host but is not declared in the bringup spec's `vmnicsToUplinks` array | Either remove the unwanted vNIC from the ESXi VM in vCD, or add it to the bringup spec. The single-vNIC design (NET-06) is the cleaner option |
 
 For additional troubleshooting, see [Operations Guide](operate.md) Section 4.
 

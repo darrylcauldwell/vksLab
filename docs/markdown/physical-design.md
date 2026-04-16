@@ -147,7 +147,7 @@ ESXi hosts receive their management IP via DHCP with static MAC→IP reservation
 
 ## 4. Nested ESXi Host Specification
 
-> Implements ESX-01 (nested VMs on vCD), ESX-02 (4+3 host split), ESX-03 (vSAN ESA), ESX-04 (two-vNIC model). See [Logical Design](logical-design.md) Section 5.
+> Implements ESX-01 (nested VMs on vCD), ESX-02 (4+3 host split), ESX-03 (vSAN ESA), ESX-04 (single-vNIC model). See [Logical Design](logical-design.md) Section 5.
 
 ### Management Domain Hosts (4x)
 
@@ -158,7 +158,7 @@ ESXi hosts receive their management IP via DHCP with static MAC→IP reservation
 | Boot Non-Volatile Memory Express (NVMe) | 64 GB | 256 GB |
 | Local Datastore NVMe | 256 GB | 1,024 GB |
 | vSAN NVMe | 2,048 GB | 8,192 GB |
-| NICs | 2 (management + trunk) | — |
+| NICs | 1 (single trunk carrying all VLANs) | — |
 | ESXi Version | 9.0 | — |
 
 ### Workload Domain Hosts (3x)
@@ -170,15 +170,16 @@ ESXi hosts receive their management IP via DHCP with static MAC→IP reservation
 | Boot NVMe | 64 GB | 192 GB |
 | Local Datastore NVMe | 256 GB | 768 GB |
 | vSAN NVMe | 2,048 GB | 6,144 GB |
-| NICs | 2 (management + trunk) | — |
+| NICs | 1 (single trunk carrying all VLANs) | — |
 | ESXi Version | 9.0 | — |
 
 ### vNIC Mappings
 
 | vNIC | Connected To | Carries |
 |------|-------------|---------|
-| vmnic0 | vCD private network | All VLANs (802.1Q tagged) |
-| vmnic1 | vCD private network | All VLANs (802.1Q tagged) |
+| vmnic0 | vCD private network (Allow Guest VLAN enabled) | All VLANs (802.1Q tagged) |
+
+> Single-NIC design is required for reliable VCF bringup in nested vCD — see [Logical Design](logical-design.md) NET-06 and ESX-04 for rationale.
 
 ### VMkernel Assignments
 
