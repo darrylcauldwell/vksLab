@@ -91,6 +91,28 @@
     msg: "All hosts already commissioned. Skipping commissioning step."
   when: hosts_to_commission | length == 0
 
+- name: Get management cluster vLCM image ID
+  ansible.builtin.uri:
+    url: "https://{{ vcf_wld_hostname }}/v1/clusters"
+    method: GET
+    headers:
+      Authorization: "Bearer {{ token_response.json.accessToken }}"
+    validate_certs: false
+    status_code: 200
+  register: clusters_response
+
+- name: Extract management cluster image ID
+  ansible.builtin.set_fact:
+    cluster_image_id: "{{ (clusters_response.json.elements | first).imageId }}"
+
+- name: Build host specs with IDs and network configuration
+  ansible.builtin.set_fact:
+    vcf_wld_host_specs: "{{ lookup('template', 'host_specs.j2') | from_json }}"
+
+- name: Display constructed host specs
+  ansible.builtin.debug:
+    msg: "vcf_wld_host_specs: {{ vcf_wld_host_specs | to_nice_json }}"
+
 - name: Validate workload domain spec
   vcf_sddc_domain:
     sddc_hostname: "{{ vcf_wld_hostname }}"

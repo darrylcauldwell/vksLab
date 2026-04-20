@@ -1,0 +1,18 @@
+[
+{%- for host in vcf_wld_hosts %}
+  {
+    "id": "{{ (hosts_response.json.elements | selectattr('fqdn', 'equalto', host.fqdn) | first).id }}",
+    "hostname": "{{ host.fqdn }}",
+    "username": "{{ host.username }}",
+    "hostNetworkSpec": {
+      "vmNics": [
+        {
+          "id": "vmnic0",
+          "vdsName": "workload-cluster-vds01",
+          "uplink": "uplink1"
+        }
+      ]
+    }
+  }{{ "," if not loop.last else "" }}
+{%- endfor %}
+]

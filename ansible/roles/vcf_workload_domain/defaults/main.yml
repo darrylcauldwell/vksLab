@@ -18,28 +18,6 @@ vcf_wld_hosts:
 
 vcf_wld_domain_spec:
   domainName: workload-domain
-  networkSpec:
-    - networkType: MANAGEMENT
-      subnet: "{{ vlans.management.subnet }}"
-      gateway: "{{ vlans.management.gateway }}"
-      vlanId: "{{ vlans.management.id }}"
-      mtu: "{{ vlans.management.mtu }}"
-    - networkType: VMOTION
-      subnet: "{{ vlans.vmotion.subnet }}"
-      gateway: "{{ vlans.vmotion.gateway }}"
-      vlanId: "{{ vlans.vmotion.id }}"
-      mtu: "{{ vlans.vmotion.mtu }}"
-      includeIpAddressRanges:
-        - startIpAddress: "{{ lab_vmotion_prefix }}.15"
-          endIpAddress: "{{ lab_vmotion_prefix }}.17"
-    - networkType: VSAN
-      subnet: "{{ vlans.vsan.subnet }}"
-      gateway: "{{ vlans.vsan.gateway }}"
-      vlanId: "{{ vlans.vsan.id }}"
-      mtu: "{{ vlans.vsan.mtu }}"
-      includeIpAddressRanges:
-        - startIpAddress: "{{ lab_vsan_prefix }}.15"
-          endIpAddress: "{{ lab_vsan_prefix }}.17"
   vcenterSpec:
     name: vcenter-wld
     networkDetailsSpec:
@@ -48,6 +26,40 @@ vcf_wld_domain_spec:
       gateway: "{{ lab_gateway }}"
       subnetMask: 255.255.255.0
     rootPassword: "{{ vcf_wld_password }}"
+    datacenterName: workload-dc
+    vmSize: medium
+    storageSize: lstorage
+  computeSpec:
+    clusterSpecs:
+      - name: workload-cluster
+        clusterImageId: "{{ cluster_image_id }}"
+        hostSpecs: "{{ vcf_wld_host_specs }}"
+        datastoreSpec:
+          vsanDatastoreSpec:
+            datastoreName: workload-vsan-ds
+            esaEnabled: true
+        networkSpec:
+          vdsSpecs:
+            - name: workload-cluster-vds01
+              portGroupSpecs:
+                - name: workload-cluster-vds01-pg-mgmt
+                  transportType: MANAGEMENT
+                - name: workload-cluster-vds01-pg-vmotion
+                  transportType: VMOTION
+                - name: workload-cluster-vds01-pg-vsan
+                  transportType: VSAN
+              isUsedByNsxt: true
+          nsxClusterSpec:
+            nsxTClusterSpec:
+              geneveVlanId: "{{ vlans.host_overlay.id }}"
+              ipAddressPoolSpec:
+                name: workload-tep-pool
+                subnets:
+                  - ipAddressPoolRanges:
+                      - start: "{{ lab_overlay_prefix }}.15"
+                        end: "{{ lab_overlay_prefix }}.17"
+                    cidr: "{{ vlans.host_overlay.subnet }}"
+                    gateway: "{{ vlans.host_overlay.gateway }}"
   nsxTSpec:
     nsxManagerSpecs:
       - name: nsx-mgr-wld
@@ -56,12 +68,7 @@ vcf_wld_domain_spec:
           dnsName: "nsx-mgr-wld.{{ lab_domain }}"
           gateway: "{{ lab_gateway }}"
           subnetMask: 255.255.255.0
+    vip: "{{ lab_mgmt_prefix }}.11"
+    vipFqdn: "nsx-mgr-wld-vip.{{ lab_domain }}"
     nsxManagerAdminPassword: "{{ nsx_admin_password }}"
-  computeSpec:
-    clusterSpecs:
-      - name: workload-cluster
-        hostSpecs: "{{ vcf_wld_hosts }}"
-        datastoreSpec:
-          vsanDatastoreSpec:
-            datastoreName: workload-vsan-ds
-            esaEnabled: true
+    formFactor: medium
