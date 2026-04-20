@@ -115,7 +115,7 @@
 
 - name: Build host specs with IDs and network configuration
   ansible.builtin.set_fact:
-    vcf_wld_host_specs: "{{ lookup('template', 'host_specs.j2') | from_json }}"
+    vcf_wld_host_specs: "{{ lookup('template', 'host_specs.j2') }}"
 
 - name: Display constructed host specs
   ansible.builtin.debug:
