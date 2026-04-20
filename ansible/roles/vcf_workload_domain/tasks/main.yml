@@ -1,5 +1,36 @@
 ---
 # Commission workload hosts and create VI workload domain
+
+# Look up network pool IDs by name before commissioning
+- name: Get bearer token for pool lookup
+  ansible.builtin.uri:
+    url: "https://{{ vcf_wld_hostname }}/v1/tokens"
+    method: POST
+    body_format: json
+    body:
+      username: "{{ vcf_wld_username }}"
+      password: "{{ vcf_wld_password }}"
+    validate_certs: false
+    status_code: 200
+  register: token_response
+
+- name: Get network pools
+  ansible.builtin.uri:
+    url: "https://{{ vcf_wld_hostname }}/v1/network-pools"
+    method: GET
+    headers:
+      Authorization: "Bearer {{ token_response.json.accessToken }}"
+    validate_certs: false
+    status_code: 200
+  register: pools_response
+
+- name: Extract pool ID and update host specs
+  ansible.builtin.set_fact:
+    vcf_wld_hosts: "{{ vcf_wld_hosts | map('combine', {'networkPoolId': pool_id}) | list }}"
+  vars:
+    pool_name: "mgmt-network-pool"
+    pool_id: "{{ (pools_response.json.elements | selectattr('name', 'equalto', pool_name) | first).id }}"
+
 - name: Commission workload hosts into free pool
   vcf_sddc_host:
     sddc_hostname: "{{ vcf_wld_hostname }}"
