@@ -19,9 +19,6 @@ vcf_wld_hosts:
 vcf_wld_domain_spec:
   domainName: workload-domain
   deployWithoutLicenseKeys: true
-  ssoSpec:
-    ssoDomain: vsphere.local
-    adminUserSsoPassword: "{{ vcenter_sso_password }}"
   vcenterSpec:
     name: vcenter-wld
     networkDetailsSpec:
@@ -90,7 +87,6 @@ vcf_wld_domain_spec:
           dnsName: "nsx-mgr-wld.{{ lab_domain }}"
           gateway: "{{ lab_gateway }}"
           subnetMask: 255.255.255.0
-    vip: "{{ lab_mgmt_prefix }}.22"
-    vipFqdn: "nsx-mgr-wld-vip.{{ lab_domain }}"
+    vipFqdn: "nsx-mgr-wld.{{ lab_domain }}"
     nsxManagerAdminPassword: "{{ nsx_admin_password }}"
     formFactor: medium
