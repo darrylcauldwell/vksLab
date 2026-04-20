@@ -499,25 +499,34 @@ grep "enable.speed.of.physical.nics.validation" /etc/vmware/vcf/operationsmanage
 
 **Reference**: Broadcom KB 408300 — vSAN ESA nested lab workarounds.
 
-### 7.1 Commission Hosts
+### 7.1 Automate Host Commissioning and Domain Creation
 
-| Step | Action | Expected Result | Verification |
-|------|--------|-----------------|--------------|
-| 7.1.1 | In SDDC Manager, navigate to **Inventory** > **Hosts** > **Commission Hosts** | The host commission wizard opens | — |
-| 7.1.2 | Add hosts `esxi-05.lab.dreamfold.dev`, `esxi-06.lab.dreamfold.dev`, `esxi-07.lab.dreamfold.dev` to the free pool. Use credentials from 1Password "ESXi Root" item, set `networkPoolName: mgmt-network-pool` and `storageType: VSAN` | The three hosts begin commissioning | Task progress is visible in the SDDC Manager UI |
-| 7.1.3 | Wait for host validation and commissioning | All three hosts are in the free pool | SDDC Manager shows 3 hosts available in the free pool |
+Once the vSAN ESA workaround (Section 7.0) has been applied to SDDC Manager, run the Phase 4 Ansible playbook from the operator laptop:
 
-### 7.2 Create Workload Domain
+```bash
+cd ansible/
+ansible-playbook playbooks/phase4_vcf_workload.yml
+```
 
-| Step | Action | Expected Result | Verification |
-|------|--------|-----------------|--------------|
-| 7.2.1 | In SDDC Manager, navigate to **Inventory** > **Domains** > **Add Domain** | The create domain wizard opens | — |
-| 7.2.2 | Configure domain name `workload-domain`, cluster name `workload-cluster`, datastore name `workload-vsan-ds`, vSAN ESA enabled, 3 hosts | The domain configuration is accepted | Validation passes without errors |
-| 7.2.3 | Specify appliance FQDNs: `vcenter-wld.lab.dreamfold.dev` (10.0.10.9) and `nsx-mgr-wld.lab.dreamfold.dev` (10.0.10.10) | The appliance configuration is accepted | — |
-| 7.2.4 | Start domain creation | The domain deployment begins | Task progress is visible in the SDDC Manager UI |
-| 7.2.5 | Wait for workload domain deployment (60-90 minutes). Ensure `caffeinate -d` is running to prevent laptop sleep | The workload domain is created | SDDC Manager shows the domain as Active |
+**What the playbook does:**
+- Looks up the management network pool ID (`mgmt-network-pool`) via SDDC Manager API
+- Commissions workload hosts `esxi-05`, `esxi-06`, `esxi-07` to the free pool
+- Validates the workload domain specification
+- Creates the workload domain with vSAN ESA enabled, 3-node cluster
+- Waits for vCenter and NSX Manager to be accessible
 
-### 7.3 Workload Domain Verification
+**Progress monitoring:**
+- The playbook displays polling progress every time the task status changes
+- Monitor real-time progress in SDDC Manager **Inventory** > **Tasks** if desired
+- Expected time: 20–40 minutes for host commissioning + 60–90 minutes for domain creation (total ~100 minutes)
+
+**If the playbook fails:**
+- Check the error message in the console output — it will include the actual SDDC Manager error response
+- Verify the vSAN ESA workaround properties are present (Section 7.0)
+- Verify SDDC Manager is operational (`systemctl status operationsmanager` on the SDDC Manager VM)
+- Retry: `ansible-playbook playbooks/phase4_vcf_workload.yml`
+
+### 7.2 Workload Domain Verification
 
 | Check | Method | Expected Result |
 |-------|--------|-----------------|
@@ -527,19 +536,19 @@ grep "enable.speed.of.physical.nics.validation" /etc/vmware/vcf/operationsmanage
 | Transport nodes | NSX Manager → System → Fabric → Nodes | Three host transport nodes are configured and connected |
 | SDDC Manager | Domains overview | Both management and workload domains show Active status |
 
-### 7.4 Configure Keycloak OpenID Connect (OIDC) via VCF Identity Broker
+### 7.3 Configure Keycloak OpenID Connect (OIDC) via VCF Identity Broker
 
 Keycloak was deployed in Phase 1 by the `docker_services` role with the lab realm, users, and OIDC clients already configured. Now that the workload domain exists, register Keycloak as the external identity provider with the **VCF Identity Broker**. The Identity Broker federates authentication across all VCF products (vCenter, NSX Manager, SDDC Manager) — you configure the OIDC provider once in the broker, and it propagates to the integrated products.
 
 | Step | Action | Expected Result |
 |------|--------|-----------------|
-| 7.4.1 | In SDDC Manager, navigate to **Administration** > **Single Sign-On** > **Identity Providers** > **Add Identity Provider** > **OpenID Connect** | The OIDC provider is configured in the Identity Broker |
-| 7.4.2 | Set Discovery Endpoint to `https://gateway.lab.dreamfold.dev:8443/realms/lab/.well-known/openid-configuration` | The OIDC metadata is fetched from Keycloak |
-| 7.4.3 | Set Client ID to `vcf-identity-broker`. Retrieve the client secret from the Keycloak admin console at `https://gateway.lab.dreamfold.dev:8443/admin/master/console/#/lab/clients` | The client credentials are accepted |
-| 7.4.4 | Map Keycloak groups to VCF roles (admin, read-only, etc.) | The role mappings are created |
-| 7.4.5 | Test SSO login with `lab-admin` user via management vCenter | The vCenter dashboard loads after SSO login |
-| 7.4.6 | Test SSO login with `lab-admin` user via NSX Manager | The NSX Manager dashboard loads after SSO login |
-| 7.4.7 | Verify Identity Broker shows both management and workload domains federated | All federated products are listed in the Identity Broker |
+| 7.3.1 | In SDDC Manager, navigate to **Administration** > **Single Sign-On** > **Identity Providers** > **Add Identity Provider** > **OpenID Connect** | The OIDC provider is configured in the Identity Broker |
+| 7.3.2 | Set Discovery Endpoint to `https://gateway.lab.dreamfold.dev:8443/realms/lab/.well-known/openid-configuration` | The OIDC metadata is fetched from Keycloak |
+| 7.3.3 | Set Client ID to `vcf-identity-broker`. Retrieve the client secret from the Keycloak admin console at `https://gateway.lab.dreamfold.dev:8443/admin/master/console/#/lab/clients` | The client credentials are accepted |
+| 7.3.4 | Map Keycloak groups to VCF roles (admin, read-only, etc.) | The role mappings are created |
+| 7.3.5 | Test SSO login with `lab-admin` user via management vCenter | The vCenter dashboard loads after SSO login |
+| 7.3.6 | Test SSO login with `lab-admin` user via NSX Manager | The NSX Manager dashboard loads after SSO login |
+| 7.3.7 | Verify Identity Broker shows both management and workload domains federated | All federated products are listed in the Identity Broker |
 
 ## 8. Phase 5 — NSX Networking
 
