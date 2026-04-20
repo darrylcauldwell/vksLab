@@ -6,15 +6,15 @@ vcf_wld_hosts:
   - fqdn: "esxi-05.{{ lab_domain }}"
     username: root
     password: "{{ bootstrap_password }}"
-    storageType: VSAN
+    storageType: VSAN_ESA
   - fqdn: "esxi-06.{{ lab_domain }}"
     username: root
     password: "{{ bootstrap_password }}"
-    storageType: VSAN
+    storageType: VSAN_ESA
   - fqdn: "esxi-07.{{ lab_domain }}"
     username: root
     password: "{{ bootstrap_password }}"
-    storageType: VSAN
+    storageType: VSAN_ESA
 
 vcf_wld_domain_spec:
   domainName: workload-domain
