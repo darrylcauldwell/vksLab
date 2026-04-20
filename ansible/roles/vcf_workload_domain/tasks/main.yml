@@ -6,6 +6,10 @@
 # Manual prerequisite: SSH to SDDC Manager and append these properties before running this role.
 
 # Look up network pool IDs by name before commissioning
+- name: Display host specs before pool lookup
+  ansible.builtin.debug:
+    msg: "vcf_wld_hosts before pool lookup: {{ vcf_wld_hosts | to_nice_json }}"
+
 - name: Get bearer token for pool lookup
   ansible.builtin.uri:
     url: "https://{{ vcf_wld_hostname }}/v1/tokens"
@@ -34,6 +38,10 @@
   vars:
     pool_name: "mgmt-network-pool"
     pool_id: "{{ (pools_response.json.elements | selectattr('name', 'equalto', pool_name) | first).id }}"
+
+- name: Display host specs after pool lookup
+  ansible.builtin.debug:
+    msg: "vcf_wld_hosts after pool lookup (ready to commission): {{ vcf_wld_hosts | to_nice_json }}"
 
 - name: Commission workload hosts into free pool
   vcf_sddc_host:
