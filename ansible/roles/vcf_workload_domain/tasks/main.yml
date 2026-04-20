@@ -38,7 +38,13 @@
   ansible.builtin.debug:
     msg: "Network pool mgmt-network-pool: {{ (pools_response.json.elements | selectattr('name', 'equalto', 'mgmt-network-pool') | first) | to_nice_json }}"
 
-- name: Display host specs before commissioning
+- name: Inject network pool ID into host specs
+  ansible.builtin.set_fact:
+    vcf_wld_hosts: "{{ vcf_wld_hosts | map('combine', {'networkPoolId': pool_id}) | list }}"
+  vars:
+    pool_id: "{{ (pools_response.json.elements | selectattr('name', 'equalto', 'mgmt-network-pool') | first).id }}"
+
+- name: Display host specs before commissioning (with pool ID injected)
   ansible.builtin.debug:
     msg: "vcf_wld_hosts: {{ vcf_wld_hosts | to_nice_json }}"
 
