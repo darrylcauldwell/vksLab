@@ -83,6 +83,11 @@ vcf_wld_domain_spec:
     nsxManagerSpecs:
       - name: nsx-mgr-wld
         hostname: "nsx-mgr-wld.{{ lab_domain }}"
+        networkDetailsSpec:
+          ipAddress: "{{ lab_mgmt_prefix }}.10"
+          dnsName: "nsx-mgr-wld.{{ lab_domain }}"
+          gateway: "{{ lab_gateway }}"
+          subnetMask: 255.255.255.0
     vipFqdn: "nsx-mgr-wld.{{ lab_domain }}"
     nsxManagerAdminPassword: "{{ nsx_admin_password }}"
     formFactor: medium
