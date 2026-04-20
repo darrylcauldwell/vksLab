@@ -139,7 +139,7 @@
     msg: "vcf_wld_host_specs: {{ vcf_wld_host_specs | to_nice_json }}"
 
 - name: Validate workload domain spec
-  vcf_sddc_domain:
+  vcf_sddc_domain_sdk:
     sddc_hostname: "{{ vcf_wld_hostname }}"
     username: "{{ vcf_wld_username }}"
     password: "{{ vcf_wld_password }}"
@@ -149,10 +149,10 @@
 
 - name: Display domain validation result
   ansible.builtin.debug:
-    var: domain_validation
+    msg: "Domain validation passed: {{ domain_validation.validation_id }}"
 
 - name: Create workload domain
-  vcf_sddc_domain:
+  vcf_sddc_domain_sdk:
     sddc_hostname: "{{ vcf_wld_hostname }}"
     username: "{{ vcf_wld_username }}"
     password: "{{ vcf_wld_password }}"
@@ -163,7 +163,7 @@
 
 - name: Display domain creation result
   ansible.builtin.debug:
-    var: domain_result
+    msg: "Domain created: {{ domain_result.task_id }} (status: {{ domain_result.task_status }})"
 
 - name: Verify workload components are accessible
   ansible.builtin.uri:
