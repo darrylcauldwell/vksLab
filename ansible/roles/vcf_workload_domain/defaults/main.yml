@@ -80,8 +80,9 @@ vcf_wld_domain_spec:
                     cidr: "{{ vlans.host_overlay.subnet }}"
                     gateway: "{{ vlans.host_overlay.gateway }}"
   nsxTSpec:
-    nsxManagers:
-      - hostname: "nsx-mgr-wld.{{ lab_domain }}"
+    nsxManagerSpecs:
+      - name: nsx-mgr-wld
+        hostname: "nsx-mgr-wld.{{ lab_domain }}"
     vipFqdn: "nsx-mgr-wld.{{ lab_domain }}"
     nsxManagerAdminPassword: "{{ nsx_admin_password }}"
     formFactor: medium
