@@ -32,6 +32,7 @@ vcf_wld_domain_spec:
   computeSpec:
     clusterSpecs:
       - name: workload-cluster
+        clusterImageId: "{{ cluster_image_id }}"
         hostSpecs: "{{ vcf_wld_host_specs }}"
         datastoreSpec:
           vsanDatastoreSpec:

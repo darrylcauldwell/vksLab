@@ -91,6 +91,28 @@
     msg: "All hosts already commissioned. Skipping commissioning step."
   when: hosts_to_commission | length == 0
 
+- name: Get vLCM personalities (cluster images)
+  ansible.builtin.uri:
+    url: "https://{{ vcf_wld_hostname }}/v1/personalities"
+    method: GET
+    headers:
+      Authorization: "Bearer {{ token_response.json.accessToken }}"
+    validate_certs: false
+    status_code: 200
+  register: personalities_response
+
+- name: Display available vLCM images
+  ansible.builtin.debug:
+    msg: "Available vLCM images: {{ personalities_response.json.elements | map(attribute='personalityName') | list }}"
+
+- name: Extract vLCM image ID (use first/primary image)
+  ansible.builtin.set_fact:
+    cluster_image_id: "{{ (personalities_response.json.elements | first).personalityId }}"
+
+- name: Display selected vLCM image ID
+  ansible.builtin.debug:
+    msg: "Using vLCM image: {{ (personalities_response.json.elements | first).personalityName }} (ID: {{ cluster_image_id }})"
+
 - name: Build host specs with IDs and network configuration
   ansible.builtin.set_fact:
     vcf_wld_host_specs: "{{ lookup('template', 'host_specs.j2') | from_json }}"
