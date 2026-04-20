@@ -5,9 +5,39 @@
 # due to SSH banner interfering with sshpass automation (see deliver.md Phase 4 prerequisites).
 # Manual prerequisite: SSH to SDDC Manager and append these properties before running this role.
 
-# Commission workload hosts into free pool
-# Note: API accepts networkPoolName (string), not networkPoolId (UUID)
-# SDDC Manager looks up the pool ID internally
+# Verify network pool exists before commissioning
+- name: Get bearer token for pool verification
+  ansible.builtin.uri:
+    url: "https://{{ vcf_wld_hostname }}/v1/tokens"
+    method: POST
+    body_format: json
+    body:
+      username: "{{ vcf_wld_username }}"
+      password: "{{ vcf_wld_password }}"
+    validate_certs: false
+    status_code: 200
+  register: token_response
+
+- name: Get network pools
+  ansible.builtin.uri:
+    url: "https://{{ vcf_wld_hostname }}/v1/network-pools"
+    method: GET
+    headers:
+      Authorization: "Bearer {{ token_response.json.accessToken }}"
+    validate_certs: false
+    status_code: 200
+  register: pools_response
+
+- name: Verify mgmt-network-pool exists
+  ansible.builtin.assert:
+    that:
+      - pools_response.json.elements | selectattr('name', 'equalto', 'mgmt-network-pool') | list | length > 0
+    fail_msg: "Network pool 'mgmt-network-pool' not found. Available pools: {{ pools_response.json.elements | map(attribute='name') | list }}"
+
+- name: Display network pool details
+  ansible.builtin.debug:
+    msg: "Network pool mgmt-network-pool: {{ (pools_response.json.elements | selectattr('name', 'equalto', 'mgmt-network-pool') | first) | to_nice_json }}"
+
 - name: Display host specs before commissioning
   ansible.builtin.debug:
     msg: "vcf_wld_hosts: {{ vcf_wld_hosts | to_nice_json }}"
