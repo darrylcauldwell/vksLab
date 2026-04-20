@@ -71,6 +71,31 @@ except ImportError:
     from urllib2 import Request, urlopen, URLError, HTTPError
 
 
+def parse_sddc_error(response_body):
+    """Parse SDDC Manager error response and extract user-friendly message."""
+    try:
+        error_obj = json.loads(response_body)
+        messages = []
+
+        # Extract main error message
+        if error_obj.get("message"):
+            messages.append(error_obj["message"])
+
+        # Extract remediation message
+        if error_obj.get("remediationMessage"):
+            messages.append("Remediation: " + error_obj["remediationMessage"])
+
+        # Extract nested error details
+        if error_obj.get("nestedErrors"):
+            for nested in error_obj["nestedErrors"]:
+                if nested.get("message"):
+                    messages.append("  • " + nested["message"])
+
+        return " | ".join(messages) if messages else response_body
+    except Exception:
+        return response_body
+
+
 def make_ssl_context(validate_certs):
     import ssl
 
@@ -173,8 +198,9 @@ def run_module():
             body = e.read().decode()
         except Exception:
             pass
+        parsed_msg = parse_sddc_error(body)
         module.fail_json(
-            msg=f"Failed to authenticate: {e}",
+            msg=f"Failed to authenticate: {parsed_msg}",
             status_code=e.code,
             response_body=body,
         )
@@ -234,8 +260,9 @@ def run_module():
             body = e.read().decode()
         except Exception:
             pass
+        parsed_msg = parse_sddc_error(body)
         module.fail_json(
-            msg=f"SDDC Manager API error: {e}",
+            msg=f"SDDC Manager API error: {parsed_msg}",
             status_code=e.code,
             response_body=body,
         )
