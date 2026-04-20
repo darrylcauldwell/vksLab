@@ -462,6 +462,43 @@ cd ansible && ansible-playbook playbooks/phase3_vcf_mgmt.yml --start-at-task="Ge
 
 > Phase 4 implements R-004 via VCF-01, VCF-02. Workload hosts are commissioned into the free pool and a VI workload domain is created.
 
+### 7.0 Prerequisites — vSAN ESA SDDC Manager Host Commissioning Bypass (VCF 9.0.1+)
+
+**For nested lab environments**, SDDC Manager host validation will fail with "Host does not have enough capacity disks" because real hardware checks reject lab storage configurations. This workaround is required before commissioning workload hosts.
+
+> **Note**: SSH banner automation with `sshpass` is unreliable (SSH welcome message interferes with command execution). This must be applied manually, similar to the VCF Installer vSAN HCL workaround in Phase 3.
+
+**Manual step** (run ONCE before first Phase 4 execution):
+
+SSH to SDDC Manager as root and append two properties:
+
+```bash
+# SSH to SDDC Manager
+ssh root@sddc-manager.lab.dreamfold.dev
+
+# Add vSAN ESA disk claim bypass
+echo "vsan.esa.sddc.managed.disk.claim=true" >> /etc/vmware/vcf/operationsmanager/application-prod.properties
+
+# Add NIC speed validation bypass (for lab hardware <10GbE)
+echo "enable.speed.of.physical.nics.validation=false" >> /etc/vmware/vcf/operationsmanager/application.properties
+
+# Restart operationsmanager service
+systemctl restart operationsmanager
+
+# Wait for service to come back online
+sleep 20
+systemctl status operationsmanager
+```
+
+**Verify** the properties were written:
+
+```bash
+grep "vsan.esa.sddc.managed.disk.claim" /etc/vmware/vcf/operationsmanager/application-prod.properties
+grep "enable.speed.of.physical.nics.validation" /etc/vmware/vcf/operationsmanager/application.properties
+```
+
+**Reference**: Broadcom KB 408300 — vSAN ESA nested lab workarounds.
+
 ### 7.1 Commission Hosts
 
 | Step | Action | Expected Result | Verification |
@@ -1010,6 +1047,7 @@ For additional troubleshooting, see [Operations Guide](operate.md) Section 4.
 
 | Symptom | Cause | Resolution |
 |---------|-------|------------|
+| Host commission validation fails — "host does not have enough capacity disks" (all hosts) | Nested lab storage does not meet real hardware validation requirements. SDDC Manager validation must be bypassed for lab environments (VCF 9.0.1+) | Apply the vSAN ESA workaround as described in Section 7.0 **before** commissioning hosts. SSH to SDDC Manager and append `vsan.esa.sddc.managed.disk.claim=true` to `/etc/vmware/vcf/operationsmanager/application-prod.properties`, then restart the operationsmanager service |
 | Host commission validation fails — "host not reachable" | DNS or network connectivity issues between SDDC Manager and the workload hosts | Verify forward and reverse DNS records for esxi-05 through esxi-07, and confirm `ping` succeeds from the SDDC Manager appliance |
 | Domain creation fails — "insufficient hosts" | Fewer than 3 hosts are in the free pool, or one host failed commissioning | Check the SDDC Manager **Inventory** > **Hosts** page for failed hosts, resolve the issue, and re-commission |
 | Domain creation fails with IP conflict | The vCenter or NSX Manager IP (10.0.10.9 or 10.0.10.10) is already in use | Verify no other VM is using these IPs with `ping` from the gateway. Check dnsmasq DHCP leases for conflicts |
