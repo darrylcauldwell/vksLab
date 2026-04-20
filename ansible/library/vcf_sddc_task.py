@@ -162,7 +162,6 @@ def run_module():
         module.fail_json(msg=f"Failed to authenticate: {e}")
 
     start_time = time.time()
-    last_status = None
     while True:
         elapsed = time.time() - start_time
         if elapsed > timeout:
@@ -191,13 +190,7 @@ def run_module():
             module.fail_json(msg=f"Failed to poll task {task_id}: {e}")
 
         status = task.get("status", "UNKNOWN")
-        progress = task.get("progressPercent", 0)
 
-        # Print progress every status change or every 2 minutes
-        if status != last_status or elapsed % 120 < module.params["poll_interval"]:
-            msg = f"Task {task_id}: {status} ({progress}%) — elapsed {int(elapsed)}s"
-            module.debug(msg)
-            last_status = status
         if status == "SUCCESSFUL":
             module.exit_json(
                 changed=True,
