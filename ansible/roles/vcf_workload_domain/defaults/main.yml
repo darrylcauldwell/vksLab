@@ -18,6 +18,28 @@ vcf_wld_hosts:
 
 vcf_wld_domain_spec:
   domainName: workload-domain
+  networkSpec:
+    - networkType: MANAGEMENT
+      subnet: "{{ vlans.management.subnet }}"
+      gateway: "{{ vlans.management.gateway }}"
+      vlanId: "{{ vlans.management.id }}"
+      mtu: "{{ vlans.management.mtu }}"
+    - networkType: VMOTION
+      subnet: "{{ vlans.vmotion.subnet }}"
+      gateway: "{{ vlans.vmotion.gateway }}"
+      vlanId: "{{ vlans.vmotion.id }}"
+      mtu: "{{ vlans.vmotion.mtu }}"
+      includeIpAddressRanges:
+        - startIpAddress: "{{ lab_vmotion_prefix }}.15"
+          endIpAddress: "{{ lab_vmotion_prefix }}.17"
+    - networkType: VSAN
+      subnet: "{{ vlans.vsan.subnet }}"
+      gateway: "{{ vlans.vsan.gateway }}"
+      vlanId: "{{ vlans.vsan.id }}"
+      mtu: "{{ vlans.vsan.mtu }}"
+      includeIpAddressRanges:
+        - startIpAddress: "{{ lab_vsan_prefix }}.15"
+          endIpAddress: "{{ lab_vsan_prefix }}.17"
   vcenterSpec:
     name: vcenter-wld
     networkDetailsSpec:
