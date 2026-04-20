@@ -105,9 +105,10 @@ def api_request(url, method, token, data=None, validate_certs=False):
     return json.loads(resp.read().decode())
 
 
-def poll_task(base_url, token, task_id, timeout, poll_interval, validate_certs):
+def poll_task(base_url, token, task_id, timeout, poll_interval, validate_certs, module=None):
     """Poll a task until it reaches a terminal state."""
     start_time = time.time()
+    last_status = None
     while True:
         elapsed = time.time() - start_time
         if elapsed > timeout:
@@ -120,6 +121,15 @@ def poll_task(base_url, token, task_id, timeout, poll_interval, validate_certs):
             validate_certs=validate_certs,
         )
         status = task.get("status", "UNKNOWN")
+        progress = task.get("progressPercent", 0)
+
+        # Print progress every status change or every 2 minutes
+        if status != last_status or elapsed % 120 < poll_interval:
+            msg = f"Task {task_id}: {status} ({progress}%) — elapsed {int(elapsed)}s"
+            if module:
+                module.debug(msg)
+            last_status = status
+
         if status == "SUCCESSFUL":
             return task, None
         elif status in ("FAILED", "CANCELLED"):
@@ -182,7 +192,7 @@ def run_module():
             )
             task_id = result.get("id")
             task, error = poll_task(
-                base_url, token, task_id, timeout, poll_interval, validate_certs
+                base_url, token, task_id, timeout, poll_interval, validate_certs, module
             )
             if error:
                 module.fail_json(msg=error, task=task)
