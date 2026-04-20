@@ -121,7 +121,18 @@ def run_module():
             module.params["password"],
             module.params["validate_certs"],
         )
-    except (URLError, HTTPError) as e:
+    except HTTPError as e:
+        body = ""
+        try:
+            body = e.read().decode()
+        except Exception:
+            pass
+        module.fail_json(
+            msg=f"Failed to authenticate: {e}",
+            status_code=e.code,
+            response_body=body,
+        )
+    except URLError as e:
         module.fail_json(msg=f"Failed to authenticate: {e}")
 
     start_time = time.time()
@@ -137,7 +148,18 @@ def run_module():
             task = get_task_status(
                 base_url, token, task_id, module.params["validate_certs"]
             )
-        except (URLError, HTTPError) as e:
+        except HTTPError as e:
+            body = ""
+            try:
+                body = e.read().decode()
+            except Exception:
+                pass
+            module.fail_json(
+                msg=f"Failed to poll task {task_id}: {e}",
+                status_code=e.code,
+                response_body=body,
+            )
+        except URLError as e:
             module.fail_json(msg=f"Failed to poll task {task_id}: {e}")
 
         status = task.get("status", "UNKNOWN")
