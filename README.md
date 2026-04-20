@@ -22,11 +22,11 @@ Ansible roles and playbooks automate all 6 deployment phases. Runs from the oper
 # Install Ansible collections
 ansible-galaxy collection install -r ansible/collections/requirements.yml
 
-# Install VCF SDK (for Phase 4+ domain management)
-pip install vcf-sdk
+# Install VMware VCF SDK (for Phase 4+ domain management)
+pip install vmware-vcf
 
 # Or, for development:
-pip install -e /path/to/vcf-sdk
+pip install -e /path/to/vmware-vcf
 ```
 
 ### Running Playbooks
