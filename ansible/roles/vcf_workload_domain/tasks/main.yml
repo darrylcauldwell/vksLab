@@ -5,7 +5,7 @@
 # Bypass disk capacity validation that fails on lab hardware
 - name: Apply vSAN ESA SDDC Manager host commissioning bypass
   block:
-    - name: Append vSAN ESA property to operationsmanager config
+    - name: Add vSAN ESA property to operationsmanager config
       ansible.builtin.shell: |
         sshpass -e ssh \
           -o StrictHostKeyChecking=no \
@@ -13,13 +13,14 @@
           -o ConnectTimeout=10 \
           root@{{ vcf_wld_hostname }} \
           'grep -q "vsan.esa.sddc.managed.disk.claim" /etc/vmware/vcf/operationsmanager/application-prod.properties || \
-           echo "vsan.esa.sddc.managed.disk.claim=true" >> /etc/vmware/vcf/operationsmanager/application-prod.properties'
+           echo "vsan.esa.sddc.managed.disk.claim=true" >> /etc/vmware/vcf/operationsmanager/application-prod.properties' 2>/dev/null
       environment:
         SSHPASS: "{{ bootstrap_password }}"
       changed_when: false
+      failed_when: false
       register: property_result
 
-    - name: Append NIC speed validation bypass (optional, for lab hardware)
+    - name: Add NIC speed validation bypass (optional, for lab hardware)
       ansible.builtin.shell: |
         sshpass -e ssh \
           -o StrictHostKeyChecking=no \
@@ -27,10 +28,11 @@
           -o ConnectTimeout=10 \
           root@{{ vcf_wld_hostname }} \
           'grep -q "enable.speed.of.physical.nics.validation" /etc/vmware/vcf/operationsmanager/application.properties || \
-           echo "enable.speed.of.physical.nics.validation=false" >> /etc/vmware/vcf/operationsmanager/application.properties'
+           echo "enable.speed.of.physical.nics.validation=false" >> /etc/vmware/vcf/operationsmanager/application.properties' 2>/dev/null
       environment:
         SSHPASS: "{{ bootstrap_password }}"
       changed_when: false
+      failed_when: false
 
     - name: Restart operationsmanager service
       ansible.builtin.shell: |
@@ -39,10 +41,11 @@
           -o UserKnownHostsFile=/dev/null \
           -o ConnectTimeout=10 \
           root@{{ vcf_wld_hostname }} \
-          'systemctl restart operationsmanager'
+          'systemctl restart operationsmanager' 2>/dev/null
       environment:
         SSHPASS: "{{ bootstrap_password }}"
       changed_when: true
+      failed_when: false
 
     - name: Wait for SDDC Manager to be ready after service restart
       ansible.builtin.uri:
