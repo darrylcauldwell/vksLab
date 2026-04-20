@@ -48,19 +48,48 @@
   ansible.builtin.debug:
     msg: "vcf_wld_hosts: {{ vcf_wld_hosts | to_nice_json }}"
 
+- name: Check if hosts are already commissioned
+  ansible.builtin.uri:
+    url: "https://{{ vcf_wld_hostname }}/v1/hosts"
+    method: GET
+    headers:
+      Authorization: "Bearer {{ token_response.json.accessToken }}"
+    validate_certs: false
+    status_code: 200
+  register: hosts_response
+
+- name: Set fact for commissioned hosts
+  ansible.builtin.set_fact:
+    commissioned_fqdns: "{{ hosts_response.json.elements | map(attribute='fqdn') | list }}"
+
+- name: Display commissioned hosts
+  ansible.builtin.debug:
+    msg: "Already commissioned hosts: {{ commissioned_fqdns }}"
+
+- name: Filter hosts that need commissioning
+  ansible.builtin.set_fact:
+    hosts_to_commission: "{{ vcf_wld_hosts | rejectattr('fqdn', 'in', commissioned_fqdns) | list }}"
+
 - name: Commission workload hosts into free pool
   vcf_sddc_host:
     sddc_hostname: "{{ vcf_wld_hostname }}"
     username: "{{ vcf_wld_username }}"
     password: "{{ vcf_wld_password }}"
     state: commissioned
-    hosts: "{{ vcf_wld_hosts }}"
+    hosts: "{{ hosts_to_commission }}"
     timeout: 3600
   register: commission_result
+  when: hosts_to_commission | length > 0
 
 - name: Display commission result
   ansible.builtin.debug:
-    var: commission_result
+    msg: "Commissioned {{ hosts_to_commission | length }} host(s). Task ID: {{ commission_result.task_id if commission_result.task_id is defined else 'N/A' }}"
+  when: hosts_to_commission | length > 0
+
+- name: Skip commissioning message
+  ansible.builtin.debug:
+    msg: "All hosts already commissioned. Skipping commissioning step."
+  when: hosts_to_commission | length == 0
 
 - name: Validate workload domain spec
   vcf_sddc_domain:
