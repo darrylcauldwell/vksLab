@@ -120,6 +120,7 @@
         'id': (hosts_response.json.elements | selectattr('fqdn', 'equalto', item.fqdn) | first).id,
         'hostname': item.fqdn,
         'username': item.username,
+        'storageType': item.storageType,
         'hostNetworkSpec': {
           'vmNics': [
             {

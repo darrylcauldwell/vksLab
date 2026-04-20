@@ -6,18 +6,22 @@ vcf_wld_hosts:
   - fqdn: "esxi-05.{{ lab_domain }}"
     username: root
     password: "{{ bootstrap_password }}"
-    storageType: VSAN_ESA
+    storageType: VSAN
   - fqdn: "esxi-06.{{ lab_domain }}"
     username: root
     password: "{{ bootstrap_password }}"
-    storageType: VSAN_ESA
+    storageType: VSAN
   - fqdn: "esxi-07.{{ lab_domain }}"
     username: root
     password: "{{ bootstrap_password }}"
-    storageType: VSAN_ESA
+    storageType: VSAN
 
 vcf_wld_domain_spec:
   domainName: workload-domain
+  deployWithoutLicenseKeys: true
+  ssoSpec:
+    ssoDomain: vsphere.local
+    adminUserSsoPassword: "{{ vcenter_sso_password }}"
   vcenterSpec:
     name: vcenter-wld
     networkDetailsSpec:
@@ -37,6 +41,7 @@ vcf_wld_domain_spec:
         datastoreSpec:
           vsanDatastoreSpec:
             datastoreName: workload-vsan-ds
+            failuresToTolerate: 1
             esaEnabled: true
         networkSpec:
           vdsSpecs:
@@ -44,11 +49,28 @@ vcf_wld_domain_spec:
               portGroupSpecs:
                 - name: workload-cluster-vds01-pg-mgmt
                   transportType: MANAGEMENT
+                  teamingPolicy: loadbalance_loadbased
+                  activeUplinks:
+                    - uplink1
+                  standbyUplinks: []
                 - name: workload-cluster-vds01-pg-vmotion
                   transportType: VMOTION
+                  teamingPolicy: loadbalance_loadbased
+                  activeUplinks:
+                    - uplink1
+                  standbyUplinks: []
                 - name: workload-cluster-vds01-pg-vsan
                   transportType: VSAN
+                  teamingPolicy: loadbalance_loadbased
+                  activeUplinks:
+                    - uplink1
+                  standbyUplinks: []
               isUsedByNsxt: true
+              vmnics:
+                - vmnic0
+              vmnicsToUplinks:
+                - id: vmnic0
+                  uplink: uplink1
           nsxClusterSpec:
             nsxTClusterSpec:
               geneveVlanId: "{{ vlans.host_overlay.id }}"
@@ -68,6 +90,7 @@ vcf_wld_domain_spec:
           dnsName: "nsx-mgr-wld.{{ lab_domain }}"
           gateway: "{{ lab_gateway }}"
           subnetMask: 255.255.255.0
-    vipFqdn: "nsx-mgr-wld.{{ lab_domain }}"
+    vip: "{{ lab_mgmt_prefix }}.22"
+    vipFqdn: "nsx-mgr-wld-vip.{{ lab_domain }}"
     nsxManagerAdminPassword: "{{ nsx_admin_password }}"
     formFactor: medium
