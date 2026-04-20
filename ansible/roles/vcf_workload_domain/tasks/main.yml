@@ -101,6 +101,10 @@
     status_code: 200
   register: clusters_response
 
+- name: Display cluster response
+  ansible.builtin.debug:
+    msg: "Clusters response: {{ clusters_response.json.elements | first | to_nice_json }}"
+
 - name: Extract management cluster image ID
   ansible.builtin.set_fact:
     cluster_image_id: "{{ (clusters_response.json.elements | first).imageId }}"
