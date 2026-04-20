@@ -6,6 +6,66 @@
   ansible.builtin.set_fact:
     nsx_api_base: "https://{{ nsx_manager_hostname }}/policy/api/v1"
 
+# --- Pre-Flight: Create Required Segments and IP Pools ---
+
+- name: Create management network segment (vlan-10)
+  ansible.builtin.uri:
+    url: "{{ nsx_api_base }}/infra/segments/vlan-10"
+    method: PUT
+    user: "{{ nsx_username }}"
+    password: "{{ nsx_password }}"
+    force_basic_auth: true
+    validate_certs: false
+    body_format: json
+    body:
+      display_name: vlan-10
+      vlan_ids:
+        - "{{ vlans.management.id }}"
+      transport_zone_path: /infra/transport-zones/nsx-vlan-transportzone
+      subnets:
+        - gateway_address: "{{ vlans.management.gateway }}/24"
+    status_code: [200, 201]
+  no_log: true
+
+- name: Create edge uplink segment (edge-uplink-vlan-60)
+  ansible.builtin.uri:
+    url: "{{ nsx_api_base }}/infra/segments/edge-uplink-vlan-{{ nsx_tier0_uplink_vlan }}"
+    method: PUT
+    user: "{{ nsx_username }}"
+    password: "{{ nsx_password }}"
+    force_basic_auth: true
+    validate_certs: false
+    body_format: json
+    body:
+      display_name: "edge-uplink-vlan-{{ nsx_tier0_uplink_vlan }}"
+      vlan_ids:
+        - "{{ nsx_tier0_uplink_vlan }}"
+      transport_zone_path: /infra/transport-zones/nsx-vlan-transportzone
+      subnets:
+        - gateway_address: "{{ vlans.edge_uplink.gateway }}/24"
+    status_code: [200, 201]
+  no_log: true
+
+- name: Create edge TEP IP pool
+  ansible.builtin.uri:
+    url: "{{ nsx_api_base }}/infra/ip-pools/edge-tep-pool"
+    method: PUT
+    user: "{{ nsx_username }}"
+    password: "{{ nsx_password }}"
+    force_basic_auth: true
+    validate_certs: false
+    body_format: json
+    body:
+      display_name: edge-tep-pool
+      subnets:
+        - cidr: "{{ vlans.edge_overlay.subnet }}"
+          allocation_ranges:
+            - start: "{{ lab_edge_tep_prefix }}.20"
+              end: "{{ lab_edge_tep_prefix }}.21"
+          gateway_ip: "{{ vlans.edge_overlay.gateway }}"
+    status_code: [200, 201]
+  no_log: true
+
 # --- Edge Cluster ---
 
 - name: Create Edge transport nodes
@@ -25,7 +85,7 @@
           vm_deployment_config:
             placement_type: VsphereDeploymentConfig
             compute_id: workload-cluster
-            management_network_id: vlan-10
+            management_network_id: /infra/segments/vlan-10
           form_factor: "{{ nsx_edge_size }}"
           node_user_settings:
             cli_username: admin
@@ -35,7 +95,7 @@
           - host_switch_type: NVDS
             host_switch_name: edge-overlay
             transport_zone_endpoints:
-              - transport_zone_name: nsx-overlay-transportzone
+              - transport_zone_name: "overlay-tz-{{ nsx_overlay_tz_suffix }}"
             ip_assignment_spec:
               ip_pool_name: edge-tep-pool
               resource_type: StaticIpPoolSpec
@@ -97,6 +157,7 @@
             - "{{ nsx_tier0_uplink_ip }}"
           prefix_len: "{{ nsx_tier0_uplink_prefix }}"
     status_code: [200, 201]
+  register: tier0_uplink_result
   no_log: true
 
 - name: Configure BGP on Tier-0

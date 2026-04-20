@@ -2,6 +2,9 @@ nsx_manager_hostname: "nsx-mgr-wld.{{ lab_domain }}"
 nsx_username: admin
 nsx_password: "{{ nsx_admin_password }}"
 
+# Overlay transport zone suffix (from workload domain naming)
+nsx_overlay_tz_suffix: vcf-wld01
+
 # Edge cluster configuration
 nsx_edge_cluster_name: edge-cluster-01
 nsx_edge_vms:
