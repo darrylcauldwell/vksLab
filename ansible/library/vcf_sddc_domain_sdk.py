@@ -74,19 +74,6 @@ EXAMPLES = r"""
 import json
 import sys
 from ansible.module_utils.basic import AnsibleModule
-from pathlib import Path
-
-# Try multiple SDK paths
-vcf_sdk_paths = [
-    Path(__file__).parent.parent.parent / "vcf-sdk",  # /vksLab/vcf-sdk
-    Path.home() / "vcf-sdk",  # ~/vcf-sdk
-    Path("/home/ubuntu/vcf-sdk"),  # /home/ubuntu/vcf-sdk (gateway)
-]
-
-for sdk_path in vcf_sdk_paths:
-    if sdk_path.exists():
-        sys.path.insert(0, str(sdk_path))
-        break
 
 try:
     from vcf_sdk import SDDCManager

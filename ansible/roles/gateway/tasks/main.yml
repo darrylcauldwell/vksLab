@@ -910,14 +910,6 @@
     force: true
   tags: ansible-env
 
-- name: Clone VCF SDK repo to gateway
-  ansible.builtin.git:
-    repo: https://github.com/darrylcauldwell/vcf-sdk.git
-    dest: /home/ubuntu/vcf-sdk
-    version: main
-    force: true
-  tags: ansible-env
-
 - name: Install Ansible collections
   ansible.builtin.command:
     cmd: ansible-galaxy collection install -r /home/ubuntu/vksLab/ansible/collections/requirements.yml
@@ -925,10 +917,9 @@
   changed_when: "'was installed' in collections_install.stdout"
   tags: ansible-env
 
-- name: Install VCF SDK (for ansible modules)
+- name: Install VCF SDK from PyPI (for ansible modules)
   become: true
-  ansible.builtin.command:
-    cmd: pip install -e /home/ubuntu/vcf-sdk
-  register: sdk_install
-  changed_when: "'Successfully installed' in sdk_install.stdout or 'Requirement already satisfied' in sdk_install.stdout"
+  ansible.builtin.pip:
+    name: vcf-sdk
+    state: present
   tags: ansible-env
