@@ -13,12 +13,25 @@
           -o ConnectTimeout=10 \
           root@{{ vcf_wld_hostname }} \
           'grep -q "vsan.esa.sddc.managed.disk.claim" /etc/vmware/vcf/operationsmanager/application-prod.properties || \
-           echo "vsan.esa.sddc.managed.disk.claim=true" >> /etc/vmware/vcf/operationsmanager/application-prod.properties' 2>/dev/null
+           echo "vsan.esa.sddc.managed.disk.claim=true" >> /etc/vmware/vcf/operationsmanager/application-prod.properties'
       environment:
         SSHPASS: "{{ bootstrap_password }}"
       changed_when: false
-      failed_when: false
       register: property_result
+
+    - name: Verify vSAN ESA property was written
+      ansible.builtin.shell: |
+        sshpass -e ssh \
+          -o StrictHostKeyChecking=no \
+          -o UserKnownHostsFile=/dev/null \
+          -o ConnectTimeout=10 \
+          root@{{ vcf_wld_hostname }} \
+          'grep "vsan.esa.sddc.managed.disk.claim" /etc/vmware/vcf/operationsmanager/application-prod.properties'
+      environment:
+        SSHPASS: "{{ bootstrap_password }}"
+      changed_when: false
+      register: verify_esa_property
+      failed_when: verify_esa_property.rc != 0
 
     - name: Add NIC speed validation bypass (optional, for lab hardware)
       ansible.builtin.shell: |
@@ -28,11 +41,10 @@
           -o ConnectTimeout=10 \
           root@{{ vcf_wld_hostname }} \
           'grep -q "enable.speed.of.physical.nics.validation" /etc/vmware/vcf/operationsmanager/application.properties || \
-           echo "enable.speed.of.physical.nics.validation=false" >> /etc/vmware/vcf/operationsmanager/application.properties' 2>/dev/null
+           echo "enable.speed.of.physical.nics.validation=false" >> /etc/vmware/vcf/operationsmanager/application.properties'
       environment:
         SSHPASS: "{{ bootstrap_password }}"
       changed_when: false
-      failed_when: false
 
     - name: Restart operationsmanager service
       ansible.builtin.shell: |
@@ -41,11 +53,10 @@
           -o UserKnownHostsFile=/dev/null \
           -o ConnectTimeout=10 \
           root@{{ vcf_wld_hostname }} \
-          'systemctl restart operationsmanager' 2>/dev/null
+          'systemctl restart operationsmanager'
       environment:
         SSHPASS: "{{ bootstrap_password }}"
       changed_when: true
-      failed_when: false
 
     - name: Wait for SDDC Manager to be ready after service restart
       ansible.builtin.uri:
@@ -60,7 +71,10 @@
 
     - name: Display vSAN ESA workaround completion
       ansible.builtin.debug:
-        msg: "vSAN ESA SDDC Manager host commissioning bypass applied and operationsmanager service restarted"
+        msg: |
+          vSAN ESA SDDC Manager host commissioning bypass applied successfully.
+          Property verification: {{ verify_esa_property.stdout }}
+          Operationsmanager service restarted and responding on health check.
 
 # Look up network pool IDs by name before commissioning
 - name: Get bearer token for pool lookup
