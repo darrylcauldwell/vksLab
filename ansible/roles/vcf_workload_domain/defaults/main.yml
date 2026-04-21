@@ -19,8 +19,8 @@ vcf_wld_hosts:
 vcf_wld_domain_spec:
   domainName: workload-domain
   deployWithoutLicenseKeys: true
-  ssoSpec:
-    ssoDomain: vsphere.local
+  ssoDomainSpec:
+    ssoDomainName: vsphere.local
   vcenterSpec:
     name: vcenter-wld
     networkDetailsSpec:
@@ -41,7 +41,8 @@ vcf_wld_domain_spec:
           vsanDatastoreSpec:
             datastoreName: workload-vsan-ds
             failuresToTolerate: 1
-            esaEnabled: true
+            esaConfig:
+              enabled: true
         networkSpec:
           vdsSpecs:
             - name: workload-cluster-vds01
@@ -51,25 +52,20 @@ vcf_wld_domain_spec:
                   teamingPolicy: loadbalance_loadbased
                   activeUplinks:
                     - uplink1
-                  standbyUplinks: []
+                  standByUplinks: []
                 - name: workload-cluster-vds01-pg-vmotion
                   transportType: VMOTION
                   teamingPolicy: loadbalance_loadbased
                   activeUplinks:
                     - uplink1
-                  standbyUplinks: []
+                  standByUplinks: []
                 - name: workload-cluster-vds01-pg-vsan
                   transportType: VSAN
                   teamingPolicy: loadbalance_loadbased
                   activeUplinks:
                     - uplink1
-                  standbyUplinks: []
+                  standByUplinks: []
               isUsedByNsxt: true
-              vmnics:
-                - vmnic0
-              vmnicsToUplinks:
-                - id: vmnic0
-                  uplink: uplink1
           nsxClusterSpec:
             nsxTClusterSpec:
               geneveVlanId: "{{ vlans.host_overlay.id }}"
@@ -82,12 +78,12 @@ vcf_wld_domain_spec:
                     cidr: "{{ vlans.host_overlay.subnet }}"
                     gateway: "{{ vlans.host_overlay.gateway }}"
   nsxTSpec:
+    vipFqdn: "nsx-mgr-wld.{{ lab_domain }}"
     nsxManagerSpecs:
       - name: nsx-mgr-wld
-        hostname: "nsx-mgr-wld.{{ lab_domain }}"
         networkDetailsSpec:
-          ipAddress: "{{ lab_mgmt_prefix }}.10"
           dnsName: "nsx-mgr-wld.{{ lab_domain }}"
+          ipAddress: "{{ lab_mgmt_prefix }}.10"
           gateway: "{{ lab_gateway }}"
           subnetMask: 255.255.255.0
     nsxManagerAdminPassword: "{{ nsx_admin_password }}"

@@ -916,10 +916,3 @@
   register: collections_install
   changed_when: "'was installed' in collections_install.stdout"
   tags: ansible-env
-
-- name: Install VMware VCF SDK from PyPI (for ansible modules)
-  become: true
-  ansible.builtin.pip:
-    name: vmware-vcf
-    state: present
-  tags: ansible-env

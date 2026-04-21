@@ -9,3 +9,5 @@ collections:
     version: ">=4.0.0"
   - name: ansible.posix
     version: ">=2.0.0"
+  # vmware_vcf.ansible — installed locally from adjacent project:
+  #   ansible-galaxy collection install /path/to/ansible-collection-vcf -p collections

@@ -1,66 +1,54 @@
 ---
 # Commission workload hosts and create VI workload domain
-
+#
+# Uses modules from the vmware_vcf.ansible collection (powered by vmware-vcf SDK).
+#
 # Note: vSAN ESA SDDC Manager host commissioning bypass (VCF 9.0.1+) must be applied manually
 # due to SSH banner interfering with sshpass automation (see deliver.md Phase 4 prerequisites).
 # Manual prerequisite: SSH to SDDC Manager and append these properties before running this role.
 
-# Verify network pool exists before commissioning
-- name: Get bearer token for pool verification
-  ansible.builtin.uri:
-    url: "https://{{ vcf_wld_hostname }}/v1/tokens"
-    method: POST
-    body_format: json
-    body:
-      username: "{{ vcf_wld_username }}"
-      password: "{{ vcf_wld_password }}"
-    validate_certs: false
-    status_code: 200
-  register: token_response
+# --- Gather info via collection ---
 
 - name: Get network pools
-  ansible.builtin.uri:
-    url: "https://{{ vcf_wld_hostname }}/v1/network-pools"
-    method: GET
-    headers:
-      Authorization: "Bearer {{ token_response.json.accessToken }}"
-    validate_certs: false
-    status_code: 200
+  vmware_vcf.ansible.vcf_sddc_info:
+    sddc_hostname: "{{ vcf_wld_hostname }}"
+    sddc_username: "{{ vcf_wld_username }}"
+    sddc_password: "{{ vcf_wld_password }}"
+    gather: network_pools
+    name_filter: mgmt-network-pool
   register: pools_response
 
 - name: Verify mgmt-network-pool exists
   ansible.builtin.assert:
     that:
-      - pools_response.json.elements | selectattr('name', 'equalto', 'mgmt-network-pool') | list | length > 0
-    fail_msg: "Network pool 'mgmt-network-pool' not found. Available pools: {{ pools_response.json.elements | map(attribute='name') | list }}"
+      - pools_response.result | length > 0
+    fail_msg: "Network pool 'mgmt-network-pool' not found."
 
 - name: Display network pool details
   ansible.builtin.debug:
-    msg: "Network pool mgmt-network-pool: {{ (pools_response.json.elements | selectattr('name', 'equalto', 'mgmt-network-pool') | first) | to_nice_json }}"
+    msg: "Network pool: {{ pools_response.result[0] | to_nice_json }}"
 
 - name: Inject network pool ID into host specs
   ansible.builtin.set_fact:
-    vcf_wld_hosts: "{{ vcf_wld_hosts | map('combine', {'networkPoolId': pool_id}) | list }}"
-  vars:
-    pool_id: "{{ (pools_response.json.elements | selectattr('name', 'equalto', 'mgmt-network-pool') | first).id }}"
+    vcf_wld_hosts: "{{ vcf_wld_hosts | map('combine', {'networkPoolId': pools_response.result[0].id}) | list }}"
 
-- name: Display host specs before commissioning (with pool ID injected)
+- name: Display host specs before commissioning
   ansible.builtin.debug:
     msg: "vcf_wld_hosts: {{ vcf_wld_hosts | to_nice_json }}"
 
-- name: Check if hosts are already commissioned
-  ansible.builtin.uri:
-    url: "https://{{ vcf_wld_hostname }}/v1/hosts"
-    method: GET
-    headers:
-      Authorization: "Bearer {{ token_response.json.accessToken }}"
-    validate_certs: false
-    status_code: 200
+# --- Check which hosts need commissioning ---
+
+- name: Get commissioned hosts
+  vmware_vcf.ansible.vcf_sddc_info:
+    sddc_hostname: "{{ vcf_wld_hostname }}"
+    sddc_username: "{{ vcf_wld_username }}"
+    sddc_password: "{{ vcf_wld_password }}"
+    gather: hosts
   register: hosts_response
 
-- name: Set fact for commissioned hosts
+- name: Set fact for commissioned FQDNs
   ansible.builtin.set_fact:
-    commissioned_fqdns: "{{ hosts_response.json.elements | map(attribute='fqdn') | list }}"
+    commissioned_fqdns: "{{ hosts_response.result | map(attribute='fqdn') | list }}"
 
 - name: Display commissioned hosts
   ansible.builtin.debug:
@@ -70,20 +58,23 @@
   ansible.builtin.set_fact:
     hosts_to_commission: "{{ vcf_wld_hosts | rejectattr('fqdn', 'in', commissioned_fqdns) | list }}"
 
+# --- Commission hosts ---
+
 - name: Commission workload hosts into free pool
-  vcf_sddc_host:
+  vmware_vcf.ansible.vcf_host:
     sddc_hostname: "{{ vcf_wld_hostname }}"
-    username: "{{ vcf_wld_username }}"
-    password: "{{ vcf_wld_password }}"
-    state: commissioned
-    hosts: "{{ hosts_to_commission }}"
-    timeout: 3600
+    sddc_username: "{{ vcf_wld_username }}"
+    sddc_password: "{{ vcf_wld_password }}"
+    state: present
+    host_spec: "{{ hosts_to_commission }}"
+    wait: true
+    wait_timeout: 3600
   register: commission_result
   when: hosts_to_commission | length > 0
 
 - name: Display commission result
   ansible.builtin.debug:
-    msg: "Commissioned {{ hosts_to_commission | length }} host(s). Task ID: {{ commission_result.task_id if commission_result.task_id is defined else 'N/A' }}"
+    msg: "Commissioned {{ hosts_to_commission | length }} host(s)."
   when: hosts_to_commission | length > 0
 
 - name: Skip commissioning message
@@ -91,36 +82,43 @@
     msg: "All hosts already commissioned. Skipping commissioning step."
   when: hosts_to_commission | length == 0
 
+# --- Refresh host list and get vLCM image ---
+
+- name: Refresh commissioned hosts list
+  vmware_vcf.ansible.vcf_sddc_info:
+    sddc_hostname: "{{ vcf_wld_hostname }}"
+    sddc_username: "{{ vcf_wld_username }}"
+    sddc_password: "{{ vcf_wld_password }}"
+    gather: hosts
+  register: hosts_response
+
 - name: Get vLCM personalities (cluster images)
-  ansible.builtin.uri:
-    url: "https://{{ vcf_wld_hostname }}/v1/personalities"
-    method: GET
-    headers:
-      Authorization: "Bearer {{ token_response.json.accessToken }}"
-    validate_certs: false
-    status_code: 200
+  vmware_vcf.ansible.vcf_sddc_info:
+    sddc_hostname: "{{ vcf_wld_hostname }}"
+    sddc_username: "{{ vcf_wld_username }}"
+    sddc_password: "{{ vcf_wld_password }}"
+    gather: personalities
   register: personalities_response
 
 - name: Display available vLCM images
   ansible.builtin.debug:
-    msg: "Available vLCM images: {{ personalities_response.json.elements | map(attribute='personalityName') | list }}"
+    msg: "Available vLCM images: {{ personalities_response.result | map(attribute='personalityName') | list }}"
 
 - name: Extract vLCM image ID (use first/primary image)
   ansible.builtin.set_fact:
-    cluster_image_id: "{{ (personalities_response.json.elements | first).personalityId }}"
+    cluster_image_id: "{{ (personalities_response.result | first).personalityId }}"
 
 - name: Display selected vLCM image ID
   ansible.builtin.debug:
-    msg: "Using vLCM image: {{ (personalities_response.json.elements | first).personalityName }} (ID: {{ cluster_image_id }})"
+    msg: "Using vLCM image: {{ (personalities_response.result | first).personalityName }} (ID: {{ cluster_image_id }})"
+
+# --- Build host specs for domain creation ---
 
 - name: Build host specs with IDs and network configuration
   ansible.builtin.set_fact:
     vcf_wld_host_specs: "{{ vcf_wld_host_specs | default([]) + [
       {
-        'id': (hosts_response.json.elements | selectattr('fqdn', 'equalto', item.fqdn) | first).id,
-        'hostname': item.fqdn,
-        'username': item.username,
-        'storageType': item.storageType,
+        'id': (hosts_response.result | selectattr('fqdn', 'equalto', item.fqdn) | first).id,
         'hostNetworkSpec': {
           'vmNics': [
             {
@@ -138,32 +136,25 @@
   ansible.builtin.debug:
     msg: "vcf_wld_host_specs: {{ vcf_wld_host_specs | to_nice_json }}"
 
-- name: Validate workload domain spec
-  vcf_sddc_domain_sdk:
-    sddc_hostname: "{{ vcf_wld_hostname }}"
-    username: "{{ vcf_wld_username }}"
-    password: "{{ vcf_wld_password }}"
-    state: validated
-    domain_spec: "{{ vcf_wld_domain_spec }}"
-  register: domain_validation
+# --- Create workload domain ---
 
-- name: Display domain validation result
-  ansible.builtin.debug:
-    msg: "Domain validation passed: {{ domain_validation.validation_id }}"
-
-- name: Create workload domain
-  vcf_sddc_domain_sdk:
+- name: Create workload domain (validates then creates)
+  vmware_vcf.ansible.vcf_domain:
     sddc_hostname: "{{ vcf_wld_hostname }}"
-    username: "{{ vcf_wld_username }}"
-    password: "{{ vcf_wld_password }}"
+    sddc_username: "{{ vcf_wld_username }}"
+    sddc_password: "{{ vcf_wld_password }}"
     state: present
-    domain_spec: "{{ vcf_wld_domain_spec }}"
-    timeout: 5400
+    spec: "{{ vcf_wld_domain_spec }}"
+    validate: true
+    wait: true
+    wait_timeout: 7200
   register: domain_result
 
 - name: Display domain creation result
   ansible.builtin.debug:
-    msg: "Domain created: {{ domain_result.task_id }} (status: {{ domain_result.task_status }})"
+    msg: "Domain creation complete: {{ domain_result }}"
+
+# --- Verify workload components ---
 
 - name: Verify workload components are accessible
   ansible.builtin.uri:

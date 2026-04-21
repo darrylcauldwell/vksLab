@@ -9,8 +9,9 @@ build/
 .venv/
 venv/
 
-# Ansible — vault password file
+# Ansible — vault password file and installed collections
 ansible/.vault_pass
+ansible/collections/ansible_collections/
 
 # IDE
 .idea/
