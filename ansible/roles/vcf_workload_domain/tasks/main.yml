@@ -19,9 +19,10 @@
   register: token_response
   no_log: true
 
-- name: Set bearer token fact
+- name: Set bearer token facts
   ansible.builtin.set_fact:
     sddc_token: "{{ token_response.result.bearer_token }}"
+    sddc_refresh_token: "{{ token_response.result.refresh_token }}"
   no_log: true
 
 # --- Gather info via collection ---
@@ -30,6 +31,7 @@
   vmware_vcf.ansible.vcf_sddc_info:
     sddc_hostname: "{{ vcf_wld_hostname }}"
     sddc_bearer_token: "{{ sddc_token }}"
+    sddc_refresh_token: "{{ sddc_refresh_token }}"
     gather: network_pools
     name_filter: mgmt-network-pool
   register: pools_response
@@ -58,6 +60,7 @@
   vmware_vcf.ansible.vcf_sddc_info:
     sddc_hostname: "{{ vcf_wld_hostname }}"
     sddc_bearer_token: "{{ sddc_token }}"
+    sddc_refresh_token: "{{ sddc_refresh_token }}"
     gather: hosts
   register: hosts_response
 
@@ -79,6 +82,7 @@
   vmware_vcf.ansible.vcf_host:
     sddc_hostname: "{{ vcf_wld_hostname }}"
     sddc_bearer_token: "{{ sddc_token }}"
+    sddc_refresh_token: "{{ sddc_refresh_token }}"
     state: present
     host_spec: "{{ hosts_to_commission }}"
     wait: true
@@ -102,6 +106,7 @@
   vmware_vcf.ansible.vcf_sddc_info:
     sddc_hostname: "{{ vcf_wld_hostname }}"
     sddc_bearer_token: "{{ sddc_token }}"
+    sddc_refresh_token: "{{ sddc_refresh_token }}"
     gather: hosts
   register: hosts_response
 
@@ -109,6 +114,7 @@
   vmware_vcf.ansible.vcf_sddc_info:
     sddc_hostname: "{{ vcf_wld_hostname }}"
     sddc_bearer_token: "{{ sddc_token }}"
+    sddc_refresh_token: "{{ sddc_refresh_token }}"
     gather: personalities
   register: personalities_response
 
@@ -154,6 +160,7 @@
   vmware_vcf.ansible.vcf_domain:
     sddc_hostname: "{{ vcf_wld_hostname }}"
     sddc_bearer_token: "{{ sddc_token }}"
+    sddc_refresh_token: "{{ sddc_refresh_token }}"
     state: present
     spec: "{{ vcf_wld_domain_spec }}"
     validate: true
@@ -165,17 +172,17 @@
   ansible.builtin.debug:
     msg: "Domain creation complete: {{ domain_result }}"
 
-# --- Verify workload components ---
+# --- Verify workload domain exists ---
 
-- name: Verify workload components are accessible
-  ansible.builtin.uri:
-    url: "https://{{ item }}.{{ lab_domain }}"
-    validate_certs: false
-    status_code: [200, 301, 302]
-  loop:
-    - vcenter-wld
-    - nsx-mgr-wld
-  retries: 10
-  delay: 30
-  register: wld_check
-  until: wld_check.status in [200, 301, 302]
+- name: Verify workload domain is active
+  vmware_vcf.ansible.vcf_domain:
+    sddc_hostname: "{{ vcf_wld_hostname }}"
+    sddc_bearer_token: "{{ sddc_token }}"
+    sddc_refresh_token: "{{ sddc_refresh_token }}"
+    state: info
+    domain_name: workload-domain
+  register: domain_info
+
+- name: Display workload domain status
+  ansible.builtin.debug:
+    msg: "Workload domain status: {{ domain_info.domain.status | default('UNKNOWN') }}"
