@@ -11,20 +11,18 @@
 # --- Authenticate once ---
 
 - name: Get SDDC Manager bearer token
-  ansible.builtin.uri:
-    url: "https://{{ vcf_wld_hostname }}/v1/tokens"
-    method: POST
-    body_format: json
-    body:
-      username: "{{ vcf_wld_username }}"
-      password: "{{ vcf_wld_password }}"
-    validate_certs: false
-    status_code: 200
+  vmware_vcf.ansible.vcf_sddc_info:
+    sddc_hostname: "{{ vcf_wld_hostname }}"
+    sddc_username: "{{ vcf_wld_username }}"
+    sddc_password: "{{ vcf_wld_password }}"
+    gather: token
   register: token_response
+  no_log: true
 
 - name: Set bearer token fact
   ansible.builtin.set_fact:
-    sddc_token: "{{ token_response.json.accessToken }}"
+    sddc_token: "{{ token_response.result.bearer_token }}"
+  no_log: true
 
 # --- Gather info via collection ---
 
