@@ -25,6 +25,9 @@ curl -sk -X POST "https://${SDDC_HOST}/v1/domains/validations" \
   -d '{
   "domainName": "workload-domain",
   "deployWithoutLicenseKeys": true,
+  "ssoDomainSpec": {
+    "ssoDomainPassword": "VMware1!VMware1!"
+  },
   "vcenterSpec": {
     "name": "vcenter-wld",
     "networkDetailsSpec": {
@@ -50,7 +53,6 @@ curl -sk -X POST "https://${SDDC_HOST}/v1/domains/validations" \
       "datastoreSpec": {
         "vsanDatastoreSpec": {
           "datastoreName": "workload-vsan-ds",
-          "failuresToTolerate": 1,
           "esaConfig": {"enabled": true}
         }
       },
@@ -81,7 +83,7 @@ curl -sk -X POST "https://${SDDC_HOST}/v1/domains/validations" \
     }]
   },
   "nsxTSpec": {
-    "vipFqdn": "nsx-mgr-wld.lab.dreamfold.dev",
+    "vipFqdn": "nsx-vip-wld.lab.dreamfold.dev",
     "nsxManagerSpecs": [{
       "name": "nsx-mgr-wld",
       "networkDetailsSpec": {

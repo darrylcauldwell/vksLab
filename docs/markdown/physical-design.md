@@ -36,6 +36,7 @@ date: "March 2026"
 | 10.0.10.18 | vcf-ops-logs | VCF Operations for Logs |
 | 10.0.10.9 | vcenter-wld | vCenter Server (workload) |
 | 10.0.10.10 | nsx-mgr-wld | NSX Manager (workload) |
+| 10.0.10.22 | nsx-vip-wld | NSX Manager VIP (workload) |
 | 10.0.10.11 | esxi-01 | Management domain ESXi host |
 | 10.0.10.12 | esxi-02 | Management domain ESXi host |
 | 10.0.10.13 | esxi-03 | Management domain ESXi host |
@@ -277,6 +278,7 @@ See [Delivery Guide](deliver.md) Phase 3 for the step-by-step bringup procedure.
 |-----------|----------|-------------|------|
 | vCenter Server | vcenter-wld | 10.0.10.9 | Workload domain vCenter |
 | NSX Manager | nsx-mgr-wld | 10.0.10.10 | Workload domain NSX (single node) |
+| NSX Manager VIP | nsx-vip-wld | 10.0.10.22 | NSX cluster virtual IP (required even for single node) |
 
 See [Delivery Guide](deliver.md) Phase 4 for the host commissioning and domain creation procedure.
 

@@ -435,6 +435,7 @@ The management domain follows the **VCF Fleet in a Single Site with Minimal Foot
 |-----------|------|
 | vCenter Server | Workload domain compute management |
 | NSX Manager | Workload domain NSX (single node for lab) |
+| NSX Manager VIP | Cluster virtual IP for NSX (required even for single node; must be a unique IP) |
 
 ### Deployment Method
 
@@ -450,6 +451,7 @@ The workload domain is created via SDDC Manager by commissioning the workload ES
 | C-004 | VCF-02 | Single-node NSX Manager in each domain | Aligns with minimal footprint blueprint — singleton appliances with vSphere HA for availability | Risk: No NSX Manager HA. Mitigation: Acceptable for lab; can redeploy NSX Manager from SDDC Manager if needed |
 | R-004 | VCF-03 | VCF Operations and VCF Automation deployed in management domain | Follows "Simple VCF Operations Model" and "Simple VCF Automation Model" — single-node deployments on the management cluster | Risk: Additional resource consumption. Mitigation: Optional components — can be removed if resources are constrained |
 | R-004 | VCF-04 | VCF Installer drives initial bringup then is decommissioned | Standard VCF deployment method — installer is temporary | Risk: Installer VM consumes resources during bringup. Mitigation: Remove after bringup to reclaim resources |
+| R-004 | VCF-06 | Workload domain uses isolated SSO domain | SDDC Manager requires an isolated SSO domain for VI workload domains — joining the management domain ELM ring is not supported for domain creation via API | Risk: Separate SSO domain means separate administrator credentials. Mitigation: Keycloak OIDC federation provides unified login across both domains |
 | R-017 | VCF-05 | VCF Operations for Logs deployed in management domain (Simple model — single node) | Follows "VCF Operations for Logs — Simple Model" — centralised log collection for VCF management components; single-node deployment with vSphere HA for availability | Risk: Single-node — no log HA. Mitigation: Acceptable for lab; vSphere HA restarts the appliance on host failure |
 
 ## 7. NSX Networking Architecture
