@@ -7,7 +7,6 @@ vcf_bringup_spec:
   workflowType: VCF
   ceipEnabled: false
   skipEsxThumbprintValidation: true
-  deployWithoutLicenseKeys: true
   managementPoolName: mgmt-network-pool
   dnsSpec:
     nameservers:
@@ -40,8 +39,6 @@ vcf_bringup_spec:
     rootNsxtManagerPassword: "{{ nsx_admin_password }}"
     nsxtAdminPassword: "{{ nsx_admin_password }}"
     nsxtAuditPassword: "{{ nsx_admin_password }}"
-    rootLoginEnabledForNsxtManager: true
-    sshEnabledForNsxtManager: true
     skipNsxOverlayOverManagementNetwork: true
     nsxtManagers:
       - hostname: "nsx-mgr-mgmt-01.{{ lab_domain }}"
@@ -57,19 +54,19 @@ vcf_bringup_spec:
             - start: "{{ lab_overlay_prefix }}.11"
               end: "{{ lab_overlay_prefix }}.20"
   hostSpecs:
-    - hostname: "esxi-01.{{ lab_domain }}"
+    - hostname: esxi-01
       credentials:
         username: root
         password: "{{ bootstrap_password }}"
-    - hostname: "esxi-02.{{ lab_domain }}"
+    - hostname: esxi-02
       credentials:
         username: root
         password: "{{ bootstrap_password }}"
-    - hostname: "esxi-03.{{ lab_domain }}"
+    - hostname: esxi-03
       credentials:
         username: root
         password: "{{ bootstrap_password }}"
-    - hostname: "esxi-04.{{ lab_domain }}"
+    - hostname: esxi-04
       credentials:
         username: root
         password: "{{ bootstrap_password }}"
@@ -135,8 +132,6 @@ vcf_bringup_spec:
             transportType: VLAN
           - name: overlay-tz-vcf-m01
             transportType: OVERLAY
-      vmnics:
-        - vmnic0
       vmnicsToUplinks:
         - id: vmnic0
           uplink: uplink1
