@@ -1,7 +1,7 @@
 #!/bin/bash
 # Test domain validation directly via curl + SOCKS proxy
 # Requires: ssh -D 1080 -N ubuntu@<gateway-public-ip>
-set -e
+# No set -e — we want to see all output even on failure
 
 SDDC_HOST="sddc-manager.lab.dreamfold.dev"
 PROXY="socks5h://localhost:1080"
@@ -94,4 +94,11 @@ curl -sk -X POST "https://${SDDC_HOST}/v1/domains/validations" \
     "nsxManagerAdminPassword": "VMware1!VMware1!",
     "formFactor": "medium"
   }
-}' | python3 -m json.tool 2>/dev/null || true
+}' -o /tmp/domain_validation_response.json
+
+echo ""
+echo "=== Response ==="
+cat /tmp/domain_validation_response.json
+echo ""
+echo ""
+python3 -m json.tool /tmp/domain_validation_response.json 2>/dev/null || true
