@@ -2,18 +2,36 @@
 # Commission workload hosts and create VI workload domain
 #
 # Uses modules from the vmware_vcf.ansible collection (powered by vmware-vcf SDK).
+# Authenticates once and reuses the bearer token for all subsequent tasks.
 #
 # Note: vSAN ESA SDDC Manager host commissioning bypass (VCF 9.0.1+) must be applied manually
 # due to SSH banner interfering with sshpass automation (see deliver.md Phase 4 prerequisites).
 # Manual prerequisite: SSH to SDDC Manager and append these properties before running this role.
+
+# --- Authenticate once ---
+
+- name: Get SDDC Manager bearer token
+  ansible.builtin.uri:
+    url: "https://{{ vcf_wld_hostname }}/v1/tokens"
+    method: POST
+    body_format: json
+    body:
+      username: "{{ vcf_wld_username }}"
+      password: "{{ vcf_wld_password }}"
+    validate_certs: false
+    status_code: 200
+  register: token_response
+
+- name: Set bearer token fact
+  ansible.builtin.set_fact:
+    sddc_token: "{{ token_response.json.accessToken }}"
 
 # --- Gather info via collection ---
 
 - name: Get network pools
   vmware_vcf.ansible.vcf_sddc_info:
     sddc_hostname: "{{ vcf_wld_hostname }}"
-    sddc_username: "{{ vcf_wld_username }}"
-    sddc_password: "{{ vcf_wld_password }}"
+    sddc_bearer_token: "{{ sddc_token }}"
     gather: network_pools
     name_filter: mgmt-network-pool
   register: pools_response
@@ -41,8 +59,7 @@
 - name: Get commissioned hosts
   vmware_vcf.ansible.vcf_sddc_info:
     sddc_hostname: "{{ vcf_wld_hostname }}"
-    sddc_username: "{{ vcf_wld_username }}"
-    sddc_password: "{{ vcf_wld_password }}"
+    sddc_bearer_token: "{{ sddc_token }}"
     gather: hosts
   register: hosts_response
 
@@ -63,8 +80,7 @@
 - name: Commission workload hosts into free pool
   vmware_vcf.ansible.vcf_host:
     sddc_hostname: "{{ vcf_wld_hostname }}"
-    sddc_username: "{{ vcf_wld_username }}"
-    sddc_password: "{{ vcf_wld_password }}"
+    sddc_bearer_token: "{{ sddc_token }}"
     state: present
     host_spec: "{{ hosts_to_commission }}"
     wait: true
@@ -87,16 +103,14 @@
 - name: Refresh commissioned hosts list
   vmware_vcf.ansible.vcf_sddc_info:
     sddc_hostname: "{{ vcf_wld_hostname }}"
-    sddc_username: "{{ vcf_wld_username }}"
-    sddc_password: "{{ vcf_wld_password }}"
+    sddc_bearer_token: "{{ sddc_token }}"
     gather: hosts
   register: hosts_response
 
 - name: Get vLCM personalities (cluster images)
   vmware_vcf.ansible.vcf_sddc_info:
     sddc_hostname: "{{ vcf_wld_hostname }}"
-    sddc_username: "{{ vcf_wld_username }}"
-    sddc_password: "{{ vcf_wld_password }}"
+    sddc_bearer_token: "{{ sddc_token }}"
     gather: personalities
   register: personalities_response
 
@@ -141,8 +155,7 @@
 - name: Create workload domain (validates then creates)
   vmware_vcf.ansible.vcf_domain:
     sddc_hostname: "{{ vcf_wld_hostname }}"
-    sddc_username: "{{ vcf_wld_username }}"
-    sddc_password: "{{ vcf_wld_password }}"
+    sddc_bearer_token: "{{ sddc_token }}"
     state: present
     spec: "{{ vcf_wld_domain_spec }}"
     validate: true
