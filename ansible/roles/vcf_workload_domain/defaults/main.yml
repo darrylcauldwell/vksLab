@@ -19,8 +19,6 @@ vcf_wld_hosts:
 vcf_wld_domain_spec:
   domainName: workload-domain
   deployWithoutLicenseKeys: true
-  ssoDomainSpec:
-    ssoDomainName: vsphere.local
   vcenterSpec:
     name: vcenter-wld
     networkDetailsSpec:
