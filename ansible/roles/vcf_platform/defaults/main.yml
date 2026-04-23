@@ -1,0 +1,8 @@
+# Certificate authority details for CSR generation
+vcf_ca_country: GB
+vcf_ca_state: England
+vcf_ca_locality: London
+vcf_ca_organization: Lab
+vcf_ca_organization_unit: VCF
+vcf_ca_key_size: "3072"
+vcf_ca_key_algorithm: RSA
