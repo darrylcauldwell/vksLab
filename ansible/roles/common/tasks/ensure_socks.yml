@@ -48,6 +48,16 @@
   failed_when: false
   register: socks_verify
 
+- name: "SOCKS | Prevent macOS sleep during long-running tasks"
+  ansible.builtin.command:
+    cmd: caffeinate -d -i -s -w {{ ansible_pid | default(lookup('pipe', 'echo $PPID')) }}
+  async: 86400
+  poll: 0
+  register: caffeinate_job
+  when: ansible_os_family | default('') == 'Darwin' or lookup('pipe', 'uname') == 'Darwin'
+  changed_when: false
+  failed_when: false
+
 - name: "SOCKS | Display tunnel status"
   ansible.builtin.debug:
-    msg: "{{ 'Tunnel active' if not (socks_check.failed | default(false)) else 'Tunnel opened' }} — {{ socks_verify.stdout | default('verification skipped') }}"
+    msg: "{{ 'Tunnel active' if not (socks_check.failed | default(false)) else 'Tunnel opened' }} — {{ socks_verify.stdout | default('verification skipped') }}{{ ' — caffeinate active' if caffeinate_job.changed | default(false) else '' }}"
