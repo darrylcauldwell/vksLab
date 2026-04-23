@@ -65,7 +65,8 @@ date: "March 2026"
 
 | IP Range | Purpose |
 |----------|---------|
-| 10.0.40.11–17 | ESXi host TEP interfaces (pool) |
+| 10.0.40.11–20 | Management domain host TEP pool (tep-ip-pool) |
+| 10.0.40.21–23 | Workload domain host TEP pool (workload-tep-pool) |
 
 ### Edge Overlay TEP (VLAN 50)
 

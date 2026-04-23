@@ -73,8 +73,8 @@ vcf_wld_domain_spec:
                 name: workload-tep-pool
                 subnets:
                   - ipAddressPoolRanges:
-                      - start: "{{ lab_overlay_prefix }}.15"
-                        end: "{{ lab_overlay_prefix }}.17"
+                      - start: "{{ lab_overlay_prefix }}.21"
+                        end: "{{ lab_overlay_prefix }}.23"
                     cidr: "{{ vlans.host_overlay.subnet }}"
                     gateway: "{{ vlans.host_overlay.gateway }}"
   nsxTSpec:

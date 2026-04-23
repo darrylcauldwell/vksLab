@@ -75,7 +75,7 @@ curl -sk -X POST "https://${SDDC_HOST}/v1/domains/validations" \
               "subnets": [{
                 "cidr": "10.0.40.0/24",
                 "gateway": "10.0.40.1",
-                "ipAddressPoolRanges": [{"start": "10.0.40.15", "end": "10.0.40.17"}]
+                "ipAddressPoolRanges": [{"start": "10.0.40.21", "end": "10.0.40.23"}]
               }]
             }
           }
