@@ -18,7 +18,7 @@
       display_name: vlan-10
       vlan_ids:
         - "{{ vlans.management.id }}"
-      transport_zone_path: /infra/transport-zones/nsx-vlan-transportzone
+      transport_zone_path: "/infra/transport-zones/{{ nsx_vlan_tz }}"
       subnets:
         - gateway_address: "{{ vlans.management.gateway }}/24"
 
@@ -33,7 +33,7 @@
       display_name: "edge-uplink-vlan-{{ nsx_tier0_uplink_vlan }}"
       vlan_ids:
         - "{{ nsx_tier0_uplink_vlan }}"
-      transport_zone_path: /infra/transport-zones/nsx-vlan-transportzone
+      transport_zone_path: "/infra/transport-zones/{{ nsx_vlan_tz }}"
       subnets:
         - gateway_address: "{{ vlans.edge_uplink.gateway }}/24"
 
@@ -81,7 +81,7 @@
           - host_switch_type: NVDS
             host_switch_name: edge-overlay
             transport_zone_endpoints:
-              - transport_zone_name: "overlay-tz-{{ nsx_overlay_tz_suffix }}"
+              - transport_zone_name: "{{ nsx_overlay_tz }}"
             ip_assignment_spec:
               ip_pool_name: edge-tep-pool
               resource_type: StaticIpPoolSpec
