@@ -65,7 +65,13 @@ vcf_wld_domain_spec:
                   activeUplinks:
                     - uplink1
                   standByUplinks: []
-              isUsedByNsxt: true
+              nsxtSwitchConfig:
+                hostSwitchOperationalMode: STANDARD
+                transportZones:
+                  - name: nsx-vlan-transportzone
+                    transportType: VLAN
+                  - name: "overlay-tz-nsx-vip-wld.{{ lab_domain }}"
+                    transportType: OVERLAY
           nsxClusterSpec:
             nsxTClusterSpec:
               geneveVlanId: "{{ vlans.host_overlay.id }}"

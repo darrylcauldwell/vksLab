@@ -60,7 +60,13 @@ curl -sk -X POST "https://${SDDC_HOST}/v1/domains/validations" \
       "networkSpec": {
         "vdsSpecs": [{
           "name": "workload-cluster-vds01",
-          "isUsedByNsxt": true,
+          "nsxtSwitchConfig": {
+            "hostSwitchOperationalMode": "STANDARD",
+            "transportZones": [
+              {"name": "nsx-vlan-transportzone", "transportType": "VLAN"},
+              {"name": "overlay-tz-nsx-vip-wld.lab.dreamfold.dev", "transportType": "OVERLAY"}
+            ]
+          },
           "portGroupSpecs": [
             {"name": "workload-cluster-vds01-pg-mgmt", "transportType": "MANAGEMENT", "teamingPolicy": "loadbalance_loadbased", "activeUplinks": ["uplink1"], "standByUplinks": []},
             {"name": "workload-cluster-vds01-pg-vmotion", "transportType": "VMOTION", "teamingPolicy": "loadbalance_loadbased", "activeUplinks": ["uplink1"], "standByUplinks": []},
