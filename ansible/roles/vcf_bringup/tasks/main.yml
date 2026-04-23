@@ -24,6 +24,22 @@
       - { hostname: esxi-03, ip: "{{ lab_mgmt_prefix }}.13" }
       - { hostname: esxi-04, ip: "{{ lab_mgmt_prefix }}.14" }
 
+# --- Verify depot connectivity ---
+
+- name: Verify depot is reachable from gateway
+  ansible.builtin.command:
+    cmd: "curl -sk -o /dev/null -w '%{http_code}' https://{{ vcf_depot_url }}/"
+  delegate_to: gateway
+  vars:
+    ansible_connection: ssh
+  changed_when: false
+  failed_when: false
+  register: depot_check
+
+- name: Display depot connectivity
+  ansible.builtin.debug:
+    msg: "Depot {{ vcf_depot_url }}: HTTP {{ depot_check.stdout | default('unreachable') }}"
+
 # --- Configure depot and download bundles ---
 
 - name: Configure VCF offline depot
@@ -43,7 +59,21 @@
 # after depot configuration. Bundles must complete downloading before
 # bringup can proceed. Check status via the VCF Installer UI (deliver guide §6.2.1).
 
-# --- Bringup validation and deployment ---
+# --- Validate bringup spec against OpenAPI schema ---
+
+- name: Validate bringup spec against VCF Installer OpenAPI schema
+  ansible.builtin.command:
+    cmd: "python3 {{ playbook_dir }}/../scripts/validate_spec.py --schema vcf-installer --type SddcSpec -"
+    stdin: "{{ vcf_bringup_spec | to_json }}"
+  register: spec_validation
+  changed_when: false
+  failed_when: "'VALIDATION FAILED' in spec_validation.stdout"
+
+- name: Display spec validation result
+  ansible.builtin.debug:
+    msg: "{{ spec_validation.stdout_lines }}"
+
+# --- Bringup deployment ---
 
 - name: Display bringup spec being submitted
   ansible.builtin.debug:

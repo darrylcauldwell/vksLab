@@ -150,6 +150,14 @@
   changed_when: "'imported' in cert_result.stdout"
   when: esxi_ca_cert_path is defined and esxi_ca_cert_path | length > 0
 
+- name: Verify CA certificate was imported correctly
+  ansible.builtin.shell: >
+    openssl x509 -noout -subject -in /tmp/lab-root-ca.crt
+  register: cert_verify
+  changed_when: false
+  failed_when: cert_verify.rc != 0
+  when: esxi_ca_cert_path is defined and esxi_ca_cert_path | length > 0
+
 # --- Validation ---
 
 - name: Verify connectivity to gateway

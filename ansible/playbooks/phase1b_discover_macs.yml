@@ -36,6 +36,14 @@
       - { hostname: esxi-06, ip: "{{ lab_mgmt_prefix }}.16" }
       - { hostname: esxi-07, ip: "{{ lab_mgmt_prefix }}.17" }
   tasks:
+    - name: Verify dnsmasq is running
+      ansible.builtin.service_facts:
+
+    - name: Fail if dnsmasq is not active
+      ansible.builtin.assert:
+        that: ansible_facts.services['dnsmasq.service'].state == 'running'
+        fail_msg: "dnsmasq is not running — cannot discover DHCP leases. Run Phase 1 first."
+
     - name: Check if MAC reservations already exist
       ansible.builtin.command:
         cmd: grep -q 'BEGIN ANSIBLE MANAGED.*ESXi DHCP reservations' /etc/dnsmasq.d/lab.conf
@@ -108,6 +116,13 @@
           ansible.builtin.set_fact:
             discovered_macs: "{{ discovered_macs[:esxi_hosts | length] }}"
           when: discovered_macs | length > esxi_hosts | length
+
+        - name: Verify all discovered MACs are unique
+          ansible.builtin.assert:
+            that:
+              - discovered_macs | unique | length == discovered_macs | length
+            fail_msg: "Duplicate MAC addresses found — DHCP leases may be stale. Clear and retry."
+            success_msg: "All {{ discovered_macs | length }} MACs are unique"
 
         - name: Display MAC-to-host assignments
           ansible.builtin.debug:

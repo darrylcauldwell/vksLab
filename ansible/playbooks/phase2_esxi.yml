@@ -19,6 +19,23 @@
 #   Storage (NVMe discovery, VMFS), CA cert, validation.
 #   All tasks that don't disrupt SSH connectivity.
 
+- name: Phase 2 — Pre-flight ESXi connectivity check
+  hosts: gateways
+  gather_facts: false
+  tasks:
+    - name: Verify all ESXi hosts are reachable on port 443
+      ansible.builtin.wait_for:
+        host: "{{ hostvars[item]['ansible_host'] }}"
+        port: 443
+        timeout: 10
+      loop: "{{ groups['esxi'] }}"
+      loop_control:
+        label: "{{ item }}"
+
+    - name: Display connectivity check passed
+      ansible.builtin.debug:
+        msg: "All {{ groups['esxi'] | length }} ESXi hosts are reachable"
+
 - name: Phase 2 — Bootstrap ESXi passwords (via gateway)
   hosts: gateways
   gather_facts: false

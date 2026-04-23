@@ -97,10 +97,42 @@
       failed_when: bgp_result.rc != 0
       tags: verify
 
+    - name: "Verify Keycloak — realm accessible"
+      ansible.builtin.uri:
+        url: "https://127.0.0.1:{{ keycloak_port | default(8443) }}/realms/{{ keycloak_realm }}"
+        validate_certs: false
+        status_code: [200]
+      register: keycloak_result
+      changed_when: false
+      failed_when: keycloak_result.status != 200
+      tags: verify
+
+    - name: "Verify IP masquerade — iptables NAT rule present"
+      ansible.builtin.shell:
+        cmd: iptables -t nat -L POSTROUTING -n | grep MASQUERADE
+      register: masq_result
+      changed_when: false
+      failed_when: masq_result.rc != 0
+      tags: verify
+
+    - name: "Verify dnsmasq — all lab hostnames resolve"
+      ansible.builtin.command:
+        cmd: "dig +short @127.0.0.1 {{ item }}.{{ lab_domain }}"
+      loop:
+        - vcf-installer
+        - vcenter-mgmt
+        - sddc-manager
+        - nsx-mgr-mgmt
+        - esxi-01
+        - esxi-05
+      register: dns_all
+      changed_when: false
+      failed_when: dns_all.stdout | length == 0
+      tags: verify
+
     - name: Foundation verification summary
       ansible.builtin.debug:
         msg: >-
-          All automated checks passed: DNS, NTP, CA, management IP,
-          VLAN sub-interfaces, inter-VLAN routing, FRR, BGP config.
-          Manual check remaining: RDP to gateway public IP.
+          All checks passed: DNS, NTP, CA, VLANs, inter-VLAN routing,
+          FRR/BGP, Keycloak, IP masquerade, lab hostname resolution.
       tags: verify
