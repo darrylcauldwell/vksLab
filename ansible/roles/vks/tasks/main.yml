@@ -12,7 +12,7 @@
     vcenter_username: "{{ vcenter_wld_username }}"
     vcenter_password: "{{ vcenter_wld_password }}"
     state: present
-    action: create_subscribed
+    library_type: subscribed
     spec:
       name: "{{ vks_content_library_name }}"
       subscription_info:
@@ -52,10 +52,10 @@
     vcenter_hostname: "{{ vcenter_wld_hostname }}"
     vcenter_username: "{{ vcenter_wld_username }}"
     vcenter_password: "{{ vcenter_wld_password }}"
-    action: get_supervisor
-    cluster_id: "{{ vks_supervisor_cluster }}"
+    action: list_supervisors
   register: supervisor_status
-  until: supervisor_status.result.config_status | default('') == "RUNNING"
+  until: >
+    (supervisor_status.result | selectattr('cluster', 'equalto', vks_supervisor_cluster) | first).config_status | default('') == "RUNNING"
   retries: 90
   delay: 30
 

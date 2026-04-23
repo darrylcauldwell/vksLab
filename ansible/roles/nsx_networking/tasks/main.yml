@@ -109,6 +109,12 @@
             ip_assignment_spec:
               ip_pool_name: edge-tep-pool
               resource_type: StaticIpPoolSpec
+          - host_switch_type: NVDS
+            host_switch_name: edge-uplink
+            transport_zone_endpoints:
+              - transport_zone_name: "{{ nsx_vlan_tz_name }}"
+            ip_assignment_spec:
+              resource_type: AssignedByDhcp
   loop: "{{ nsx_edge_vms }}"
 
 - name: Create Edge cluster

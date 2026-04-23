@@ -4,9 +4,10 @@
 # All API calls go through the vmware_vcf.ansible collection
 # which uses the requests library (SOCKS proxy compatible).
 #
-# Prerequisites (manual):
+# Prerequisites (manual — must be completed before running this role):
 #   - VCF Installer OVA deployed (Phase 3 Play 1)
-#   - Software bundles downloaded via VCF Installer UI (deliver guide §6.2.1)
+#   - Depot configured and software bundles downloaded via VCF Installer UI (deliver guide §6.2.1)
+#     (depot config is a VCF Installer API not yet wrapped by the SDK)
 #   - vSAN ESA HCL bypass applied (deliver guide §6.2.2)
 
 # --- Bringup validation and deployment ---
