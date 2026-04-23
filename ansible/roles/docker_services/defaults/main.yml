@@ -15,3 +15,4 @@ keycloak_users:
 keycloak_oidc_clients:
   - client_id: vcf-identity-broker
     name: VCF Identity Broker
+    secret: "{{ keycloak_admin_password }}"

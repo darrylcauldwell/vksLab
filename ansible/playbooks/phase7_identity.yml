@@ -1,0 +1,12 @@
+---
+# Phase 7 — VCF Identity Broker
+# Registers Keycloak OIDC as external identity provider.
+# Requires: ssh -D 1080 -N ubuntu@<gateway-public-ip>
+- name: Phase 7 — VCF Identity Broker
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  environment:
+    HTTPS_PROXY: "socks5h://localhost:1080"
+  roles:
+    - vcf_identity

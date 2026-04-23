@@ -1,0 +1,59 @@
+---
+# Phase 7 — Configure VCF Identity Broker with Keycloak OIDC
+#
+# Registers Keycloak as an external OIDC identity provider via the
+# VCF Identity Broker API. The Identity Broker federates authentication
+# across all VCF products (vCenter, NSX Manager, SDDC Manager).
+
+# --- Authenticate once ---
+
+- name: Get SDDC Manager bearer token
+  vmware_vcf.ansible.vcf_sddc_info:
+    sddc_hostname: "{{ vcf_identity_hostname }}"
+    sddc_username: "{{ vcf_identity_username }}"
+    sddc_password: "{{ vcf_identity_password }}"
+    gather: token
+  register: token_response
+  no_log: true
+
+- name: Set bearer token facts
+  ansible.builtin.set_fact:
+    sddc_token: "{{ token_response.result.bearer_token }}"
+    sddc_refresh_token: "{{ token_response.result.refresh_token }}"
+  no_log: true
+
+# --- Check existing identity providers ---
+
+- name: List existing identity providers
+  vmware_vcf.ansible.vcf_identity_provider:
+    sddc_hostname: "{{ vcf_identity_hostname }}"
+    sddc_bearer_token: "{{ sddc_token }}"
+    sddc_refresh_token: "{{ sddc_refresh_token }}"
+    state: info
+  register: existing_providers
+
+- name: Display existing identity providers
+  ansible.builtin.debug:
+    msg: "Existing providers: {{ existing_providers.providers | default([]) }}"
+
+# --- Register Keycloak OIDC provider ---
+
+- name: Register Keycloak as OIDC identity provider
+  vmware_vcf.ansible.vcf_identity_provider:
+    sddc_hostname: "{{ vcf_identity_hostname }}"
+    sddc_bearer_token: "{{ sddc_token }}"
+    sddc_refresh_token: "{{ sddc_refresh_token }}"
+    state: present
+    provider_type: external
+    spec:
+      name: "{{ vcf_oidc_provider_name }}"
+      type: OpenIdConnect
+      oidc:
+        discoveryEndpoint: "{{ vcf_oidc_discovery_endpoint }}"
+        clientId: "{{ vcf_oidc_client_id }}"
+        clientSecret: "{{ vcf_oidc_client_secret }}"
+  register: oidc_result
+
+- name: Display OIDC provider registration result
+  ansible.builtin.debug:
+    msg: "OIDC provider registered: {{ oidc_result.result | default('OK') }}"

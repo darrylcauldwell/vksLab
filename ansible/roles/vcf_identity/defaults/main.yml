@@ -1,0 +1,8 @@
+vcf_identity_hostname: "sddc-manager.{{ lab_domain }}"
+vcf_identity_username: admin@local
+vcf_identity_password: "{{ sddc_admin_password }}"
+
+vcf_oidc_provider_name: Keycloak
+vcf_oidc_discovery_endpoint: "https://gateway.{{ lab_domain }}:8443/realms/{{ keycloak_realm }}/.well-known/openid-configuration"
+vcf_oidc_client_id: vcf-identity-broker
+vcf_oidc_client_secret: "{{ keycloak_admin_password }}"

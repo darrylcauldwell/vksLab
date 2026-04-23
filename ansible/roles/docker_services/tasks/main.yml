@@ -317,6 +317,7 @@
     body:
       clientId: "{{ item.client_id }}"
       name: "{{ item.name }}"
+      secret: "{{ item.secret }}"
       enabled: true
       protocol: openid-connect
       publicClient: false
