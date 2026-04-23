@@ -1,18 +1,19 @@
 ---
 # Phase 6 — VKS: Content library, Supervisor, Namespace, VKS cluster
+#
+# All vCenter API calls go through vmware_vcf.ansible collection modules
+# which use the requests library (SOCKS proxy compatible).
 
 # --- Content Library ---
 
 - name: Create subscribed content library
-  ansible.builtin.uri:
-    url: "https://{{ vcenter_wld_hostname }}/api/content/subscribed-library"
-    method: POST
-    user: "{{ vcenter_wld_username }}"
-    password: "{{ vcenter_wld_password }}"
-    force_basic_auth: true
-    validate_certs: false
-    body_format: json
-    body:
+  vmware_vcf.ansible.vcf_vcenter_content_library:
+    vcenter_hostname: "{{ vcenter_wld_hostname }}"
+    vcenter_username: "{{ vcenter_wld_username }}"
+    vcenter_password: "{{ vcenter_wld_password }}"
+    state: present
+    action: create_subscribed
+    spec:
       name: "{{ vks_content_library_name }}"
       subscription_info:
         subscription_url: "{{ vks_content_library_url }}"
@@ -21,63 +22,52 @@
       storage_backings:
         - type: DATASTORE
           datastore_id: "{{ vks_datastore_id | default('datastore-1') }}"
-    status_code: [200, 201, 400]
   register: content_library_result
 
 # --- Supervisor ---
 
 - name: Check Supervisor status
-  ansible.builtin.uri:
-    url: "https://{{ vcenter_wld_hostname }}/api/vcenter/namespace-management/clusters"
-    method: GET
-    user: "{{ vcenter_wld_username }}"
-    password: "{{ vcenter_wld_password }}"
-    force_basic_auth: true
-    validate_certs: false
+  vmware_vcf.ansible.vcf_vcenter_supervisor:
+    vcenter_hostname: "{{ vcenter_wld_hostname }}"
+    vcenter_username: "{{ vcenter_wld_username }}"
+    vcenter_password: "{{ vcenter_wld_password }}"
+    action: list_supervisors
   register: supervisor_check
-  changed_when: false
 
 - name: Enable Supervisor on workload cluster
-  ansible.builtin.uri:
-    url: "https://{{ vcenter_wld_hostname }}/api/vcenter/namespace-management/clusters/{{ vks_supervisor_cluster }}?action=enable"
-    method: POST
-    user: "{{ vcenter_wld_username }}"
-    password: "{{ vcenter_wld_password }}"
-    force_basic_auth: true
-    validate_certs: false
-    body_format: json
-    body:
+  vmware_vcf.ansible.vcf_vcenter_supervisor:
+    vcenter_hostname: "{{ vcenter_wld_hostname }}"
+    vcenter_username: "{{ vcenter_wld_username }}"
+    vcenter_password: "{{ vcenter_wld_password }}"
+    action: enable_supervisor
+    cluster_id: "{{ vks_supervisor_cluster }}"
+    spec:
       size_hint: SMALL
       network_provider: NSX_VPC
       default_kubernetes_service_content_library: "{{ vks_content_library_name }}"
-    status_code: [200, 204]
-  when: supervisor_check.json | length == 0
+  when: supervisor_check.result | length == 0
 
 - name: Wait for Supervisor to be running
-  ansible.builtin.uri:
-    url: "https://{{ vcenter_wld_hostname }}/api/vcenter/namespace-management/clusters/{{ vks_supervisor_cluster }}"
-    method: GET
-    user: "{{ vcenter_wld_username }}"
-    password: "{{ vcenter_wld_password }}"
-    force_basic_auth: true
-    validate_certs: false
+  vmware_vcf.ansible.vcf_vcenter_supervisor:
+    vcenter_hostname: "{{ vcenter_wld_hostname }}"
+    vcenter_username: "{{ vcenter_wld_username }}"
+    vcenter_password: "{{ vcenter_wld_password }}"
+    action: get_supervisor
+    cluster_id: "{{ vks_supervisor_cluster }}"
   register: supervisor_status
-  until: supervisor_status.json.config_status == "RUNNING"
+  until: supervisor_status.result.config_status | default('') == "RUNNING"
   retries: 90
   delay: 30
 
 # --- vSphere Namespace ---
 
 - name: Create vSphere namespace
-  ansible.builtin.uri:
-    url: "https://{{ vcenter_wld_hostname }}/api/vcenter/namespaces/instances"
-    method: POST
-    user: "{{ vcenter_wld_username }}"
-    password: "{{ vcenter_wld_password }}"
-    force_basic_auth: true
-    validate_certs: false
-    body_format: json
-    body:
+  vmware_vcf.ansible.vcf_vcenter_supervisor:
+    vcenter_hostname: "{{ vcenter_wld_hostname }}"
+    vcenter_username: "{{ vcenter_wld_username }}"
+    vcenter_password: "{{ vcenter_wld_password }}"
+    action: create_namespace
+    spec:
       namespace: "{{ vks_namespace }}"
       cluster: "{{ vks_supervisor_cluster }}"
       vm_service_spec:
@@ -88,24 +78,22 @@
           - "{{ vks_content_library_name }}"
       storage_specs:
         - policy: "{{ vks_storage_class }}"
-    status_code: [200, 201, 409]
   register: namespace_result
 
 # --- VKS Cluster ---
 
-- name: Discover latest available Kubernetes version
-  ansible.builtin.uri:
-    url: "https://{{ vcenter_wld_hostname }}/api/vcenter/namespace-management/clusters/{{ vks_supervisor_cluster }}/versions"
-    method: GET
-    user: "{{ vcenter_wld_username }}"
-    password: "{{ vcenter_wld_password }}"
-    force_basic_auth: true
-    validate_certs: false
+- name: Discover available Kubernetes versions
+  vmware_vcf.ansible.vcf_vcenter_supervisor:
+    vcenter_hostname: "{{ vcenter_wld_hostname }}"
+    vcenter_username: "{{ vcenter_wld_username }}"
+    vcenter_password: "{{ vcenter_wld_password }}"
+    action: list_k8s_versions
+    cluster_id: "{{ vks_supervisor_cluster }}"
   register: k8s_versions
 
 - name: Set latest Kubernetes version
   ansible.builtin.set_fact:
-    vks_kubernetes_version: "{{ k8s_versions.json | sort(attribute='version', reverse=true) | first | attr('version') }}"
+    vks_kubernetes_version: "{{ k8s_versions.result | sort(attribute='version', reverse=true) | first | attr('version') }}"
 
 - name: Template VKS cluster manifest
   ansible.builtin.template:
@@ -195,11 +183,6 @@
   retries: 20
   delay: 15
 
-- name: Verify nginx is accessible
-  ansible.builtin.uri:
-    url: "http://{{ nginx_svc.resources[0].status.loadBalancer.ingress[0].ip }}"
-    status_code: [200]
-  register: nginx_test
-  retries: 5
-  delay: 10
-  until: nginx_test.status == 200
+- name: Display nginx LoadBalancer IP
+  ansible.builtin.debug:
+    msg: "Nginx accessible at http://{{ nginx_svc.resources[0].status.loadBalancer.ingress[0].ip }}"

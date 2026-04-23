@@ -155,8 +155,10 @@
           {{ 'VM was already deployed.' if vm_check.rc == 0 else 'OVA deployed and powered on.' }}
 
 - name: Phase 3 — VCF management domain bringup
-  hosts: gateways
+  hosts: localhost
+  connection: local
   gather_facts: false
-  become: true
+  environment:
+    HTTPS_PROXY: "socks5h://localhost:1080"
   roles:
     - vcf_bringup

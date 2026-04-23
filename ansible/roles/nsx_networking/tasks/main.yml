@@ -1,61 +1,50 @@
 ---
-# Phase 5 — NSX Networking via Policy API
+# Phase 5 — NSX Networking via collection modules
 # Edge cluster, Tier-0/1 gateways, BGP, VPC, SNAT
-
-- name: Set NSX API base URL
-  ansible.builtin.set_fact:
-    nsx_api_base: "https://{{ nsx_manager_hostname }}/policy/api/v1"
+#
+# All API calls go through the vmware-vcf SDK (requests library)
+# which honours the HTTPS_PROXY for SOCKS proxy support.
 
 # --- Pre-Flight: Create Required Segments and IP Pools ---
 
 - name: Create management network segment (vlan-10)
-  ansible.builtin.uri:
-    url: "{{ nsx_api_base }}/infra/segments/vlan-10"
-    method: PUT
-    user: "{{ nsx_username }}"
-    password: "{{ nsx_password }}"
-    force_basic_auth: true
-    validate_certs: false
-    body_format: json
-    body:
+  vmware_vcf.ansible.vcf_nsx_segment:
+    nsx_hostname: "{{ nsx_manager_hostname }}"
+    nsx_username: "{{ nsx_username }}"
+    nsx_password: "{{ nsx_password }}"
+    state: present
+    segment_id: vlan-10
+    spec:
       display_name: vlan-10
       vlan_ids:
         - "{{ vlans.management.id }}"
       transport_zone_path: /infra/transport-zones/nsx-vlan-transportzone
       subnets:
         - gateway_address: "{{ vlans.management.gateway }}/24"
-    status_code: [200, 201]
-  no_log: true
 
 - name: Create edge uplink segment (edge-uplink-vlan-60)
-  ansible.builtin.uri:
-    url: "{{ nsx_api_base }}/infra/segments/edge-uplink-vlan-{{ nsx_tier0_uplink_vlan }}"
-    method: PUT
-    user: "{{ nsx_username }}"
-    password: "{{ nsx_password }}"
-    force_basic_auth: true
-    validate_certs: false
-    body_format: json
-    body:
+  vmware_vcf.ansible.vcf_nsx_segment:
+    nsx_hostname: "{{ nsx_manager_hostname }}"
+    nsx_username: "{{ nsx_username }}"
+    nsx_password: "{{ nsx_password }}"
+    state: present
+    segment_id: "edge-uplink-vlan-{{ nsx_tier0_uplink_vlan }}"
+    spec:
       display_name: "edge-uplink-vlan-{{ nsx_tier0_uplink_vlan }}"
       vlan_ids:
         - "{{ nsx_tier0_uplink_vlan }}"
       transport_zone_path: /infra/transport-zones/nsx-vlan-transportzone
       subnets:
         - gateway_address: "{{ vlans.edge_uplink.gateway }}/24"
-    status_code: [200, 201]
-  no_log: true
 
 - name: Create edge TEP IP pool
-  ansible.builtin.uri:
-    url: "{{ nsx_api_base }}/infra/ip-pools/edge-tep-pool"
-    method: PUT
-    user: "{{ nsx_username }}"
-    password: "{{ nsx_password }}"
-    force_basic_auth: true
-    validate_certs: false
-    body_format: json
-    body:
+  vmware_vcf.ansible.vcf_nsx_ip_pool:
+    nsx_hostname: "{{ nsx_manager_hostname }}"
+    nsx_username: "{{ nsx_username }}"
+    nsx_password: "{{ nsx_password }}"
+    state: present
+    pool_id: edge-tep-pool
+    spec:
       display_name: edge-tep-pool
       subnets:
         - cidr: "{{ vlans.edge_overlay.subnet }}"
@@ -63,21 +52,18 @@
             - start: "{{ lab_edge_tep_prefix }}.20"
               end: "{{ lab_edge_tep_prefix }}.21"
           gateway_ip: "{{ vlans.edge_overlay.gateway }}"
-    status_code: [200, 201]
-  no_log: true
 
 # --- Edge Cluster ---
 
 - name: Create Edge transport nodes
-  ansible.builtin.uri:
-    url: "{{ nsx_api_base }}/transport-nodes/{{ item.name }}"
-    method: PUT
-    user: "{{ nsx_username }}"
-    password: "{{ nsx_password }}"
-    force_basic_auth: true
-    validate_certs: false
-    body_format: json
-    body:
+  vmware_vcf.ansible.vcf_nsx_edge:
+    nsx_hostname: "{{ nsx_manager_hostname }}"
+    nsx_username: "{{ nsx_username }}"
+    nsx_password: "{{ nsx_password }}"
+    state: present
+    resource_type: edge_node
+    resource_id: "{{ item.name }}"
+    spec:
       display_name: "{{ item.name }}"
       node_deployment_info:
         deployment_type: VIRTUAL_MACHINE
@@ -99,55 +85,48 @@
             ip_assignment_spec:
               ip_pool_name: edge-tep-pool
               resource_type: StaticIpPoolSpec
-    status_code: [200, 201]
   loop: "{{ nsx_edge_vms }}"
-  no_log: true
 
 - name: Create Edge cluster
-  ansible.builtin.uri:
-    url: "{{ nsx_api_base }}/edge-clusters/{{ nsx_edge_cluster_name }}"
-    method: PUT
-    user: "{{ nsx_username }}"
-    password: "{{ nsx_password }}"
-    force_basic_auth: true
-    validate_certs: false
-    body_format: json
-    body:
+  vmware_vcf.ansible.vcf_nsx_edge:
+    nsx_hostname: "{{ nsx_manager_hostname }}"
+    nsx_username: "{{ nsx_username }}"
+    nsx_password: "{{ nsx_password }}"
+    state: present
+    resource_type: edge_cluster
+    resource_id: "{{ nsx_edge_cluster_name }}"
+    spec:
       display_name: "{{ nsx_edge_cluster_name }}"
       members: >-
         {{ nsx_edge_vms | map(attribute='name')
            | map('regex_replace', '(.*)', '{"transport_node_id": "\1"}')
            | map('from_json') | list }}
-    status_code: [200, 201]
-  no_log: true
 
 # --- Tier-0 Gateway ---
 
 - name: Create Tier-0 gateway
-  ansible.builtin.uri:
-    url: "{{ nsx_api_base }}/infra/tier-0s/{{ nsx_tier0_name }}"
-    method: PUT
-    user: "{{ nsx_username }}"
-    password: "{{ nsx_password }}"
-    force_basic_auth: true
-    validate_certs: false
-    body_format: json
-    body:
+  vmware_vcf.ansible.vcf_nsx_gateway:
+    nsx_hostname: "{{ nsx_manager_hostname }}"
+    nsx_username: "{{ nsx_username }}"
+    nsx_password: "{{ nsx_password }}"
+    state: present
+    gateway_type: tier0
+    gateway_id: "{{ nsx_tier0_name }}"
+    spec:
       display_name: "{{ nsx_tier0_name }}"
       ha_mode: "{{ nsx_tier0_ha_mode }}"
-    status_code: [200, 201]
-  no_log: true
 
 - name: Create Tier-0 uplink interface
-  ansible.builtin.uri:
-    url: "{{ nsx_api_base }}/infra/tier-0s/{{ nsx_tier0_name }}/locale-services/default/interfaces/uplink-01"
-    method: PUT
-    user: "{{ nsx_username }}"
-    password: "{{ nsx_password }}"
-    force_basic_auth: true
-    validate_certs: false
-    body_format: json
-    body:
+  vmware_vcf.ansible.vcf_nsx_gateway:
+    nsx_hostname: "{{ nsx_manager_hostname }}"
+    nsx_username: "{{ nsx_username }}"
+    nsx_password: "{{ nsx_password }}"
+    state: present
+    gateway_type: tier0
+    gateway_id: "{{ nsx_tier0_name }}"
+    action: add_interface
+    interface_id: uplink-01
+    spec:
       display_name: uplink-01
       type: EXTERNAL
       edge_path: "/infra/sites/default/enforcement-points/default/edge-clusters/{{ nsx_edge_cluster_name }}"
@@ -156,136 +135,116 @@
         - ip_addresses:
             - "{{ nsx_tier0_uplink_ip }}"
           prefix_len: "{{ nsx_tier0_uplink_prefix }}"
-    status_code: [200, 201]
-  register: tier0_uplink_result
-  no_log: true
 
 - name: Configure BGP on Tier-0
-  ansible.builtin.uri:
-    url: "{{ nsx_api_base }}/infra/tier-0s/{{ nsx_tier0_name }}/locale-services/default/bgp"
-    method: PUT
-    user: "{{ nsx_username }}"
-    password: "{{ nsx_password }}"
-    force_basic_auth: true
-    validate_certs: false
-    body_format: json
-    body:
+  vmware_vcf.ansible.vcf_nsx_routing:
+    nsx_hostname: "{{ nsx_manager_hostname }}"
+    nsx_username: "{{ nsx_username }}"
+    nsx_password: "{{ nsx_password }}"
+    action: set_bgp
+    gateway_type: tier0
+    gateway_id: "{{ nsx_tier0_name }}"
+    spec:
       local_as_num: "{{ nsx_bgp_local_asn }}"
       enabled: true
       route_aggregations: []
-    status_code: [200, 201]
-  no_log: true
 
 - name: Configure BGP neighbor (gateway)
-  ansible.builtin.uri:
-    url: "{{ nsx_api_base }}/infra/tier-0s/{{ nsx_tier0_name }}/locale-services/default/bgp/neighbors/gateway-peer"
-    method: PUT
-    user: "{{ nsx_username }}"
-    password: "{{ nsx_password }}"
-    force_basic_auth: true
-    validate_certs: false
-    body_format: json
-    body:
+  vmware_vcf.ansible.vcf_nsx_routing:
+    nsx_hostname: "{{ nsx_manager_hostname }}"
+    nsx_username: "{{ nsx_username }}"
+    nsx_password: "{{ nsx_password }}"
+    action: add_bgp_neighbor
+    gateway_type: tier0
+    gateway_id: "{{ nsx_tier0_name }}"
+    neighbor_id: gateway-peer
+    spec:
       display_name: Gateway BGP Peer
       neighbor_address: "{{ nsx_bgp_neighbor_ip }}"
       remote_as_num: "{{ nsx_bgp_neighbor_asn }}"
       keep_alive_time: "{{ bgp_keepalive }}"
       hold_down_time: "{{ bgp_holdtime }}"
-    status_code: [200, 201]
-  no_log: true
 
 - name: Configure Tier-0 route redistribution
-  ansible.builtin.uri:
-    url: "{{ nsx_api_base }}/infra/tier-0s/{{ nsx_tier0_name }}/locale-services/default/bgp/redistribution"
-    method: PUT
-    user: "{{ nsx_username }}"
-    password: "{{ nsx_password }}"
-    force_basic_auth: true
-    validate_certs: false
-    body_format: json
-    body:
+  vmware_vcf.ansible.vcf_nsx_routing:
+    nsx_hostname: "{{ nsx_manager_hostname }}"
+    nsx_username: "{{ nsx_username }}"
+    nsx_password: "{{ nsx_password }}"
+    action: set_redistribution
+    gateway_type: tier0
+    gateway_id: "{{ nsx_tier0_name }}"
+    spec:
       enabled: true
       redistribution_rules:
         - name: connected-and-nat
           route_redistribution_types:
             - TIER0_CONNECTED
             - TIER0_NAT
-    status_code: [200, 201]
-  no_log: true
 
 # --- Tier-1 Gateway ---
 
 - name: Create Tier-1 gateway
-  ansible.builtin.uri:
-    url: "{{ nsx_api_base }}/infra/tier-1s/{{ nsx_tier1_name }}"
-    method: PUT
-    user: "{{ nsx_username }}"
-    password: "{{ nsx_password }}"
-    force_basic_auth: true
-    validate_certs: false
-    body_format: json
-    body:
+  vmware_vcf.ansible.vcf_nsx_gateway:
+    nsx_hostname: "{{ nsx_manager_hostname }}"
+    nsx_username: "{{ nsx_username }}"
+    nsx_password: "{{ nsx_password }}"
+    state: present
+    gateway_type: tier1
+    gateway_id: "{{ nsx_tier1_name }}"
+    spec:
       display_name: "{{ nsx_tier1_name }}"
       tier0_path: "/infra/tier-0s/{{ nsx_tier0_name }}"
       route_advertisement_types:
         - TIER1_CONNECTED
         - TIER1_NAT
         - TIER1_LB_VIP
-    status_code: [200, 201]
-  no_log: true
 
 # --- VPC ---
 
 - name: Create VPC project
-  ansible.builtin.uri:
-    url: "{{ nsx_api_base }}/orgs/default/projects/{{ nsx_vpc_project_name }}"
-    method: PUT
-    user: "{{ nsx_username }}"
-    password: "{{ nsx_password }}"
-    force_basic_auth: true
-    validate_certs: false
-    body_format: json
-    body:
+  vmware_vcf.ansible.vcf_nsx_vpc:
+    nsx_hostname: "{{ nsx_manager_hostname }}"
+    nsx_username: "{{ nsx_username }}"
+    nsx_password: "{{ nsx_password }}"
+    state: present
+    resource_type: project
+    project_id: "{{ nsx_vpc_project_name }}"
+    spec:
       display_name: "{{ nsx_vpc_project_name }}"
-    status_code: [200, 201]
-  no_log: true
 
 - name: Create VPC
-  ansible.builtin.uri:
-    url: "{{ nsx_api_base }}/orgs/default/projects/{{ nsx_vpc_project_name }}/vpcs/{{ nsx_vpc_name }}"
-    method: PUT
-    user: "{{ nsx_username }}"
-    password: "{{ nsx_password }}"
-    force_basic_auth: true
-    validate_certs: false
-    body_format: json
-    body:
+  vmware_vcf.ansible.vcf_nsx_vpc:
+    nsx_hostname: "{{ nsx_manager_hostname }}"
+    nsx_username: "{{ nsx_username }}"
+    nsx_password: "{{ nsx_password }}"
+    state: present
+    resource_type: vpc
+    project_id: "{{ nsx_vpc_project_name }}"
+    vpc_id: "{{ nsx_vpc_name }}"
+    spec:
       display_name: "{{ nsx_vpc_name }}"
       connectivity_path: "/infra/tier-0s/{{ nsx_tier0_name }}"
-    status_code: [200, 201]
-  no_log: true
 
 # --- SNAT Rules ---
 
 - name: Create SNAT rules on Tier-0
-  ansible.builtin.uri:
-    url: "{{ nsx_api_base }}/infra/tier-0s/{{ nsx_tier0_name }}/nat/USER/nat-rules/{{ item.name }}"
-    method: PUT
-    user: "{{ nsx_username }}"
-    password: "{{ nsx_password }}"
-    force_basic_auth: true
-    validate_certs: false
-    body_format: json
-    body:
+  vmware_vcf.ansible.vcf_nsx_nat:
+    nsx_hostname: "{{ nsx_manager_hostname }}"
+    nsx_username: "{{ nsx_username }}"
+    nsx_password: "{{ nsx_password }}"
+    state: present
+    gateway_type: tier0
+    gateway_id: "{{ nsx_tier0_name }}"
+    nat_type: USER
+    rule_id: "{{ item.name }}"
+    spec:
       display_name: "{{ item.name }}"
       action: SNAT
       source_network: "{{ item.source_network }}"
       translated_network: "{{ item.translated_ip }}"
       enabled: true
       logging: false
-    status_code: [200, 201]
   loop: "{{ nsx_snat_rules }}"
-  no_log: true
 
 # --- Verification ---
 
@@ -294,3 +253,7 @@
   delegate_to: gateway
   register: bgp_summary
   changed_when: false
+
+- name: Display BGP summary
+  ansible.builtin.debug:
+    msg: "{{ bgp_summary.stdout_lines }}"

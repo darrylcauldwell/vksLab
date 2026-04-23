@@ -1,67 +1,13 @@
 ---
-# VCF management domain bringup via Cloud Builder API
-
-# --- Depot configuration and bundle download ---
-# The VCF Installer needs bundles downloaded from the depot before
-# validation or bringup can proceed.
-
-- name: Get VCF Installer API token
-  ansible.builtin.uri:
-    url: "https://{{ vcf_bringup_hostname }}/v1/tokens"
-    method: POST
-    body_format: json
-    body:
-      username: "{{ vcf_bringup_username }}"
-      password: "{{ vcf_bringup_password }}"
-    validate_certs: false
-    status_code: 200
-  register: token_response
-
-- name: Configure VCF depot
-  ansible.builtin.uri:
-    url: "https://{{ vcf_bringup_hostname }}/v1/system/settings/depot"
-    method: PUT
-    headers:
-      Authorization: "Bearer {{ token_response.json.accessToken }}"
-    body_format: json
-    body:
-      offlineAccount:
-        username: "{{ depot_username }}"
-        password: "{{ depot_password }}"
-      depotConfiguration:
-        isOfflineDepot: true
-        hostname: "{{ vcf_depot_url }}"
-        port: 443
-    validate_certs: false
-    status_code: [200, 202, 204]
-    timeout: 300
-  register: depot_result
-
-- name: Display depot configuration result
-  ansible.builtin.debug:
-    msg: "Depot configured: {{ depot_result.status }}"
-
-# Bundle download is a manual step via the VCF Installer UI (see deliver guide §6.2.1).
-# Automation tracked in GitHub issue #80.
-
-# --- Pre-validation: vSAN ESA HCL bypass and timestamp patch ---
-# These are manual steps — see deliver guide §6.2.2.
-# Automation tracked in GitHub issue #81.
-
-- name: Wait for VCF Installer API to be ready
-  ansible.builtin.uri:
-    url: "https://{{ vcf_bringup_hostname }}/v1/tokens"
-    method: POST
-    body_format: json
-    body:
-      username: "{{ vcf_bringup_username }}"
-      password: "{{ vcf_bringup_password }}"
-    validate_certs: false
-    status_code: 200
-  register: api_ready
-  until: api_ready.status == 200
-  retries: 24
-  delay: 10
+# VCF management domain bringup via collection module
+#
+# All API calls go through the vmware_vcf.ansible collection
+# which uses the requests library (SOCKS proxy compatible).
+#
+# Prerequisites (manual):
+#   - VCF Installer OVA deployed (Phase 3 Play 1)
+#   - Software bundles downloaded via VCF Installer UI (deliver guide §6.2.1)
+#   - vSAN ESA HCL bypass applied (deliver guide §6.2.2)
 
 # --- Bringup validation and deployment ---
 
@@ -69,44 +15,18 @@
   ansible.builtin.debug:
     msg: "{{ vcf_bringup_spec | to_nice_json }}"
 
-- name: Validate bringup spec
-  vcf_cloud_builder:
-    hostname: "{{ vcf_bringup_hostname }}"
-    username: "{{ vcf_bringup_username }}"
-    password: "{{ vcf_bringup_password }}"
-    state: validated
-    spec: "{{ vcf_bringup_spec }}"
-  register: validation_result
-
-- name: Display validation result
-  ansible.builtin.debug:
-    var: validation_result
-
-- name: Start VCF bringup
-  vcf_cloud_builder:
+- name: Validate and deploy management domain
+  vmware_vcf.ansible.vcf_cloud_builder:
     hostname: "{{ vcf_bringup_hostname }}"
     username: "{{ vcf_bringup_username }}"
     password: "{{ vcf_bringup_password }}"
     state: deployed
     spec: "{{ vcf_bringup_spec }}"
-    timeout: 7200
+    nested_lab: true
+    deploy_timeout: 14400
     poll_interval: 60
   register: bringup_result
 
 - name: Display bringup result
   ansible.builtin.debug:
     var: bringup_result
-
-- name: Verify management components are accessible
-  ansible.builtin.uri:
-    url: "https://{{ item }}.{{ lab_domain }}"
-    validate_certs: false
-    status_code: [200, 301, 302]
-  loop:
-    - vcenter-mgmt
-    - sddc-manager
-    - nsx-mgr-mgmt
-  retries: 10
-  delay: 30
-  register: component_check
-  until: component_check.status in [200, 301, 302]
