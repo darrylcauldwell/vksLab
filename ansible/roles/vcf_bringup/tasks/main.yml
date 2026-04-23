@@ -8,6 +8,22 @@
 #   - VCF Installer OVA deployed (Phase 3 Play 1)
 #   - vSAN ESA HCL bypass applied (deliver guide §6.2.2)
 
+# --- Ensure DNS for Phase 3 dependencies ---
+
+- name: Ensure DNS for bringup
+  ansible.builtin.include_tasks: ../../common/tasks/ensure_dns.yml
+  vars:
+    dns_records:
+      - { hostname: vcf-installer, ip: "{{ lab_mgmt_prefix }}.3" }
+      - { hostname: vcenter-mgmt, ip: "{{ lab_mgmt_prefix }}.4" }
+      - { hostname: sddc-manager, ip: "{{ lab_mgmt_prefix }}.5" }
+      - { hostname: nsx-mgr-mgmt, ip: "{{ lab_mgmt_prefix }}.6" }
+      - { hostname: nsx-mgr-mgmt-01, ip: "{{ lab_mgmt_prefix }}.19" }
+      - { hostname: esxi-01, ip: "{{ lab_mgmt_prefix }}.11" }
+      - { hostname: esxi-02, ip: "{{ lab_mgmt_prefix }}.12" }
+      - { hostname: esxi-03, ip: "{{ lab_mgmt_prefix }}.13" }
+      - { hostname: esxi-04, ip: "{{ lab_mgmt_prefix }}.14" }
+
 # --- Configure depot and download bundles ---
 
 - name: Configure VCF offline depot

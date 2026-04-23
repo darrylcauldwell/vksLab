@@ -8,6 +8,15 @@
 # Uses internal /suite-api/internal/vidb/ endpoints (tested on VCF 9.0).
 # These are unsupported APIs — may change between VCF versions.
 
+# --- Ensure DNS for Identity Broker dependencies ---
+
+- name: Ensure DNS for Identity Broker
+  ansible.builtin.include_tasks: ../../common/tasks/ensure_dns.yml
+  vars:
+    dns_records:
+      - { hostname: vcf-ops, ip: "{{ lab_mgmt_prefix }}.7" }
+      - { hostname: "gateway", ip: "{{ lab_mgmt_prefix }}.1" }
+
 - name: Fetch step-ca root certificate from gateway
   ansible.builtin.fetch:
     src: /etc/step-ca/certs/root_ca.crt

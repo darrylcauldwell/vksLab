@@ -8,6 +8,20 @@
 # due to SSH banner interfering with sshpass automation (see deliver.md Phase 4 prerequisites).
 # Manual prerequisite: SSH to SDDC Manager and append these properties before running this role.
 
+# --- Ensure DNS for Phase 4 dependencies ---
+
+- name: Ensure DNS for workload domain
+  ansible.builtin.include_tasks: ../../common/tasks/ensure_dns.yml
+  vars:
+    dns_records:
+      - { hostname: sddc-manager, ip: "{{ lab_mgmt_prefix }}.5" }
+      - { hostname: vcenter-wld, ip: "{{ lab_mgmt_prefix }}.9" }
+      - { hostname: nsx-mgr-wld, ip: "{{ lab_mgmt_prefix }}.10" }
+      - { hostname: nsx-vip-wld, ip: "{{ lab_mgmt_prefix }}.22" }
+      - { hostname: esxi-05, ip: "{{ lab_mgmt_prefix }}.15" }
+      - { hostname: esxi-06, ip: "{{ lab_mgmt_prefix }}.16" }
+      - { hostname: esxi-07, ip: "{{ lab_mgmt_prefix }}.17" }
+
 # --- Authenticate once ---
 
 - name: Get SDDC Manager bearer token
