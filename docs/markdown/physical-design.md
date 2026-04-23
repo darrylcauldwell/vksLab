@@ -11,78 +11,85 @@ date: "March 2026"
 
 > Implements NET-03 (six-Virtual LAN (VLAN) segmentation) and NET-04 (jumbo frames for overlay/storage). See [Logical Design](logical-design.md) Section 3.
 
-| VLAN ID | Name | Subnet | Purpose | Maximum Transmission Unit (MTU) |
-|---------|------|--------|---------|-----|
-| 10 | Management | 10.0.10.0/24 | ESXi management, vCenter, Software-Defined Data Center (SDDC) Manager, VMware Cloud Foundation (VCF) Networking (NSX) Manager | 1500 |
-| 20 | vMotion | 10.0.20.0/24 | vMotion traffic | 8900 |
-| 30 | vSAN | 10.0.30.0/24 | vSAN storage traffic | 8900 |
-| 40 | Host Overlay (TEP) | 10.0.40.0/24 | NSX host Tunnel Endpoint (TEP) tunnels | 8900 |
-| 50 | Edge Overlay | 10.0.50.0/24 | NSX Edge TEP tunnels | 8900 |
-| 60 | Edge Uplink | 10.0.60.0/24 | NSX Tier-0 Gateway ↔ Gateway Border Gateway Protocol (BGP) peering | 1500 |
+VLAN definitions. Columns: `vlan_id` (VLAN tag), `name` (Ansible variable key), `subnet` (CIDR), `gateway` (first usable IP), `mtu` (bytes), `purpose` (description).
+
+<!-- pd_vlans -->
+| vlan_id | name | subnet | gateway | mtu | purpose |
+|---------|------|--------|---------|-----|---------|
+| 10 | management | 10.0.10.0/24 | 10.0.10.1 | 1500 | ESXi management, vCenter, SDDC Manager, NSX Manager |
+| 20 | vmotion | 10.0.20.0/24 | 10.0.20.1 | 8900 | vMotion traffic |
+| 30 | vsan | 10.0.30.0/24 | 10.0.30.1 | 8900 | vSAN storage traffic |
+| 40 | host_overlay | 10.0.40.0/24 | 10.0.40.1 | 8900 | NSX host TEP tunnels |
+| 50 | edge_overlay | 10.0.50.0/24 | 10.0.50.1 | 8900 | NSX Edge TEP tunnels |
+| 60 | edge_uplink | 10.0.60.0/24 | 10.0.60.1 | 1500 | NSX Tier-0 ↔ Gateway BGP peering |
 
 ## 2. IP Addressing Scheme
 
 ### Infrastructure Services (VLAN 10 — Management)
 
-| IP Address | Hostname | Role |
-|------------|----------|------|
-| 10.0.10.1 | gateway | Gateway VLAN 10 sub-interface (default gateway) |
-| 10.0.10.3 | vcf-installer | VMware Cloud Foundation (VCF) Installer appliance |
-| 10.0.10.4 | vcenter-mgmt | vCenter Server (management) |
-| 10.0.10.5 | sddc-manager | SDDC Manager |
-| 10.0.10.6 | nsx-mgr-mgmt | NSX Manager VIP (management) |
-| 10.0.10.19 | nsx-mgr-mgmt-01 | NSX Manager node (management) |
-| 10.0.10.7 | vcf-ops | VCF Operations (analytics node) |
-| 10.0.10.8 | vcf-auto | VCF Automation |
-| 10.0.10.18 | vcf-ops-logs | VCF Operations for Logs (deployed via Fleet Management) |
-| 10.0.10.23 | vcf-ops-collector | VCF Operations Collector |
-| 10.0.10.24 | vcf-ops-fleet | VCF Operations Fleet Management |
-| 10.0.10.9 | vcenter-wld | vCenter Server (workload) |
-| 10.0.10.10 | nsx-mgr-wld | NSX Manager (workload) |
-| 10.0.10.22 | nsx-vip-wld | NSX Manager VIP (workload) |
-| 10.0.10.11 | esxi-01 | Management domain ESXi host |
-| 10.0.10.12 | esxi-02 | Management domain ESXi host |
-| 10.0.10.13 | esxi-03 | Management domain ESXi host |
-| 10.0.10.14 | esxi-04 | Management domain ESXi host |
-| 10.0.10.15 | esxi-05 | Workload domain ESXi host |
-| 10.0.10.16 | esxi-06 | Workload domain ESXi host |
-| 10.0.10.17 | esxi-07 | Workload domain ESXi host |
-| 10.0.10.20 | edge-01 | NSX Edge VM (management interface) |
-| 10.0.10.21 | edge-02 | NSX Edge VM (management interface) |
+Host IP allocations. Columns: `ip` (IPv4 address), `hostname` (short name, FQDN = hostname.lab_domain), `domain` (infra/mgmt/wld — which VCF domain the host belongs to), `role` (description).
+
+<!-- pd_hosts -->
+| ip | hostname | domain | role |
+|----|----------|--------|------|
+| 10.0.10.1 | gateway | infra | Gateway |
+| 10.0.10.3 | vcf-installer | mgmt | VCF Installer appliance |
+| 10.0.10.4 | vcenter-mgmt | mgmt | vCenter Server (management) |
+| 10.0.10.5 | sddc-manager | mgmt | SDDC Manager |
+| 10.0.10.6 | nsx-mgr-mgmt | mgmt | NSX Manager VIP (management) |
+| 10.0.10.19 | nsx-mgr-mgmt-01 | mgmt | NSX Manager node (management) |
+| 10.0.10.7 | vcf-ops | mgmt | VCF Operations (analytics) |
+| 10.0.10.8 | vcf-auto | mgmt | VCF Automation |
+| 10.0.10.18 | vcf-ops-logs | mgmt | VCF Operations for Logs |
+| 10.0.10.23 | vcf-ops-collector | mgmt | VCF Operations Collector |
+| 10.0.10.24 | vcf-ops-fleet | mgmt | VCF Operations Fleet Management |
+| 10.0.10.9 | vcenter-wld | wld | vCenter Server (workload) |
+| 10.0.10.10 | nsx-mgr-wld | wld | NSX Manager (workload) |
+| 10.0.10.22 | nsx-vip-wld | wld | NSX Manager VIP (workload) |
+| 10.0.10.11 | esxi-01 | mgmt | Management domain ESXi host |
+| 10.0.10.12 | esxi-02 | mgmt | Management domain ESXi host |
+| 10.0.10.13 | esxi-03 | mgmt | Management domain ESXi host |
+| 10.0.10.14 | esxi-04 | mgmt | Management domain ESXi host |
+| 10.0.10.15 | esxi-05 | wld | Workload domain ESXi host |
+| 10.0.10.16 | esxi-06 | wld | Workload domain ESXi host |
+| 10.0.10.17 | esxi-07 | wld | Workload domain ESXi host |
+| 10.0.10.20 | edge-01 | wld | NSX Edge VM |
+| 10.0.10.21 | edge-02 | wld | NSX Edge VM |
 
 ### vMotion (VLAN 20)
 
-| IP Range | Purpose |
-|----------|---------|
-| 10.0.20.11–14 | Management domain ESXi hosts |
-| 10.0.20.15–17 | Workload domain ESXi hosts |
+| start_ip | end_ip | purpose |
+|----------|--------|---------|
+| 10.0.20.11 | 10.0.20.14 | Management domain ESXi hosts |
+| 10.0.20.15 | 10.0.20.17 | Workload domain ESXi hosts |
 
 ### vSAN (VLAN 30)
 
-| IP Range | Purpose |
-|----------|---------|
-| 10.0.30.11–14 | Management domain ESXi hosts |
-| 10.0.30.15–17 | Workload domain ESXi hosts |
+| start_ip | end_ip | purpose |
+|----------|--------|---------|
+| 10.0.30.11 | 10.0.30.14 | Management domain ESXi hosts |
+| 10.0.30.15 | 10.0.30.17 | Workload domain ESXi hosts |
 
-### Host Overlay TEP (VLAN 40)
+### IP Pools
 
-| IP Range | Purpose |
-|----------|---------|
-| 10.0.40.11–20 | Management domain host TEP pool (tep-ip-pool) |
-| 10.0.40.21–23 | Workload domain host TEP pool (workload-tep-pool) |
+IP address pools for NSX TEP and overlay. Columns: `pool_name` (NSX pool name), `start_ip`/`end_ip` (range), `subnet` (CIDR), `gateway`, `vlan_id`, `purpose`.
 
-### Edge Overlay TEP (VLAN 50)
+<!-- pd_ip_pools -->
+| pool_name | start_ip | end_ip | subnet | gateway | vlan_id | purpose |
+|-----------|----------|--------|--------|---------|---------|---------|
+| tep-ip-pool | 10.0.40.11 | 10.0.40.20 | 10.0.40.0/24 | 10.0.40.1 | 40 | Management domain host TEP |
+| workload-tep-pool | 10.0.40.21 | 10.0.40.23 | 10.0.40.0/24 | 10.0.40.1 | 40 | Workload domain host TEP |
+| edge-tep-pool | 10.0.50.20 | 10.0.50.21 | 10.0.50.0/24 | 10.0.50.1 | 50 | NSX Edge TEP |
 
-| IP Range | Purpose |
-|----------|---------|
-| 10.0.50.20–21 | NSX Edge TEP interfaces |
+### BGP Peering (VLAN 60)
 
-### Edge Uplink / BGP (VLAN 60)
+BGP peering configuration. Columns: `peer_name` (identifier), `ip` (peering address on VLAN 60), `asn` (AS number), `role`.
 
-| IP Address | Role |
-|------------|------|
-| 10.0.60.1 | Gateway ens34.60 (BGP neighbor) |
-| 10.0.60.2 | NSX Tier-0 uplink interface |
+<!-- pd_bgp -->
+| peer_name | ip | asn | role |
+|-----------|-----|-----|------|
+| gateway | 10.0.60.1 | 65000 | FRR BGP router on gateway |
+| nsx-tier0 | 10.0.60.2 | 65001 | NSX Tier-0 uplink |
 
 ## 3. Ubuntu Gateway Specification
 
