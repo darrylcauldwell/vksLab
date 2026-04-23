@@ -47,12 +47,17 @@
 
 - name: Get gateway SSH host key fingerprint
   ansible.builtin.shell:
-    cmd: "ssh-keygen -lf /etc/ssh/ssh_host_rsa_key.pub | awk '{print $2}'"
+    cmd: "ls /etc/ssh/ssh_host_*_key.pub | head -1 | xargs ssh-keygen -lf | awk '{print $2}'"
   register: ssh_fingerprint
   changed_when: false
   delegate_to: gateway
   vars:
     ansible_connection: ssh
+
+- name: Verify fingerprint was retrieved
+  ansible.builtin.assert:
+    that: ssh_fingerprint.stdout | length > 0
+    fail_msg: "Failed to retrieve SSH fingerprint from gateway. stdout={{ ssh_fingerprint.stdout }} stderr={{ ssh_fingerprint.stderr }}"
 
 - name: Display SSH fingerprint
   ansible.builtin.debug:
