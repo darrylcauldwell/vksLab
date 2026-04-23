@@ -121,208 +121,82 @@
   delay: 5
   tags: keycloak
 
-# --- Keycloak realm and users ---
-# Creates the "lab" realm with admin and operator users, plus OIDC clients
-# for vCenter and NSX Manager. vCenter/NSX OIDC configuration is manual
-# (post Phase 3/4) as those components don't exist yet.
-
-# KC_BOOTSTRAP_ADMIN_PASSWORD only works on first boot. On re-runs the
-# password in 1Password may differ from what Keycloak stored. Try to
-# obtain a token first; if it fails (401), the container is recreated
-# with the current password.
-- name: Try to obtain Keycloak admin access token
-  ansible.builtin.uri:
-    url: "https://127.0.0.1:{{ keycloak_port }}/realms/master/protocol/openid-connect/token"
-    method: POST
-    body_format: form-urlencoded
-    body:
-      grant_type: password
-      username: admin
-      password: "{{ keycloak_admin_password }}"
-      client_id: admin-cli
-    validate_certs: false
-    status_code: [200, 401]
-  register: kc_token_attempt
-  no_log: true
-  tags: keycloak
-
-# If the admin password doesn't match, destroy and recreate the container
-# with its data volume so bootstrap credentials take effect again.
-- name: Remove Keycloak container (password mismatch)
-  become: true
-  ansible.builtin.shell: >
-    docker stop {{ keycloak_container_name }} &&
-    docker rm {{ keycloak_container_name }} &&
-    docker volume rm keycloak-data
-  when: kc_token_attempt.status == 401
-  no_log: true
-  tags: keycloak
-
-- name: Recreate Keycloak container with current password
-  become: true
-  ansible.builtin.shell: >
-    docker run -d
-    --name {{ keycloak_container_name }}
-    --restart unless-stopped
-    -p {{ keycloak_port }}:8443
-    -e KC_BOOTSTRAP_ADMIN_USERNAME=admin
-    -e KC_BOOTSTRAP_ADMIN_PASSWORD='{{ keycloak_admin_password }}'
-    -e KC_HOSTNAME={{ keycloak_hostname }}
-    -e KC_HTTPS_CERTIFICATE_FILE=/opt/keycloak/conf/server.crt
-    -e KC_HTTPS_CERTIFICATE_KEY_FILE=/opt/keycloak/conf/server.key
-    -v {{ keycloak_cert_path }}:/opt/keycloak/conf/server.crt:ro
-    -v {{ keycloak_key_path }}:/opt/keycloak/conf/server.key:ro
-    -v keycloak-data:/opt/keycloak/data
-    {{ keycloak_image }} start
-  when: kc_token_attempt.status == 401
-  no_log: true
-  tags: keycloak
-
-- name: Wait for Keycloak to be ready after recreate
-  ansible.builtin.uri:
-    url: "https://127.0.0.1:{{ keycloak_port }}/realms/master"
-    validate_certs: false
-    status_code: [200]
-  register: kc_health_retry
-  until: kc_health_retry.status == 200
-  retries: 60
-  delay: 5
-  when: kc_token_attempt.status == 401
-  tags: keycloak
-
-# Fresh token before realm operations (admin-cli tokens expire after 60s)
-- name: Obtain token for realm setup
-  ansible.builtin.uri:
-    url: "https://127.0.0.1:{{ keycloak_port }}/realms/master/protocol/openid-connect/token"
-    method: POST
-    body_format: form-urlencoded
-    body:
-      grant_type: password
-      username: admin
-      password: "{{ keycloak_admin_password }}"
-      client_id: admin-cli
-    validate_certs: false
-  register: kc_token_response
-  no_log: true
-  tags: keycloak
-
-- name: Set Keycloak token fact
-  ansible.builtin.set_fact:
-    kc_token: "{{ kc_token_response.json.access_token }}"
-  no_log: true
-  tags: keycloak
-
-- name: Check if lab realm exists
-  ansible.builtin.uri:
-    url: "https://127.0.0.1:{{ keycloak_port }}/admin/realms/{{ keycloak_realm }}"
-    method: GET
-    headers:
-      Authorization: "Bearer {{ kc_token }}"
-    validate_certs: false
-    status_code: [200, 404]
-  register: realm_check
-  tags: keycloak
+# --- Keycloak realm, groups, users, and OIDC clients ---
+# Uses community.general.keycloak_* modules for idempotent configuration.
+# These modules handle their own authentication via auth_keycloak_url.
 
 - name: Create lab realm
-  ansible.builtin.uri:
-    url: "https://127.0.0.1:{{ keycloak_port }}/admin/realms"
-    method: POST
-    headers:
-      Authorization: "Bearer {{ kc_token }}"
-      Content-Type: application/json
-    body_format: json
-    body:
-      realm: "{{ keycloak_realm }}"
-      enabled: true
-      displayName: VKS Lab
+  community.general.keycloak_realm:
+    auth_keycloak_url: "{{ keycloak_auth_url }}"
+    auth_realm: master
+    auth_username: "{{ keycloak_auth_username }}"
+    auth_password: "{{ keycloak_auth_password }}"
     validate_certs: false
-    status_code: [201]
-  when: realm_check.status == 404
+    realm: "{{ keycloak_realm }}"
+    enabled: true
+    display_name: VKS Lab
+    state: present
   tags: keycloak
 
-# Fresh token before user creation (previous token may have expired)
-- name: Obtain token for user creation
-  ansible.builtin.uri:
-    url: "https://127.0.0.1:{{ keycloak_port }}/realms/master/protocol/openid-connect/token"
-    method: POST
-    body_format: form-urlencoded
-    body:
-      grant_type: password
-      username: admin
-      password: "{{ keycloak_admin_password }}"
-      client_id: admin-cli
+- name: Create Keycloak groups
+  community.general.keycloak_group:
+    auth_keycloak_url: "{{ keycloak_auth_url }}"
+    auth_realm: master
+    auth_username: "{{ keycloak_auth_username }}"
+    auth_password: "{{ keycloak_auth_password }}"
     validate_certs: false
-  register: kc_token_response
-  no_log: true
-  tags: keycloak
-
-- name: Update Keycloak token fact
-  ansible.builtin.set_fact:
-    kc_token: "{{ kc_token_response.json.access_token }}"
-  no_log: true
+    realm: "{{ keycloak_realm }}"
+    name: "{{ item.name }}"
+    state: present
+  loop: "{{ keycloak_groups }}"
   tags: keycloak
 
 - name: Create Keycloak users
-  ansible.builtin.uri:
-    url: "https://127.0.0.1:{{ keycloak_port }}/admin/realms/{{ keycloak_realm }}/users"
-    method: POST
-    headers:
-      Authorization: "Bearer {{ kc_token }}"
-      Content-Type: application/json
-    body_format: json
-    body:
-      username: "{{ item.username }}"
-      enabled: true
-      credentials:
-        - type: password
-          value: CHANGE-ME
-          temporary: false
+  community.general.keycloak_user:
+    auth_keycloak_url: "{{ keycloak_auth_url }}"
+    auth_realm: master
+    auth_username: "{{ keycloak_auth_username }}"
+    auth_password: "{{ keycloak_auth_password }}"
     validate_certs: false
-    status_code: [201, 409]
+    realm: "{{ keycloak_realm }}"
+    username: "{{ item.username }}"
+    enabled: true
+    credentials:
+      - type: password
+        value: "{{ item.password }}"
+        temporary: false
+    groups: "{{ item.groups }}"
+    state: present
   loop: "{{ keycloak_users }}"
-  tags: keycloak
-
-# Fresh token before OIDC client creation
-- name: Obtain token for OIDC client creation
-  ansible.builtin.uri:
-    url: "https://127.0.0.1:{{ keycloak_port }}/realms/master/protocol/openid-connect/token"
-    method: POST
-    body_format: form-urlencoded
-    body:
-      grant_type: password
-      username: admin
-      password: "{{ keycloak_admin_password }}"
-      client_id: admin-cli
-    validate_certs: false
-  register: kc_token_response
   no_log: true
   tags: keycloak
 
-- name: Update Keycloak token fact
-  ansible.builtin.set_fact:
-    kc_token: "{{ kc_token_response.json.access_token }}"
-  no_log: true
-  tags: keycloak
-
-# OIDC client for VCF Identity Broker. After Phase 3, configure the
-# Identity Broker in SDDC Manager to use this client (see delivery guide §6.4).
-- name: Create Keycloak OIDC clients
-  ansible.builtin.uri:
-    url: "https://127.0.0.1:{{ keycloak_port }}/admin/realms/{{ keycloak_realm }}/clients"
-    method: POST
-    headers:
-      Authorization: "Bearer {{ kc_token }}"
-      Content-Type: application/json
-    body_format: json
-    body:
-      clientId: "{{ item.client_id }}"
-      name: "{{ item.name }}"
-      secret: "{{ item.secret }}"
-      enabled: true
-      protocol: openid-connect
-      publicClient: false
-      standardFlowEnabled: true
+- name: Create VCF Identity Broker OIDC client
+  community.general.keycloak_client:
+    auth_keycloak_url: "{{ keycloak_auth_url }}"
+    auth_realm: master
+    auth_username: "{{ keycloak_auth_username }}"
+    auth_password: "{{ keycloak_auth_password }}"
     validate_certs: false
-    status_code: [201, 409]
+    realm: "{{ keycloak_realm }}"
+    client_id: "{{ item.client_id }}"
+    name: "{{ item.name }}"
+    secret: "{{ item.secret }}"
+    enabled: true
+    protocol: openid-connect
+    public_client: false
+    standard_flow_enabled: true
+    protocol_mappers:
+      - name: group-membership
+        protocol: openid-connect
+        protocolMapper: oidc-group-membership-mapper
+        config:
+          claim.name: groups
+          full.path: false
+          id.token.claim: true
+          access.token.claim: true
+          userinfo.token.claim: true
+    state: present
   loop: "{{ keycloak_oidc_clients }}"
+  no_log: true
   tags: keycloak

@@ -6,12 +6,28 @@ keycloak_realm: lab
 keycloak_cert_path: /etc/step-ca/certs/keycloak.crt
 keycloak_key_path: /etc/step-ca/certs/keycloak.key
 
+# Keycloak admin auth (used by community.general.keycloak_* modules)
+keycloak_auth_url: "https://127.0.0.1:{{ keycloak_port }}"
+keycloak_auth_username: admin
+keycloak_auth_password: "{{ keycloak_admin_password }}"
+
+# Groups — mapped to VCF roles via Identity Broker
+keycloak_groups:
+  - name: vcf-admins
+  - name: vcf-operators
+
+# Users — assigned to groups for VCF role mapping
 keycloak_users:
   - username: lab-admin
-    role: admin
+    password: "{{ keycloak_admin_password }}"
+    groups:
+      - vcf-admins
   - username: lab-operator
-    role: viewer
+    password: "{{ keycloak_admin_password }}"
+    groups:
+      - vcf-operators
 
+# OIDC clients
 keycloak_oidc_clients:
   - client_id: vcf-identity-broker
     name: VCF Identity Broker
