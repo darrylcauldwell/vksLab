@@ -2,6 +2,15 @@ vcf_bringup_hostname: "vcf-installer.{{ lab_domain }}"
 vcf_bringup_username: admin@local
 vcf_bringup_password: "{{ sddc_admin_password }}"
 
+vcf_bringup_depot_spec:
+  offlineAccount:
+    username: "{{ depot_username }}"
+    password: "{{ depot_password }}"
+  depotConfiguration:
+    isOfflineDepot: true
+    hostname: "{{ vcf_depot_url }}"
+    port: 443
+
 vcf_bringup_spec:
   sddcId: vcf-m01
   workflowType: VCF
