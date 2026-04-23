@@ -26,6 +26,7 @@ curl -sk -X POST "https://${SDDC_HOST}/v1/domains/validations" \
   "domainName": "workload-domain",
   "deployWithoutLicenseKeys": true,
   "ssoDomainSpec": {
+    "ssoDomainName": "workload",
     "ssoDomainPassword": "VMware1!VMware1!"
   },
   "vcenterSpec": {
