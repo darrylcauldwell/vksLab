@@ -9,9 +9,10 @@ build/
 .venv/
 venv/
 
-# Ansible — vault password file and installed collections
+# Ansible — vault password file, installed collections, and downloaded OpenAPI specs
 ansible/.vault_pass
 ansible/collections/ansible_collections/
+ansible/scripts/openapi/
 
 # IDE
 .idea/
