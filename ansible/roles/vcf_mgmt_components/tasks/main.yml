@@ -35,13 +35,16 @@
     ansible_connection: ssh
   when: dns_changes.changed
 
-- name: Verify DNS resolution from SDDC Manager
+- name: Verify DNS resolution from gateway
   ansible.builtin.command:
-    cmd: "python3 -c \"import socket; print(socket.gethostbyname('{{ item }}'))\""
+    cmd: "dig +short {{ item }}"
   loop:
     - "vcf-ops.{{ lab_domain }}"
     - "vcf-ops-collector.{{ lab_domain }}"
     - "vcf-ops-fleet.{{ lab_domain }}"
+  delegate_to: gateway
+  vars:
+    ansible_connection: ssh
   register: dns_check
   changed_when: false
 
