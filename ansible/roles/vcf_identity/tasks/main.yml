@@ -1,22 +1,41 @@
 ---
-# Phase 5 — VCF Identity Broker
+# Phase 5 — VCF Identity Broker OIDC Configuration
 #
-# The initial OIDC provider registration (connecting Keycloak to the
-# VCF Identity Broker) is a manual step via the SDDC Manager UI.
-# The Identity Broker API only supports OAuth2 client management
-# and SCIM user provisioning — not initial provider setup.
+# Configures VCF SSO with Keycloak OIDC via VCF Operations internal APIs.
+# Based on William Lam's automation script:
+# https://williamlam.com/2026/04/automating-vcf-9-0-single-sign-on-sso-with-oidc-based-identity-provider.html
 #
-# Manual step (see deliver.md §7.3):
-#   SDDC Manager → Administration → Single Sign-On → Identity Providers
-#   → Add Identity Provider → OpenID Connect
-#   Discovery endpoint: https://gateway.{{ lab_domain }}:8443/realms/lab/.well-known/openid-configuration
-#   Client ID: vcf-identity-broker
-#   Client secret: from 1Password (Keycloak Admin)
+# Uses internal /suite-api/internal/vidb/ endpoints (tested on VCF 9.0).
+# These are unsupported APIs — may change between VCF versions.
 
-- name: Identity Broker OIDC configuration reminder
+- name: Fetch step-ca root certificate from gateway
+  ansible.builtin.fetch:
+    src: /etc/step-ca/certs/root_ca.crt
+    dest: /tmp/lab-root-ca.crt
+    flat: true
+  delegate_to: gateway
+  vars:
+    ansible_connection: ssh
+
+- name: Configure VCF Identity Broker with Keycloak OIDC
+  ansible.builtin.command:
+    cmd: "python3 {{ role_path }}/files/configure_oidc.py"
+  environment:
+    VCF_OPS_FQDN: "{{ vcf_ops_hostname }}"
+    VCF_OPS_USERNAME: "{{ vcf_ops_username }}"
+    VCF_OPS_PASSWORD: "{{ vcf_ops_password }}"
+    VCF_SSO_MODEL: "{{ vcf_sso_model }}"
+    VCF_AUTO_DEPLOYED: "{{ vcf_automation_deployed | string | lower }}"
+    OIDC_LABEL: "{{ vcf_oidc_label }}"
+    OIDC_DISCOVERY_URL: "{{ vcf_oidc_discovery_url }}"
+    OIDC_CLIENT_ID: "{{ vcf_oidc_client_id }}"
+    OIDC_CLIENT_SECRET: "{{ vcf_oidc_client_secret }}"
+    OIDC_DOMAIN: "{{ vcf_oidc_domain }}"
+    OIDC_JIT_GROUP: "{{ vcf_oidc_jit_group }}"
+    OIDC_GROUP_ATTR: "{{ vcf_oidc_group_attr }}"
+    OIDC_CERT_PATH: "{{ vcf_oidc_cert_path }}"
+  register: oidc_result
+
+- name: Display OIDC configuration result
   ansible.builtin.debug:
-    msg: >
-      Identity Broker OIDC provider registration is a manual step.
-      See deliver.md §7.3 for instructions.
-      Discovery endpoint: https://gateway.{{ lab_domain }}:8443/realms/{{ keycloak_realm }}/.well-known/openid-configuration
-      Client ID: vcf-identity-broker
+    msg: "{{ oidc_result.stdout_lines }}"
