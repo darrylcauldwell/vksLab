@@ -31,7 +31,7 @@ vcf_wld_domain_spec:
       subnetMask: 255.255.255.0
     rootPassword: "{{ vcf_wld_password }}"
     datacenterName: workload-dc
-    vmSize: MEDIUM
+    vmSize: SMALL
     storageSize: lstorage
   computeSpec:
     clusterSpecs:
