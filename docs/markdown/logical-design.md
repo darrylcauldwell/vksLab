@@ -223,8 +223,9 @@ Lab credentials are stored in the operator's 1Password vault ("Employee"). Ansib
 Keycloak runs as a Docker container on the gateway (port 8443, HTTPS) and provides centralised identity for VCF management components. It replaces per-component local authentication with a single sign-on (SSO) experience via OIDC.
 
 - **Realm**: A single `lab` realm contains all user accounts. There is no external LDAP or Active Directory — the lab has no domain controller.
-- **Users**: Local Keycloak users are created for `admin` (full administrator) and `operator` (read-only / day-2 operations).
-- **Integration**: The VCF Identity Broker (embedded in SDDC Manager) is configured with Keycloak as an external OIDC identity source. The Identity Broker federates SSO across all VCF components (vCenter, NSX Manager, SDDC Manager). A single OIDC client (`vcf-identity-broker`) in the `lab` realm handles the integration. Users authenticate via the Keycloak login page and receive an OIDC token validated against the discovery endpoint (`https://gateway.lab.dreamfold.dev:8443/realms/lab/.well-known/openid-configuration`).
+- **Users**: Local Keycloak users: `lab-admin` (full administrator, member of `vcf-admins` group) and `lab-operator` (read-only, member of `vcf-operators` group). Managed by `community.general.keycloak_user` Ansible module.
+- **Groups**: `vcf-admins` and `vcf-operators` groups are mapped to VCF roles via the Identity Broker. A group-membership OIDC protocol mapper on the `vcf-identity-broker` client includes group claims in tokens.
+- **Integration**: The VCF Identity Broker is configured with Keycloak as an external OIDC identity source via VCF Operations internal APIs (automated in Phase 5). The Identity Broker federates SSO across all VCF components (vCenter, NSX Manager, SDDC Manager). A single OIDC client (`vcf-identity-broker`) in the `lab` realm handles the integration with a known client secret (from 1Password). Users authenticate via the Keycloak login page and receive an OIDC token validated against the discovery endpoint (`https://gateway.lab.dreamfold.dev:8443/realms/lab/.well-known/openid-configuration`).
 - **Fallback**: Local administrator accounts (administrator@vsphere.local, NSX admin) remain available as a fallback if Keycloak is unavailable.
 
 | Req. | Decision ID | Design Decision | Design Justification | Risk / Mitigation |
@@ -425,9 +426,11 @@ The management domain follows the **VCF Fleet in a Single Site with Minimal Foot
 | vCenter Server | Management domain compute management |
 | SDDC Manager | VCF lifecycle and domain management |
 | NSX Manager | Management domain NSX (single node for lab) |
-| VCF Operations | Monitoring, capacity, and analytics |
-| VCF Operations for Logs | Centralised log collection (single node, Simple model) |
-| VCF Automation | Infrastructure-as-code and self-service |
+| VCF Operations | Monitoring, capacity, and analytics (xsmall sizing for lab) |
+| VCF Operations Collector | Local data collection agent for the VCF instance |
+| VCF Operations Fleet Management | Lifecycle management for VCF management components |
+| VCF Operations for Logs | Centralised log collection (deployed via Fleet Management, Simple model) |
+| VCF Automation | Infrastructure-as-code and self-service (optional) |
 
 ### Workload Domain Components
 
@@ -442,6 +445,8 @@ The management domain follows the **VCF Fleet in a Single Site with Minimal Foot
 The VCF Installer appliance drives the initial management domain bringup. It is deployed onto one of the management ESXi hosts and orchestrates vCenter, vDS, vSAN, SDDC Manager, and NSX Manager deployment.
 
 The workload domain is created via SDDC Manager by commissioning the workload ESXi hosts into the free pool, then creating a new VI workload domain.
+
+Phases 3–7 run from the operator's laptop via SOCKS proxy (`ssh -D 1080`) through the gateway. All VCF API calls use the `vmware_vcf.ansible` collection modules which route through the `requests` library (SOCKS-compatible). Each phase includes DNS quality gates that ensure and verify required DNS records on the gateway's dnsmasq before proceeding.
 
 ### Design Decisions
 

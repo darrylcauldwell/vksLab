@@ -37,7 +37,7 @@ The VMware Cloud Foundation (VCF) lab must be powered on in a specific order to 
 | 3 | VKS clusters | (Optional) Delete VKS clusters or leave powered off | Cluster nodes powered off |
 | 4 | Workload appliances | Shut down workload vCenter and NSX Manager | VMs powered off |
 | 5 | Workload ESXi hosts | Put in maintenance mode (evacuate VMs first), then shut down | Hosts in maintenance, then powered off |
-| 6 | Management appliances | Shut down VCF Operations, VCF Automation, NSX Manager, SDDC Manager, then vCenter (last) | All management VMs powered off |
+| 6 | Management appliances | Shut down VCF Operations, VCF Operations Collector, VCF Operations Fleet Management, VCF Automation (if deployed), NSX Manager, SDDC Manager, then vCenter (last) | All management VMs powered off |
 | 7 | Management ESXi hosts | Put in maintenance mode, then shut down | Hosts powered off |
 | 8 | Gateway | Power off (last) | VM stopped |
 

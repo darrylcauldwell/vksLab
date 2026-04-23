@@ -30,7 +30,8 @@ date: "March 2026"
 | 10.0.10.3 | vcf-installer | VMware Cloud Foundation (VCF) Installer appliance |
 | 10.0.10.4 | vcenter-mgmt | vCenter Server (management) |
 | 10.0.10.5 | sddc-manager | SDDC Manager |
-| 10.0.10.6 | nsx-mgr-mgmt | NSX Manager (management) |
+| 10.0.10.6 | nsx-mgr-mgmt | NSX Manager VIP (management) |
+| 10.0.10.19 | nsx-mgr-mgmt-01 | NSX Manager node (management) |
 | 10.0.10.7 | vcf-ops | VCF Operations (analytics node) |
 | 10.0.10.8 | vcf-auto | VCF Automation |
 | 10.0.10.18 | vcf-ops-logs | VCF Operations for Logs (deployed via Fleet Management) |
@@ -478,12 +479,14 @@ These run inside the nested environment and consume resources from the ESXi host
 | NSX Manager (Management) | 6 | 24 | 200 |
 | NSX Manager (Workload) | 6 | 24 | 200 |
 | NSX Edge (2x) | 16 | 64 | 400 |
-| VCF Operations | 4 | 16 | 100 |
+| VCF Operations (xsmall) | 2 | 8 | 290 |
+| VCF Operations Collector (small) | 4 | 16 | 280 |
+| VCF Operations Fleet Management | 4 | 12 | 206 |
 | VCF Operations for Logs | 4 | 8 | 530 |
-| VCF Automation | 4 | 24 | 100 |
-| **Nested Total** | **56** | **242** | **2,330** |
+| VCF Automation (optional) | 4 | 24 | 100 |
+| **Nested Total** | **62** | **262** | **3,106** |
 
-> **Note**: The nested appliance resources are consumed from the 896 GB RAM and 1,792 GB storage provisioned to the ESXi VMs. The remaining ~654 GB RAM is available for VKS workloads and Supervisor VMs.
+> **Note**: The nested appliance resources are consumed from the 896 GB RAM and 1,792 GB storage provisioned to the ESXi VMs. The remaining ~634 GB RAM is available for VKS workloads and Supervisor VMs. VCF Operations is sized xsmall for the lab to minimise resource consumption.
 
 ### 9.1 Capacity Headroom Analysis
 
@@ -497,13 +500,15 @@ The management domain hosts run all VCF infrastructure appliances. The VCF Insta
 | vCenter Server (management) | 4 | 21 |
 | SDDC Manager | 4 | 16 |
 | NSX Manager (management) | 6 | 24 |
-| VCF Operations | 4 | 16 |
+| VCF Operations (xsmall) | 2 | 8 |
+| VCF Operations Collector (small) | 4 | 16 |
+| VCF Operations Fleet Management | 4 | 12 |
 | VCF Operations for Logs | 4 | 8 |
-| VCF Automation | 4 | 24 |
-| **Appliance subtotal** | **26** | **109** |
+| VCF Automation (optional) | 4 | 24 |
+| **Appliance subtotal** | **32** | **129** |
 | VCF Installer (temporary, reclaimed after bringup) | 4 | 24 |
-| **Remaining after bringup** | **70** | **403** |
-| **Utilisation** | **~27%** | **~21%** |
+| **Remaining after bringup** | **64** | **383** |
+| **Utilisation** | **~33%** | **~25%** |
 
 > **Note**: Management domain hosts have substantial headroom. The surplus provides a comfortable buffer for SDDC Manager lifecycle operations (e.g., in-place upgrades that temporarily run two appliance instances).
 

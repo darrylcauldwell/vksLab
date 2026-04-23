@@ -146,13 +146,13 @@ Functional blocks and relationships — no network details. See [Logical Design]
 
 Deployment proceeds in seven phases, each building on the previous:
 
-1. **Foundation** — vApp creation, gateway, virtual router, infrastructure services
+1. **Foundation** — vApp creation, gateway, virtual router, infrastructure services (DNS, NTP, CA, Keycloak)
 2. **Nested Compute** — ESXi host deployment and network preparation
 3. **VCF Management Domain** — VCF Installer bringup of management components
 4. **VCF Workload Domain** — host commissioning and workload domain creation
-5. **NSX Networking** — Edge cluster, NSX Tier-0/Tier-1 gateways, BGP, VPC
-6. **VKS** — Supervisor enablement, namespace creation, VKS cluster deployment
-7. **Platform Services** — Shared-services VKS cluster, Contour ingress, Harbor registry, Velero backup, ArgoCD GitOps
+5. **Platform Services** — VCF Management Components (VCF Operations, Collector, Fleet Management), Identity Broker OIDC, CA certificate replacement, SDDC Manager backup configuration
+6. **NSX Networking** — Edge cluster, NSX Tier-0/Tier-1 gateways, BGP, VPC, SNAT
+7. **VKS** — Supervisor enablement, namespace creation, VKS cluster deployment, platform services (Contour, Harbor, Velero, ArgoCD)
 
 See [Logical Design](logical-design.md) for phase details and [Delivery Guide](deliver.md) for step-by-step procedures.
 
@@ -165,7 +165,7 @@ See [Logical Design](logical-design.md) for phase details and [Delivery Guide](d
 | 3 | Internet access from nested environment | Resolved | Gateway IP masquerade provides outbound internet for all lab hosts via ens33 public NIC |
 | 4 | VCF depot access | Resolved | Lab offline depot available at `depot.vcf-gcp.broadcom.net` |
 | 5 | Nested ESXi performance | Risk | Nested virtualisation adds overhead — vSAN and overlay performance degraded. Acceptable for lab only |
-| 6 | Certificate distribution | Resolved | ESXi hosts: automated by `esxi_prepare` role. VCF appliances: trust configured during bringup. Lab API calls use `validate_certs: false` |
+| 6 | Certificate distribution | Resolved | ESXi hosts: automated by `esxi_prepare` role. VCF components: step-ca signs CSRs via Phase 5 CA certificate replacement workflow. Keycloak: step-ca cert issued by `docker_services` role |
 
 ## 12. Requirements Traceability Matrix
 
@@ -177,18 +177,18 @@ See [Logical Design](logical-design.md) for phase details and [Delivery Guide](d
 | R-002 | Remote access via RDP gateway | NET-01, SVC-06 | Phase 0 — gateway deploy (§3.2) | RDP connection on port 3389 |
 | R-003 | DNS, NTP, CA on gateway | NET-05, SVC-01, SVC-03, SVC-04, SVC-05 | Phase 1 — gateway config (§4.2) | `dig`, `chronyc sources`, `step ca health` |
 | R-004 | Two VCF domains (mgmt + wld) — follows "VCF Fleet in a Single Site with Minimal Footprint" blueprint + "Workload Domain Model: Simple" | NET-03, NET-04, ESX-02, VCF-01, VCF-02, VCF-03, VCF-04 | Phase 3 (§6) + Phase 4 (§7) | SDDC Manager shows both domains Active |
-| R-005 | VKS cluster via Supervisor with NSX VPC | VKS-01, VKS-02, VKS-03, VKS-04, VKS-05, VKS-06, VKS-07, VKS-08 | Phase 6 — Supervisor + VKS (§9) | `kubectl get nodes` shows 6 Ready |
-| R-006 | BGP peering between NSX and gateway | NET-02, NSX-01, NSX-02 | Phase 5 — BGP config (§8.2–8.3) | `sudo vtysh -c 'show ip bgp summary'` — Established |
+| R-005 | VKS cluster via Supervisor with NSX VPC | VKS-01, VKS-02, VKS-03, VKS-04, VKS-05, VKS-06, VKS-07, VKS-08 | Phase 7 — Supervisor + VKS | `kubectl get nodes` shows 6 Ready |
+| R-006 | BGP peering between NSX and gateway | NET-02, NSX-01, NSX-02 | Phase 6 — BGP config | `sudo vtysh -c 'show ip bgp summary'` — Established |
 | R-007 | vSAN ESA with FTT=1 | ESX-03 | Phase 2 — ESXi prep (§5.2) | `esxcli vsan health cluster list` green |
-| R-008 | NSX VPC centralised Edge | NSX-03, NSX-04 | Phase 5 — VPC config (§8.5) | VPC shows Realised in NSX Manager |
+| R-008 | NSX VPC centralised Edge | NSX-03, NSX-04 | Phase 6 — VPC config | VPC shows Realised in NSX Manager |
 | R-009 | TLS certs from internal step-ca | SVC-02 | Phase 1 — CA setup (§4.2) + cert distribution (§5.2) | `step ca health`; certs valid on components |
 | R-010 | vApp snapshot/redeploy | VCD-03 | Operate Guide — snapshot SOP (§1.3) | Snapshot restore + power-on completes successfully |
-| R-011 | AppArmor RuntimeDefault for VKS pods | VKS-05 | Phase 6 — AppArmor verification (§9.5) | `kubectl get pod -o jsonpath` confirms RuntimeDefault |
-| R-012 | Shared-services VKS cluster for platform infrastructure | VKS-09, VKS-14 | Phase 7 — shared-services cluster deployment (§10.1) | `kubectl get nodes` on vks-services-01 shows 6 Ready |
-| R-013 | Container registry proxy cache | VKS-11 | Phase 7 — Harbor installation (§10.4) | `curl https://harbor.lab.dreamfold.dev/api/v2.0/health` returns healthy |
-| R-014 | L7 ingress routing for Kubernetes services | VKS-10 | Phase 7 — Contour installation (§10.3) | `kubectl get pods -n projectcontour` all Running |
-| R-015 | Kubernetes backup and restore | VKS-12 | Phase 7 — Velero installation (§10.6) | `velero backup get` shows recent Completed backup |
-| R-016 | GitOps-based application deployment | VKS-13 | Phase 7 — ArgoCD installation (§10.7) | `argocd app list` shows Synced/Healthy |
+| R-011 | AppArmor RuntimeDefault for VKS pods | VKS-05 | Phase 7 — AppArmor verification | `kubectl get pod -o jsonpath` confirms RuntimeDefault |
+| R-012 | Shared-services VKS cluster for platform infrastructure | VKS-09, VKS-14 | Phase 7 — shared-services cluster deployment | `kubectl get nodes` on vks-services-01 shows 6 Ready |
+| R-013 | Container registry proxy cache | VKS-11 | Phase 7 — Harbor installation | `curl https://harbor.lab.dreamfold.dev/api/v2.0/health` returns healthy |
+| R-014 | L7 ingress routing for Kubernetes services | VKS-10 | Phase 7 — Contour installation | `kubectl get pods -n projectcontour` all Running |
+| R-015 | Kubernetes backup and restore | VKS-12 | Phase 7 — Velero installation | `velero backup get` shows recent Completed backup |
+| R-016 | GitOps-based application deployment | VKS-13 | Phase 7 — ArgoCD installation | `argocd app list` shows Synced/Healthy |
 | R-017 | Centralised log collection | VCF-05 | Phase 3 — VCF Operations for Logs deployment | VCF Operations for Logs UI accessible; log sources connected |
 
 ### Constraint Traceability
