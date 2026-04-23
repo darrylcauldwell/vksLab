@@ -127,7 +127,9 @@
     - unmounted_check.stdout | default('') != 'found'
   changed_when: true
 
-# --- CA certificate ---
+# --- CA certificate and host TLS cert ---
+# Import step-ca root CA into trust store, then issue a proper
+# host certificate signed by step-ca (replaces ESXi self-signed cert).
 
 - name: Upload CA root certificate
   ansible.builtin.shell: |
@@ -157,6 +159,53 @@
   changed_when: false
   failed_when: cert_verify.rc != 0
   when: esxi_ca_cert_path is defined and esxi_ca_cert_path | length > 0
+
+- name: Check if host cert is already signed by step-ca
+  ansible.builtin.shell: >
+    openssl x509 -noout -issuer -in /etc/vmware/ssl/rui.crt 2>/dev/null | grep -q "step-ca" && echo "step-ca" || echo "self-signed"
+  register: cert_issuer
+  changed_when: false
+
+- name: Generate CSR for ESXi host
+  ansible.builtin.shell: |
+    openssl req -new \
+      -key /etc/vmware/ssl/rui.key \
+      -out /tmp/esxi-host.csr \
+      -subj "/CN={{ inventory_hostname }}.{{ lab_domain }}" \
+      -addext "subjectAltName=DNS:{{ inventory_hostname }}.{{ lab_domain }},IP:{{ ansible_host }}"
+    cat /tmp/esxi-host.csr
+  register: esxi_csr
+  changed_when: false
+  when: cert_issuer.stdout == 'self-signed'
+
+- name: Sign ESXi CSR with step-ca on gateway
+  ansible.builtin.shell: |
+    cat > /tmp/esxi-{{ inventory_hostname }}.csr << 'CSREOF'
+    {{ esxi_csr.stdout }}
+    CSREOF
+    step ca sign \
+      /tmp/esxi-{{ inventory_hostname }}.csr \
+      /tmp/esxi-{{ inventory_hostname }}.crt \
+      --ca-url https://127.0.0.1:443 \
+      --root {{ ca_cert_path }} \
+      --provisioner lab-admin \
+      --provisioner-password-file /root/.step-ca-password \
+      --not-after 8760h
+    cat /tmp/esxi-{{ inventory_hostname }}.crt
+  delegate_to: gateway
+  become: true
+  register: signed_cert
+  when: cert_issuer.stdout == 'self-signed'
+
+- name: Install signed certificate on ESXi host
+  ansible.builtin.shell: |
+    cat > /etc/vmware/ssl/rui.crt << 'CERTEOF'
+    {{ signed_cert.stdout }}
+    CERTEOF
+    /etc/init.d/hostd restart
+    /etc/init.d/vpxa restart
+  when: cert_issuer.stdout == 'self-signed'
+  changed_when: true
 
 # --- Validation ---
 

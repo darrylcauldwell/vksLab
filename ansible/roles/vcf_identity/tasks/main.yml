@@ -1,21 +1,109 @@
 ---
-# Phase 5 — VCF Identity Broker OIDC Configuration
+# Phase 5 — Keycloak Configuration + VCF Identity Broker OIDC
 #
-# Configures VCF SSO with Keycloak OIDC via VCF Operations internal APIs.
-# Based on William Lam's automation script:
-# https://williamlam.com/2026/04/automating-vcf-9-0-single-sign-on-sso-with-oidc-based-identity-provider.html
-#
-# Uses internal /suite-api/internal/vidb/ endpoints (tested on VCF 9.0).
-# These are unsupported APIs — may change between VCF versions.
+# Step 1: Configure Keycloak (realm, groups, users, OIDC client)
+#   Delegates to gateway where Keycloak runs (deployed in Phase 1).
+# Step 2: Configure VCF Identity Broker with Keycloak OIDC
+#   Uses VCF Operations internal APIs from localhost via SOCKS proxy.
 
-# --- Ensure DNS for Identity Broker dependencies ---
+# --- Ensure DNS ---
 
 - name: Ensure DNS for Identity Broker
   ansible.builtin.include_tasks: ../../common/tasks/ensure_dns.yml
   vars:
     dns_records:
       - { hostname: vcf-ops, ip: "{{ lab_mgmt_prefix }}.7" }
-      - { hostname: "gateway", ip: "{{ lab_mgmt_prefix }}.1" }
+      - { hostname: gateway, ip: "{{ lab_mgmt_prefix }}.1" }
+
+# --- Step 1: Configure Keycloak on gateway ---
+
+- name: Create Keycloak lab realm
+  community.general.keycloak_realm:
+    auth_keycloak_url: "https://{{ keycloak_hostname }}:{{ keycloak_port }}"
+    auth_realm: master
+    auth_username: admin
+    auth_password: "{{ keycloak_admin_password }}"
+    validate_certs: false
+    realm: "{{ keycloak_realm }}"
+    enabled: true
+    display_name: VKS Lab
+    state: present
+  delegate_to: gateway
+  vars:
+    ansible_connection: ssh
+
+- name: Create Keycloak groups
+  community.general.keycloak_group:
+    auth_keycloak_url: "https://{{ keycloak_hostname }}:{{ keycloak_port }}"
+    auth_realm: master
+    auth_username: admin
+    auth_password: "{{ keycloak_admin_password }}"
+    validate_certs: false
+    realm: "{{ keycloak_realm }}"
+    name: "{{ item.name }}"
+    state: present
+  loop: "{{ keycloak_groups }}"
+  delegate_to: gateway
+  vars:
+    ansible_connection: ssh
+
+- name: Create Keycloak users
+  community.general.keycloak_user:
+    auth_keycloak_url: "https://{{ keycloak_hostname }}:{{ keycloak_port }}"
+    auth_realm: master
+    auth_username: admin
+    auth_password: "{{ keycloak_admin_password }}"
+    validate_certs: false
+    realm: "{{ keycloak_realm }}"
+    username: "{{ item.username }}"
+    enabled: true
+    credentials:
+      - type: password
+        value: "{{ item.password }}"
+        temporary: false
+    groups: "{{ item.groups }}"
+    state: present
+  loop: "{{ keycloak_users }}"
+  no_log: true
+  delegate_to: gateway
+  vars:
+    ansible_connection: ssh
+
+- name: Create VCF Identity Broker OIDC client
+  community.general.keycloak_client:
+    auth_keycloak_url: "https://{{ keycloak_hostname }}:{{ keycloak_port }}"
+    auth_realm: master
+    auth_username: admin
+    auth_password: "{{ keycloak_admin_password }}"
+    validate_certs: false
+    realm: "{{ keycloak_realm }}"
+    client_id: "{{ vcf_oidc_client_id }}"
+    name: VCF Identity Broker
+    secret: "{{ vcf_oidc_client_secret }}"
+    enabled: true
+    protocol: openid-connect
+    public_client: false
+    standard_flow_enabled: true
+    protocol_mappers:
+      - name: group-membership
+        protocol: openid-connect
+        protocolMapper: oidc-group-membership-mapper
+        config:
+          claim.name: groups
+          full.path: "false"
+          id.token.claim: "true"
+          access.token.claim: "true"
+          userinfo.token.claim: "true"
+    state: present
+  delegate_to: gateway
+  vars:
+    ansible_connection: ssh
+
+- name: Display Keycloak configuration complete
+  ansible.builtin.debug:
+    msg: "Keycloak configured: realm={{ keycloak_realm }}, users={{ keycloak_users | map(attribute='username') | list }}, client={{ vcf_oidc_client_id }}"
+
+# --- Step 2: Configure VCF Identity Broker ---
 
 - name: Fetch step-ca root certificate from gateway
   ansible.builtin.fetch:

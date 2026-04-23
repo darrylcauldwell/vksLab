@@ -49,31 +49,11 @@ gateway_upstream_dns:
   - 192.19.189.10
   - 192.19.189.30
 
-# DNS records for dnsmasq
+# DNS records for dnsmasq — Phase 1 gateway infrastructure only.
+# Each subsequent phase adds its own records via ensure_dns.yml quality gates.
+# This keeps the gateway role modular — it works for any lab topology.
 gateway_dns_records:
   - {hostname: gateway, ip: "{{ lab_mgmt_prefix }}.1"}
-  - {hostname: vcf-installer, ip: "{{ lab_mgmt_prefix }}.3"}
-  - {hostname: vcenter-mgmt, ip: "{{ lab_mgmt_prefix }}.4"}
-  - {hostname: sddc-manager, ip: "{{ lab_mgmt_prefix }}.5"}
-  - {hostname: nsx-mgr-mgmt, ip: "{{ lab_mgmt_prefix }}.6"}
-  - {hostname: nsx-mgr-mgmt-01, ip: "{{ lab_mgmt_prefix }}.19"}
-  - {hostname: vcf-ops, ip: "{{ lab_mgmt_prefix }}.7"}
-  - {hostname: vcf-auto, ip: "{{ lab_mgmt_prefix }}.8"}
-  - {hostname: vcf-ops-logs, ip: "{{ lab_mgmt_prefix }}.18"}
-  - {hostname: vcf-ops-collector, ip: "{{ lab_mgmt_prefix }}.23"}
-  - {hostname: vcf-ops-fleet, ip: "{{ lab_mgmt_prefix }}.24"}
-  - {hostname: vcenter-wld, ip: "{{ lab_mgmt_prefix }}.9"}
-  - {hostname: nsx-mgr-wld, ip: "{{ lab_mgmt_prefix }}.10"}
-  - {hostname: nsx-vip-wld, ip: "{{ lab_mgmt_prefix }}.22"}
-  - {hostname: esxi-01, ip: "{{ lab_mgmt_prefix }}.11"}
-  - {hostname: esxi-02, ip: "{{ lab_mgmt_prefix }}.12"}
-  - {hostname: esxi-03, ip: "{{ lab_mgmt_prefix }}.13"}
-  - {hostname: esxi-04, ip: "{{ lab_mgmt_prefix }}.14"}
-  - {hostname: esxi-05, ip: "{{ lab_mgmt_prefix }}.15"}
-  - {hostname: esxi-06, ip: "{{ lab_mgmt_prefix }}.16"}
-  - {hostname: esxi-07, ip: "{{ lab_mgmt_prefix }}.17"}
-  - {hostname: edge-01, ip: "{{ lab_mgmt_prefix }}.20"}
-  - {hostname: edge-02, ip: "{{ lab_mgmt_prefix }}.21"}
 
 # DHCP reservations (MAC → IP)
 gateway_dhcp_reservations:

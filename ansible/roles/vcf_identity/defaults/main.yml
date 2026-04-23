@@ -1,3 +1,22 @@
+# Keycloak configuration (container deployed in Phase 1, configured here)
+keycloak_hostname: "gateway.{{ lab_domain }}"
+keycloak_port: 8443
+
+keycloak_groups:
+  - name: vcf-admins
+  - name: vcf-operators
+
+keycloak_users:
+  - username: lab-admin
+    password: "{{ keycloak_admin_password }}"
+    groups:
+      - vcf-admins
+  - username: lab-operator
+    password: "{{ keycloak_admin_password }}"
+    groups:
+      - vcf-operators
+
+# VCF Operations (Identity Broker API)
 vcf_ops_hostname: "vcf-ops.{{ lab_domain }}"
 vcf_ops_username: admin
 vcf_ops_password: "{{ sddc_admin_password }}"

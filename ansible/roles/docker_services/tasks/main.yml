@@ -121,82 +121,9 @@
   delay: 5
   tags: keycloak
 
-# --- Keycloak realm, groups, users, and OIDC clients ---
-# Uses community.general.keycloak_* modules for idempotent configuration.
-# These modules handle their own authentication via auth_keycloak_url.
-
-- name: Create lab realm
-  community.general.keycloak_realm:
-    auth_keycloak_url: "{{ keycloak_auth_url }}"
-    auth_realm: master
-    auth_username: "{{ keycloak_auth_username }}"
-    auth_password: "{{ keycloak_auth_password }}"
-    validate_certs: false
-    realm: "{{ keycloak_realm }}"
-    enabled: true
-    display_name: VKS Lab
-    state: present
-  tags: keycloak
-
-- name: Create Keycloak groups
-  community.general.keycloak_group:
-    auth_keycloak_url: "{{ keycloak_auth_url }}"
-    auth_realm: master
-    auth_username: "{{ keycloak_auth_username }}"
-    auth_password: "{{ keycloak_auth_password }}"
-    validate_certs: false
-    realm: "{{ keycloak_realm }}"
-    name: "{{ item.name }}"
-    state: present
-  loop: "{{ keycloak_groups }}"
-  tags: keycloak
-
-- name: Create Keycloak users
-  community.general.keycloak_user:
-    auth_keycloak_url: "{{ keycloak_auth_url }}"
-    auth_realm: master
-    auth_username: "{{ keycloak_auth_username }}"
-    auth_password: "{{ keycloak_auth_password }}"
-    validate_certs: false
-    realm: "{{ keycloak_realm }}"
-    username: "{{ item.username }}"
-    enabled: true
-    credentials:
-      - type: password
-        value: "{{ item.password }}"
-        temporary: false
-    groups: "{{ item.groups }}"
-    state: present
-  loop: "{{ keycloak_users }}"
-  no_log: true
-  tags: keycloak
-
-- name: Create VCF Identity Broker OIDC client
-  community.general.keycloak_client:
-    auth_keycloak_url: "{{ keycloak_auth_url }}"
-    auth_realm: master
-    auth_username: "{{ keycloak_auth_username }}"
-    auth_password: "{{ keycloak_auth_password }}"
-    validate_certs: false
-    realm: "{{ keycloak_realm }}"
-    client_id: "{{ item.client_id }}"
-    name: "{{ item.name }}"
-    secret: "{{ item.secret }}"
-    enabled: true
-    protocol: openid-connect
-    public_client: false
-    standard_flow_enabled: true
-    protocol_mappers:
-      - name: group-membership
-        protocol: openid-connect
-        protocolMapper: oidc-group-membership-mapper
-        config:
-          claim.name: groups
-          full.path: false
-          id.token.claim: true
-          access.token.claim: true
-          userinfo.token.claim: true
-    state: present
+# Keycloak realm, users, groups, and OIDC client configuration is done
+# in Phase 5 (vcf_identity role) — right before the Identity Broker
+# needs it. This keeps Phase 1 focused on infrastructure.
   loop: "{{ keycloak_oidc_clients }}"
   no_log: true
   tags: keycloak
