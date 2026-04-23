@@ -20,7 +20,7 @@ vcf_wld_domain_spec:
   domainName: workload-domain
   deployWithoutLicenseKeys: true
   ssoDomainSpec:
-    ssoDomainName: workload.local
+    ssoDomainName: vsphere.local
     ssoDomainPassword: "{{ vcf_wld_password }}"
   vcenterSpec:
     name: vcenter-wld
