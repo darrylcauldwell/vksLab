@@ -3,6 +3,23 @@
 # CA certificate replacement and backup configuration
 # Note: VCF Installer VM removal is a manual step (no SDDC Manager API for it)
 
+# --- Authenticate to SDDC Manager ---
+
+- name: Get SDDC Manager bearer token
+  vmware_vcf.ansible.vcf_sddc_info:
+    sddc_hostname: "sddc-manager.{{ lab_domain }}"
+    sddc_username: admin@local
+    sddc_password: "{{ sddc_admin_password }}"
+    gather: token
+  register: token_response
+  no_log: true
+
+- name: Set bearer token facts
+  ansible.builtin.set_fact:
+    sddc_token: "{{ token_response.result.bearer_token }}"
+    sddc_refresh_token: "{{ token_response.result.refresh_token }}"
+  no_log: true
+
 # --- CA Certificate Replacement ---
 # TODO: Replace VCF component self-signed certs with step-ca issued certs
 #   1. Import step-ca root cert as trusted CA in SDDC Manager
@@ -15,17 +32,8 @@
     msg: "Certificate replacement pending — VCF components using self-signed certificates"
 
 # --- Configure SDDC Manager Backups ---
-# Backups target the gateway via SFTP. The gateway's ubuntu user home
-# directory serves as the backup destination.
-
-- name: Create backup directory on gateway
-  ansible.builtin.file:
-    path: /home/ubuntu/vcf-backups
-    state: directory
-    owner: ubuntu
-    group: ubuntu
-    mode: "0700"
-  delegate_to: gateway
+# Backups target the gateway via SFTP (/home/ubuntu/vcf-backups).
+# The backup directory is created by the gateway role (Phase 1).
 
 - name: Configure SDDC Manager backup target
   vmware_vcf.ansible.vcf_backup:
