@@ -117,15 +117,14 @@
       ha_mode: "{{ nsx_tier0_ha_mode }}"
 
 - name: Create Tier-0 uplink interface
-  vmware_vcf.ansible.vcf_nsx_gateway:
+  vmware_vcf.ansible.vcf_nsx_routing:
     nsx_hostname: "{{ nsx_manager_hostname }}"
     nsx_username: "{{ nsx_username }}"
     nsx_password: "{{ nsx_password }}"
-    state: present
+    action: set_interface
     gateway_type: tier0
     gateway_id: "{{ nsx_tier0_name }}"
-    action: add_interface
-    interface_id: uplink-01
+    resource_id: uplink-01
     spec:
       display_name: uplink-01
       type: EXTERNAL
@@ -154,10 +153,10 @@
     nsx_hostname: "{{ nsx_manager_hostname }}"
     nsx_username: "{{ nsx_username }}"
     nsx_password: "{{ nsx_password }}"
-    action: add_bgp_neighbor
+    action: set_bgp_neighbor
     gateway_type: tier0
     gateway_id: "{{ nsx_tier0_name }}"
-    neighbor_id: gateway-peer
+    resource_id: gateway-peer
     spec:
       display_name: Gateway BGP Peer
       neighbor_address: "{{ nsx_bgp_neighbor_ip }}"
@@ -235,7 +234,6 @@
     state: present
     gateway_type: tier0
     gateway_id: "{{ nsx_tier0_name }}"
-    nat_type: USER
     rule_id: "{{ item.name }}"
     spec:
       display_name: "{{ item.name }}"
