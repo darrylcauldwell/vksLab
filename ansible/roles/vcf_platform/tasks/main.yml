@@ -32,8 +32,18 @@
     msg: "Certificate replacement pending — VCF components using self-signed certificates"
 
 # --- Configure SDDC Manager Backups ---
-# Backups target the gateway via SFTP (/home/ubuntu/vcf-backups).
-# The backup directory is created by the gateway role (Phase 1).
+# Backups target the gateway via SFTP.
+
+- name: Create backup directory on gateway
+  ansible.builtin.file:
+    path: /home/ubuntu/vcf-backups
+    state: directory
+    owner: ubuntu
+    group: ubuntu
+    mode: "0700"
+  delegate_to: gateway
+  vars:
+    ansible_connection: ssh
 
 - name: Configure SDDC Manager backup target
   vmware_vcf.ansible.vcf_backup:
