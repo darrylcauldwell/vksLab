@@ -5,6 +5,40 @@
 # All API calls go through the vmware-vcf SDK (requests library)
 # which honours the HTTPS_PROXY for SOCKS proxy support.
 
+# --- Discover transport zones ---
+# SDDC Manager auto-generates transport zone names during domain creation.
+# We find the non-default VLAN and Overlay zones (the ones with hosts attached).
+
+- name: Get VLAN transport zones
+  vmware_vcf.ansible.vcf_nsx_info:
+    nsx_hostname: "{{ nsx_manager_hostname }}"
+    nsx_username: "{{ nsx_username }}"
+    nsx_password: "{{ nsx_password }}"
+    gather: transport_zones
+    type_filter: VLAN
+  register: vlan_tzs
+
+- name: Get Overlay transport zones
+  vmware_vcf.ansible.vcf_nsx_info:
+    nsx_hostname: "{{ nsx_manager_hostname }}"
+    nsx_username: "{{ nsx_username }}"
+    nsx_password: "{{ nsx_password }}"
+    gather: transport_zones
+    type_filter: OVERLAY
+  register: overlay_tzs
+
+- name: Set VLAN transport zone (non-default)
+  ansible.builtin.set_fact:
+    nsx_vlan_tz: "{{ (vlan_tzs.result | rejectattr('is_default', 'equalto', true) | first).display_name }}"
+
+- name: Set Overlay transport zone (non-default)
+  ansible.builtin.set_fact:
+    nsx_overlay_tz: "{{ (overlay_tzs.result | rejectattr('is_default', 'equalto', true) | first).display_name }}"
+
+- name: Display discovered transport zones
+  ansible.builtin.debug:
+    msg: "VLAN TZ: {{ nsx_vlan_tz }}, Overlay TZ: {{ nsx_overlay_tz }}"
+
 # --- Pre-Flight: Create Required Segments and IP Pools ---
 
 - name: Create management network segment (vlan-10)
