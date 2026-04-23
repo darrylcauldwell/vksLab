@@ -45,6 +45,16 @@
   vars:
     ansible_connection: ssh
 
+- name: Get gateway SSH host key fingerprint
+  ansible.builtin.shell:
+    cmd: "ssh-keyscan {{ lab_gateway }} 2>/dev/null | ssh-keygen -lf - | grep SHA256 | head -1 | awk '{print $2}'"
+  register: ssh_fingerprint
+  changed_when: false
+
+- name: Display SSH fingerprint
+  ansible.builtin.debug:
+    msg: "Gateway SSH fingerprint: {{ ssh_fingerprint.stdout }}"
+
 - name: Configure SDDC Manager backup target
   vmware_vcf.ansible.vcf_backup:
     sddc_hostname: "sddc-manager.{{ lab_domain }}"
@@ -59,6 +69,7 @@
           protocol: SFTP
           server: "{{ lab_gateway }}"
           username: ubuntu
+          sshFingerprint: "{{ ssh_fingerprint.stdout }}"
       encryption:
         passphrase: "{{ sddc_admin_password }}"
       isCurrentBackupInProgress: false
