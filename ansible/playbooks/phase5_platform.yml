@@ -11,5 +11,6 @@
   environment:
     HTTPS_PROXY: "socks5h://localhost:1080"
   roles:
+    - vcf_mgmt_components
     - vcf_identity
     - vcf_platform

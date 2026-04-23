@@ -1,0 +1,24 @@
+vcf_mgmt_hostname: "sddc-manager.{{ lab_domain }}"
+vcf_mgmt_username: admin@local
+vcf_mgmt_password: "{{ sddc_admin_password }}"
+
+# VCF Management Components deployment spec
+# Deploys VCF Operations, Collector, and Fleet Management via SDDC Manager API.
+# VCF Automation is optional (omit vcfAutomationSpec to skip).
+# VCF Operations for Logs is deployed separately via Fleet Management (not this API).
+vcf_mgmt_components_spec:
+  vcfOperationsSpec:
+    nodes:
+      - hostname: "vcf-ops.{{ lab_domain }}"
+        type: master
+        rootUserPassword: "{{ sddc_admin_password }}"
+    adminUserPassword: "{{ sddc_admin_password }}"
+    applianceSize: xsmall
+  vcfOperationsCollectorSpec:
+    hostname: "vcf-ops-collector.{{ lab_domain }}"
+    rootUserPassword: "{{ sddc_admin_password }}"
+    applianceSize: small
+  vcfOperationsFleetManagementSpec:
+    hostname: "vcf-ops-fleet.{{ lab_domain }}"
+    rootUserPassword: "{{ sddc_admin_password }}"
+    adminUserPassword: "{{ sddc_admin_password }}"

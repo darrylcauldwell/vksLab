@@ -31,9 +31,11 @@ date: "March 2026"
 | 10.0.10.4 | vcenter-mgmt | vCenter Server (management) |
 | 10.0.10.5 | sddc-manager | SDDC Manager |
 | 10.0.10.6 | nsx-mgr-mgmt | NSX Manager (management) |
-| 10.0.10.7 | vcf-ops | VCF Operations |
+| 10.0.10.7 | vcf-ops | VCF Operations (analytics node) |
 | 10.0.10.8 | vcf-auto | VCF Automation |
-| 10.0.10.18 | vcf-ops-logs | VCF Operations for Logs |
+| 10.0.10.18 | vcf-ops-logs | VCF Operations for Logs (deployed via Fleet Management) |
+| 10.0.10.23 | vcf-ops-collector | VCF Operations Collector |
+| 10.0.10.24 | vcf-ops-fleet | VCF Operations Fleet Management |
 | 10.0.10.9 | vcenter-wld | vCenter Server (workload) |
 | 10.0.10.10 | nsx-mgr-wld | NSX Manager (workload) |
 | 10.0.10.22 | nsx-vip-wld | NSX Manager VIP (workload) |
@@ -255,8 +257,10 @@ With FTT=1 RAID-1, each object is mirrored — raw capacity is halved for data p
 | SDDC Manager | sddc-manager | 10.0.10.5 | VCF lifecycle and domain management |
 | NSX Manager | nsx-mgr-mgmt | 10.0.10.6 | Management domain NSX (single node) |
 | VCF Operations | vcf-ops | 10.0.10.7 | Monitoring, capacity, and analytics |
-| VCF Operations for Logs | vcf-ops-logs | 10.0.10.18 | Centralised log collection (Simple model) |
-| VCF Automation | vcf-auto | 10.0.10.8 | Infrastructure automation |
+| VCF Operations Collector | vcf-ops-collector | 10.0.10.23 | Local data collection agent |
+| VCF Operations Fleet Management | vcf-ops-fleet | 10.0.10.24 | Lifecycle management for VCF management components |
+| VCF Operations for Logs | vcf-ops-logs | 10.0.10.18 | Centralised log collection (deployed via Fleet Management) |
+| VCF Automation | vcf-auto | 10.0.10.8 | Infrastructure automation (optional) |
 
 ### Installer Prerequisites
 

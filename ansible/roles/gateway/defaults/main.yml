@@ -60,6 +60,8 @@ gateway_dns_records:
   - {hostname: vcf-ops, ip: "{{ lab_mgmt_prefix }}.7"}
   - {hostname: vcf-auto, ip: "{{ lab_mgmt_prefix }}.8"}
   - {hostname: vcf-ops-logs, ip: "{{ lab_mgmt_prefix }}.18"}
+  - {hostname: vcf-ops-collector, ip: "{{ lab_mgmt_prefix }}.23"}
+  - {hostname: vcf-ops-fleet, ip: "{{ lab_mgmt_prefix }}.24"}
   - {hostname: vcenter-wld, ip: "{{ lab_mgmt_prefix }}.9"}
   - {hostname: nsx-mgr-wld, ip: "{{ lab_mgmt_prefix }}.10"}
   - {hostname: nsx-vip-wld, ip: "{{ lab_mgmt_prefix }}.22"}

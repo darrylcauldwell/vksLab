@@ -1,0 +1,56 @@
+---
+# Phase 5 — Deploy VCF Management Components
+#
+# Deploys VCF Operations, Collector, and Fleet Management via SDDC Manager API.
+# Must complete before Identity Broker OIDC (which uses VCF Operations APIs).
+#
+# VCF Operations for Logs is deployed separately via Fleet Management UI
+# after this deployment completes.
+
+- name: Get SDDC Manager bearer token
+  vmware_vcf.ansible.vcf_sddc_info:
+    sddc_hostname: "{{ vcf_mgmt_hostname }}"
+    sddc_username: "{{ vcf_mgmt_username }}"
+    sddc_password: "{{ vcf_mgmt_password }}"
+    gather: token
+  register: token_response
+  no_log: true
+
+- name: Set bearer token facts
+  ansible.builtin.set_fact:
+    sddc_token: "{{ token_response.result.bearer_token }}"
+    sddc_refresh_token: "{{ token_response.result.refresh_token }}"
+  no_log: true
+
+- name: Check current management components status
+  vmware_vcf.ansible.vcf_management_components:
+    sddc_hostname: "{{ vcf_mgmt_hostname }}"
+    sddc_bearer_token: "{{ sddc_token }}"
+    sddc_refresh_token: "{{ sddc_refresh_token }}"
+    state: info
+  register: mgmt_status
+  failed_when: false
+
+- name: Display current management components status
+  ansible.builtin.debug:
+    msg: "{{ mgmt_status.result | default('Not deployed') }}"
+
+- name: Display deployment spec
+  ansible.builtin.debug:
+    msg: "{{ vcf_mgmt_components_spec | to_nice_json }}"
+
+- name: Deploy VCF Management Components
+  vmware_vcf.ansible.vcf_management_components:
+    sddc_hostname: "{{ vcf_mgmt_hostname }}"
+    sddc_bearer_token: "{{ sddc_token }}"
+    sddc_refresh_token: "{{ sddc_refresh_token }}"
+    state: present
+    spec: "{{ vcf_mgmt_components_spec }}"
+    validate: true
+    wait: true
+    wait_timeout: 7200
+  register: deploy_result
+
+- name: Display deployment result
+  ansible.builtin.debug:
+    msg: "VCF Management Components deployed: {{ deploy_result.result }}"
