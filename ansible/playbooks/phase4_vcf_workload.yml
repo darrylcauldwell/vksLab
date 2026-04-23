@@ -9,5 +9,8 @@
   gather_facts: false
   environment:
     HTTPS_PROXY: "socks5h://localhost:1080"
+  pre_tasks:
+    - name: Ensure SOCKS proxy
+      ansible.builtin.include_tasks: ../roles/common/tasks/ensure_socks.yml
   roles:
     - vcf_workload_domain

@@ -1,0 +1,53 @@
+---
+# Ensure SOCKS proxy tunnel to gateway is running.
+# Opens one in the background if not already active.
+#
+# Requires: gateway_public_ip variable (from 1Password lookup)
+#
+# Usage in a playbook (before roles):
+#   pre_tasks:
+#     - name: Ensure SOCKS proxy
+#       ansible.builtin.include_tasks: roles/common/tasks/ensure_socks.yml
+
+- name: "SOCKS | Check if tunnel is active on port 1080"
+  ansible.builtin.wait_for:
+    host: 127.0.0.1
+    port: 1080
+    timeout: 2
+  register: socks_check
+  failed_when: false
+
+- name: "SOCKS | Open tunnel to gateway"
+  ansible.builtin.command:
+    cmd: >
+      ssh -f -N -D 1080
+      -o StrictHostKeyChecking=no
+      -o UserKnownHostsFile=/dev/null
+      -o ExitOnForwardFailure=yes
+      ubuntu@{{ gateway_public_ip }}
+  when: socks_check.failed | default(false)
+  register: socks_opened
+
+- name: "SOCKS | Wait for tunnel to be ready"
+  ansible.builtin.wait_for:
+    host: 127.0.0.1
+    port: 1080
+    timeout: 10
+  when: socks_opened.changed | default(false)
+
+- name: "SOCKS | Verify connectivity through tunnel"
+  ansible.builtin.command:
+    cmd: >
+      python3 -c "
+      import os, requests
+      os.environ['HTTPS_PROXY'] = 'socks5h://localhost:1080'
+      r = requests.get('https://sddc-manager.{{ lab_domain }}/', verify=False, timeout=10)
+      print(f'SDDC Manager reachable: HTTP {r.status_code}')
+      "
+  changed_when: false
+  failed_when: false
+  register: socks_verify
+
+- name: "SOCKS | Display tunnel status"
+  ansible.builtin.debug:
+    msg: "{{ 'Tunnel active' if not (socks_check.failed | default(false)) else 'Tunnel opened' }} — {{ socks_verify.stdout | default('verification skipped') }}"

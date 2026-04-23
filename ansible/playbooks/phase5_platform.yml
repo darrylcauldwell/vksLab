@@ -3,13 +3,15 @@
 # Identity Broker (Keycloak OIDC) and CA certificate replacement.
 # Run after Phase 4 (workload domain) so SSO and trusted certs are
 # available before NSX networking and VKS configuration.
-# Requires: ssh -D 1080 -N ubuntu@<gateway-public-ip>
 - name: Phase 5 — Platform services
   hosts: localhost
   connection: local
   gather_facts: false
   environment:
     HTTPS_PROXY: "socks5h://localhost:1080"
+  pre_tasks:
+    - name: Ensure SOCKS proxy
+      ansible.builtin.include_tasks: ../roles/common/tasks/ensure_socks.yml
   roles:
     - vcf_mgmt_components
     - vcf_identity
