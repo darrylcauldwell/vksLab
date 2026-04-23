@@ -47,9 +47,12 @@
 
 - name: Get gateway SSH host key fingerprint
   ansible.builtin.shell:
-    cmd: "ssh-keyscan {{ lab_gateway }} 2>/dev/null | ssh-keygen -lf - | grep SHA256 | head -1 | awk '{print $2}'"
+    cmd: "ssh-keygen -lf /etc/ssh/ssh_host_rsa_key.pub | awk '{print $2}'"
   register: ssh_fingerprint
   changed_when: false
+  delegate_to: gateway
+  vars:
+    ansible_connection: ssh
 
 - name: Display SSH fingerprint
   ansible.builtin.debug:
