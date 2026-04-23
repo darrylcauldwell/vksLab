@@ -7,37 +7,28 @@
 
 # --- Discover transport zones ---
 # SDDC Manager auto-generates transport zone names during domain creation.
-# We find the non-default VLAN and Overlay zones (the ones with hosts attached).
+# The VLAN TZ for our VDS contains the VDS name in its display_name.
+# The overlay TZ contains the NSX VIP hostname in its display_name.
 
-- name: Get VLAN transport zones
+- name: Get all transport zones
   vmware_vcf.ansible.vcf_nsx_info:
     nsx_hostname: "{{ nsx_manager_hostname }}"
     nsx_username: "{{ nsx_username }}"
     nsx_password: "{{ nsx_password }}"
     gather: transport_zones
-    type_filter: VLAN
-  register: vlan_tzs
+  register: all_tzs
 
-- name: Get Overlay transport zones
-  vmware_vcf.ansible.vcf_nsx_info:
-    nsx_hostname: "{{ nsx_manager_hostname }}"
-    nsx_username: "{{ nsx_username }}"
-    nsx_password: "{{ nsx_password }}"
-    gather: transport_zones
-    type_filter: OVERLAY
-  register: overlay_tzs
-
-- name: Set VLAN transport zone (non-default)
+- name: Set VLAN transport zone path (matches VDS name)
   ansible.builtin.set_fact:
-    nsx_vlan_tz: "{{ (vlan_tzs.result | rejectattr('is_default', 'equalto', true) | first).display_name }}"
+    nsx_vlan_tz_path: "{{ (all_tzs.result | selectattr('display_name', 'search', 'workload-cluster-vds01') | first).path }}"
 
-- name: Set Overlay transport zone (non-default)
+- name: Set Overlay transport zone (matches NSX VIP hostname)
   ansible.builtin.set_fact:
-    nsx_overlay_tz: "{{ (overlay_tzs.result | rejectattr('is_default', 'equalto', true) | first).display_name }}"
+    nsx_overlay_tz_name: "{{ (all_tzs.result | selectattr('display_name', 'search', 'nsx-vip-wld') | first).display_name }}"
 
 - name: Display discovered transport zones
   ansible.builtin.debug:
-    msg: "VLAN TZ: {{ nsx_vlan_tz }}, Overlay TZ: {{ nsx_overlay_tz }}"
+    msg: "VLAN TZ path: {{ nsx_vlan_tz_path }}, Overlay TZ name: {{ nsx_overlay_tz_name }}"
 
 # --- Pre-Flight: Create Required Segments and IP Pools ---
 
@@ -52,7 +43,7 @@
       display_name: vlan-10
       vlan_ids:
         - "{{ vlans.management.id }}"
-      transport_zone_path: "/infra/transport-zones/{{ nsx_vlan_tz }}"
+      transport_zone_path: "{{ nsx_vlan_tz_path }}"
       subnets:
         - gateway_address: "{{ vlans.management.gateway }}/24"
 
@@ -67,7 +58,7 @@
       display_name: "edge-uplink-vlan-{{ nsx_tier0_uplink_vlan }}"
       vlan_ids:
         - "{{ nsx_tier0_uplink_vlan }}"
-      transport_zone_path: "/infra/transport-zones/{{ nsx_vlan_tz }}"
+      transport_zone_path: "{{ nsx_vlan_tz_path }}"
       subnets:
         - gateway_address: "{{ vlans.edge_uplink.gateway }}/24"
 
@@ -115,7 +106,7 @@
           - host_switch_type: NVDS
             host_switch_name: edge-overlay
             transport_zone_endpoints:
-              - transport_zone_name: "{{ nsx_overlay_tz }}"
+              - transport_zone_name: "{{ nsx_overlay_tz_name }}"
             ip_assignment_spec:
               ip_pool_name: edge-tep-pool
               resource_type: StaticIpPoolSpec
