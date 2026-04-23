@@ -21,6 +21,10 @@
       - { hostname: vcf-ops-fleet, ip: "{{ lab_mgmt_prefix }}.24" }
 
 # --- Ensure required bundles are downloaded ---
+# Best practice: start bundle downloads manually via SDDC Manager UI
+# immediately after bringup (Phase 3) while other phases proceed.
+# This step is a safety net — if bundles weren't downloaded manually,
+# it will trigger downloads and wait (can take 30+ minutes).
 
 - name: Ensure VCF Operations bundles are downloaded
   ansible.builtin.command:
