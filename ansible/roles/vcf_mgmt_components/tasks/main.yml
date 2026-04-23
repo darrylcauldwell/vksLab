@@ -77,6 +77,10 @@
   ansible.builtin.debug:
     msg: "{{ vcf_mgmt_components_spec | to_nice_json }}"
 
+- name: "LONG RUNNING TASK — Deploying VCF Management Components (~30-60 min). Monitor progress at https://{{ vcf_mgmt_hostname }}"
+  ansible.builtin.debug:
+    msg: "Deployment starting. Track progress in SDDC Manager → Tasks. This task will wait up to 2 hours for completion."
+
 - name: Deploy VCF Management Components
   vmware_vcf.ansible.vcf_management_components:
     sddc_hostname: "{{ vcf_mgmt_hostname }}"

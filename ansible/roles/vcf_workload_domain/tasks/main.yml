@@ -170,6 +170,10 @@
 
 # --- Create workload domain ---
 
+- name: "LONG RUNNING TASK — Creating workload domain (~2 hours). Monitor progress at https://{{ vcf_wld_hostname }}"
+  ansible.builtin.debug:
+    msg: "Domain creation starting. Track progress in SDDC Manager → Tasks. This task will wait up to 2 hours for completion."
+
 - name: Create workload domain (validates then creates)
   vmware_vcf.ansible.vcf_domain:
     sddc_hostname: "{{ vcf_wld_hostname }}"
