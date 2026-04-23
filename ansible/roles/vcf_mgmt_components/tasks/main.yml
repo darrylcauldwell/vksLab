@@ -9,13 +9,16 @@
 
 # --- Ensure DNS records exist on gateway ---
 
-- name: Ensure DNS records for management components
+- name: Ensure DNS records for Phase 5 dependencies
   ansible.builtin.lineinfile:
     path: /etc/dnsmasq.d/lab.conf
     line: "host-record={{ item.hostname }}.{{ lab_domain }},{{ item.ip }}"
     regexp: "^host-record={{ item.hostname }}\\.{{ lab_domain | regex_escape }}"
     state: present
   loop:
+    - { hostname: sddc-manager, ip: "{{ lab_mgmt_prefix }}.5" }
+    - { hostname: vcenter-mgmt, ip: "{{ lab_mgmt_prefix }}.4" }
+    - { hostname: nsx-mgr-mgmt, ip: "{{ lab_mgmt_prefix }}.6" }
     - { hostname: vcf-ops, ip: "{{ lab_mgmt_prefix }}.7" }
     - { hostname: vcf-ops-collector, ip: "{{ lab_mgmt_prefix }}.23" }
     - { hostname: vcf-ops-fleet, ip: "{{ lab_mgmt_prefix }}.24" }
@@ -37,20 +40,24 @@
 
 - name: Verify DNS resolution from gateway
   ansible.builtin.command:
-    cmd: "dig +short {{ item }}"
+    cmd: "dig +short {{ item }}.{{ lab_domain }}"
   loop:
-    - "vcf-ops.{{ lab_domain }}"
-    - "vcf-ops-collector.{{ lab_domain }}"
-    - "vcf-ops-fleet.{{ lab_domain }}"
+    - sddc-manager
+    - vcenter-mgmt
+    - nsx-mgr-mgmt
+    - vcf-ops
+    - vcf-ops-collector
+    - vcf-ops-fleet
   delegate_to: gateway
   vars:
     ansible_connection: ssh
   register: dns_check
   changed_when: false
+  failed_when: dns_check.stdout | length == 0
 
 - name: Display DNS resolution
   ansible.builtin.debug:
-    msg: "{{ item.item }}: {{ item.stdout }}"
+    msg: "{{ item.item }}.{{ lab_domain }}: {{ item.stdout }}"
   loop: "{{ dns_check.results }}"
   loop_control:
     label: "{{ item.item }}"

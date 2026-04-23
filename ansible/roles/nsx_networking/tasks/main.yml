@@ -5,6 +5,57 @@
 # All API calls go through the vmware-vcf SDK (requests library)
 # which honours the HTTPS_PROXY for SOCKS proxy support.
 
+# --- Ensure DNS records for Phase 6 dependencies ---
+
+- name: Ensure DNS records for NSX networking dependencies
+  ansible.builtin.lineinfile:
+    path: /etc/dnsmasq.d/lab.conf
+    line: "host-record={{ item.hostname }}.{{ lab_domain }},{{ item.ip }}"
+    regexp: "^host-record={{ item.hostname }}\\.{{ lab_domain | regex_escape }}"
+    state: present
+  loop:
+    - { hostname: nsx-mgr-wld, ip: "{{ lab_mgmt_prefix }}.10" }
+    - { hostname: nsx-vip-wld, ip: "{{ lab_mgmt_prefix }}.22" }
+    - { hostname: edge-01, ip: "{{ lab_mgmt_prefix }}.20" }
+    - { hostname: edge-02, ip: "{{ lab_mgmt_prefix }}.21" }
+  delegate_to: gateway
+  become: true
+  vars:
+    ansible_connection: ssh
+  register: dns_changes
+
+- name: Restart dnsmasq if DNS records changed
+  ansible.builtin.service:
+    name: dnsmasq
+    state: restarted
+  delegate_to: gateway
+  become: true
+  vars:
+    ansible_connection: ssh
+  when: dns_changes.changed
+
+- name: Verify DNS resolution from gateway
+  ansible.builtin.command:
+    cmd: "dig +short {{ item }}.{{ lab_domain }}"
+  loop:
+    - nsx-mgr-wld
+    - nsx-vip-wld
+    - edge-01
+    - edge-02
+  delegate_to: gateway
+  vars:
+    ansible_connection: ssh
+  register: dns_check
+  changed_when: false
+  failed_when: dns_check.stdout | length == 0
+
+- name: Display DNS resolution
+  ansible.builtin.debug:
+    msg: "{{ item.item }}.{{ lab_domain }}: {{ item.stdout }}"
+  loop: "{{ dns_check.results }}"
+  loop_control:
+    label: "{{ item.item }}"
+
 # --- Discover transport zones ---
 # Transport zone names are defined in the workload domain spec (Phase 4).
 # Look them up to get the full path (which includes the UUID).
