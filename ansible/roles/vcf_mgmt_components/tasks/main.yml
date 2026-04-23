@@ -20,6 +20,21 @@
       - { hostname: vcf-ops-collector, ip: "{{ lab_mgmt_prefix }}.23" }
       - { hostname: vcf-ops-fleet, ip: "{{ lab_mgmt_prefix }}.24" }
 
+# --- Ensure required bundles are downloaded ---
+
+- name: Ensure VCF Operations bundles are downloaded
+  ansible.builtin.command:
+    cmd: "python3 {{ role_path }}/files/ensure_bundles.py"
+  environment:
+    SDDC_HOSTNAME: "{{ vcf_mgmt_hostname }}"
+    SDDC_USERNAME: "{{ vcf_mgmt_username }}"
+    SDDC_PASSWORD: "{{ vcf_mgmt_password }}"
+  register: bundle_result
+
+- name: Display bundle download status
+  ansible.builtin.debug:
+    msg: "{{ bundle_result.stdout_lines }}"
+
 # --- Authenticate to SDDC Manager ---
 
 - name: Get SDDC Manager bearer token
