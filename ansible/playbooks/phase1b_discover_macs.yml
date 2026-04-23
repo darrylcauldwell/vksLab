@@ -27,14 +27,9 @@
   gather_facts: false
   become: true
   vars:
-    esxi_hosts:
-      - { hostname: esxi-01, ip: "{{ lab_mgmt_prefix }}.11" }
-      - { hostname: esxi-02, ip: "{{ lab_mgmt_prefix }}.12" }
-      - { hostname: esxi-03, ip: "{{ lab_mgmt_prefix }}.13" }
-      - { hostname: esxi-04, ip: "{{ lab_mgmt_prefix }}.14" }
-      - { hostname: esxi-05, ip: "{{ lab_mgmt_prefix }}.15" }
-      - { hostname: esxi-06, ip: "{{ lab_mgmt_prefix }}.16" }
-      - { hostname: esxi-07, ip: "{{ lab_mgmt_prefix }}.17" }
+    esxi_hosts: >-
+      {{ pd_hosts | selectattr('hostname', 'search', 'esxi-')
+         | list }}
   tasks:
     - name: Verify dnsmasq is running
       ansible.builtin.service_facts:

@@ -18,8 +18,10 @@ ip_pool: "{{ dict(pd_ip_pools | map(attribute='pool_name') | zip(pd_ip_pools)) }
 bgp_peer: "{{ dict(pd_bgp | map(attribute='peer_name') | zip(pd_bgp)) }}"
 
 # --- Derived variables (backwards compatibility) ---
-# These map old variable names to DDA lookups so existing roles work during migration.
+# These map old variable names to DDA lookups. Used by gateway templates
+# and Phase 1B MAC discovery that need subnet-prefix-based addressing.
 
+lab_mgmt_prefix: "{{ vlan['management'].gateway | regex_replace('\\.[0-9]+$', '') }}"
 lab_gateway: "{{ host_ip['gateway'] }}"
 lab_dns_server: "{{ host_ip['gateway'] }}"
 lab_ntp_servers:

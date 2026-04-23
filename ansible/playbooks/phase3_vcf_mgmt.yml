@@ -16,11 +16,11 @@
   vars:
     vcf_installer_ova: /home/ubuntu/vcf-installer.ova
     vcf_installer_vm_name: vcf-installer
-    vcf_installer_ip: "{{ lab_mgmt_prefix }}.3"
+    vcf_installer_ip: "{{ host_ip['vcf-installer'] }}"
     vcf_installer_netmask: "255.255.255.0"
-    vcf_installer_gateway: "{{ lab_mgmt_prefix }}.1"
-    vcf_installer_dns: "{{ lab_mgmt_prefix }}.1"
-    vcf_installer_ntp: "{{ lab_ntp_servers[0] }}"
+    vcf_installer_gateway: "{{ host_ip['gateway'] }}"
+    vcf_installer_dns: "{{ host_ip['gateway'] }}"
+    vcf_installer_ntp: "{{ host_ip['gateway'] }}"
     vcf_installer_fqdn: "vcf-installer.{{ lab_domain }}"
     vcf_installer_password: "{{ sddc_admin_password }}"
     esxi_target: "esxi-01.{{ lab_domain }}"

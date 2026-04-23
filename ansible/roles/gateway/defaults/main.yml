@@ -1,4 +1,4 @@
-gateway_ip: "{{ lab_mgmt_prefix }}.1"
+gateway_ip: "{{ host_ip['gateway'] }}"
 gateway_private_nic: ens34
 gateway_public_nic: ens33
 gateway_lab_network: "{{ lab_network_prefix }}.0.0/16"
@@ -35,13 +35,14 @@ gateway_vscode_packages:
 # VLAN sub-interface configuration
 # All VLANs including management use 802.1Q tagging on ens34.
 # ESXi hosts must have VLAN 10 set on their management port group (configured in baked template).
+# VLAN sub-interfaces — gateway IP is first usable (.1) on each VLAN subnet
 gateway_vlan_interfaces:
-  - {vlan: 10, description: Management, ip: "{{ lab_mgmt_prefix }}.1/24", mtu: 1500}
-  - {vlan: 20, description: vMotion, ip: "{{ lab_vmotion_prefix }}.1/24", mtu: 8900}
-  - {vlan: 30, description: vSAN, ip: "{{ lab_vsan_prefix }}.1/24", mtu: 8900}
-  - {vlan: 40, description: "Host Overlay (TEP)", ip: "{{ lab_overlay_prefix }}.1/24", mtu: 8900}
-  - {vlan: 50, description: "Edge Overlay (TEP)", ip: "{{ lab_edge_tep_prefix }}.1/24", mtu: 8900}
-  - {vlan: 60, description: "Edge Uplink / BGP", ip: "{{ lab_uplink_prefix }}.1/24", mtu: 1500}
+  - {vlan: "{{ vlan['management'].vlan_id }}", description: Management, ip: "{{ vlan['management'].gateway }}/24", mtu: "{{ vlan['management'].mtu }}"}
+  - {vlan: "{{ vlan['vmotion'].vlan_id }}", description: vMotion, ip: "{{ vlan['vmotion'].gateway }}/24", mtu: "{{ vlan['vmotion'].mtu }}"}
+  - {vlan: "{{ vlan['vsan'].vlan_id }}", description: vSAN, ip: "{{ vlan['vsan'].gateway }}/24", mtu: "{{ vlan['vsan'].mtu }}"}
+  - {vlan: "{{ vlan['host_overlay'].vlan_id }}", description: "Host Overlay (TEP)", ip: "{{ vlan['host_overlay'].gateway }}/24", mtu: "{{ vlan['host_overlay'].mtu }}"}
+  - {vlan: "{{ vlan['edge_overlay'].vlan_id }}", description: "Edge Overlay (TEP)", ip: "{{ vlan['edge_overlay'].gateway }}/24", mtu: "{{ vlan['edge_overlay'].mtu }}"}
+  - {vlan: "{{ vlan['edge_uplink'].vlan_id }}", description: "Edge Uplink / BGP", ip: "{{ vlan['edge_uplink'].gateway }}/24", mtu: "{{ vlan['edge_uplink'].mtu }}"}
 
 # Upstream DNS forwarders
 gateway_upstream_dns:
@@ -55,12 +56,14 @@ gateway_upstream_dns:
 gateway_dns_records:
   - {hostname: gateway, ip: "{{ host_ip['gateway'] }}"}
 
-# DHCP reservations (MAC → IP)
+# DHCP reservations — MACs are discovered by Phase 1B (phase1b_discover_macs.yml).
+# IPs come from the physical design document via DDA.
+# These placeholder MACs get overwritten at runtime.
 gateway_dhcp_reservations:
-  - {mac: "00:50:56:xx:xx:01", hostname: esxi-01, ip: "{{ lab_mgmt_prefix }}.11"}
-  - {mac: "00:50:56:xx:xx:02", hostname: esxi-02, ip: "{{ lab_mgmt_prefix }}.12"}
-  - {mac: "00:50:56:xx:xx:03", hostname: esxi-03, ip: "{{ lab_mgmt_prefix }}.13"}
-  - {mac: "00:50:56:xx:xx:04", hostname: esxi-04, ip: "{{ lab_mgmt_prefix }}.14"}
-  - {mac: "00:50:56:xx:xx:05", hostname: esxi-05, ip: "{{ lab_mgmt_prefix }}.15"}
-  - {mac: "00:50:56:xx:xx:06", hostname: esxi-06, ip: "{{ lab_mgmt_prefix }}.16"}
-  - {mac: "00:50:56:xx:xx:07", hostname: esxi-07, ip: "{{ lab_mgmt_prefix }}.17"}
+  - {mac: "00:50:56:xx:xx:01", hostname: esxi-01, ip: "{{ host_ip['esxi-01'] }}"}
+  - {mac: "00:50:56:xx:xx:02", hostname: esxi-02, ip: "{{ host_ip['esxi-02'] }}"}
+  - {mac: "00:50:56:xx:xx:03", hostname: esxi-03, ip: "{{ host_ip['esxi-03'] }}"}
+  - {mac: "00:50:56:xx:xx:04", hostname: esxi-04, ip: "{{ host_ip['esxi-04'] }}"}
+  - {mac: "00:50:56:xx:xx:05", hostname: esxi-05, ip: "{{ host_ip['esxi-05'] }}"}
+  - {mac: "00:50:56:xx:xx:06", hostname: esxi-06, ip: "{{ host_ip['esxi-06'] }}"}
+  - {mac: "00:50:56:xx:xx:07", hostname: esxi-07, ip: "{{ host_ip['esxi-07'] }}"}

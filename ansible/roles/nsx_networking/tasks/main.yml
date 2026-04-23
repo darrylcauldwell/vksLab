@@ -82,11 +82,11 @@
     spec:
       display_name: edge-tep-pool
       subnets:
-        - cidr: "{{ vlans.edge_overlay.subnet }}"
+        - cidr: "{{ ip_pool['edge-tep-pool'].subnet }}"
           allocation_ranges:
-            - start: "{{ lab_edge_tep_prefix }}.20"
-              end: "{{ lab_edge_tep_prefix }}.21"
-          gateway_ip: "{{ vlans.edge_overlay.gateway }}"
+            - start: "{{ ip_pool['edge-tep-pool'].start_ip }}"
+              end: "{{ ip_pool['edge-tep-pool'].end_ip }}"
+          gateway_ip: "{{ ip_pool['edge-tep-pool'].gateway }}"
 
 # --- Edge Cluster ---
 

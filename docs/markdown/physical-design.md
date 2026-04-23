@@ -56,27 +56,17 @@ Host IP allocations. Columns: `ip` (IPv4 address), `hostname` (short name, FQDN 
 | 10.0.10.106 | esxi-06 | wld | Workload domain ESXi host |
 | 10.0.10.107 | esxi-07 | wld | Workload domain ESXi host |
 
-### vMotion (VLAN 20)
-
-| start_ip | end_ip | purpose |
-|----------|--------|---------|
-| 10.0.20.11 | 10.0.20.14 | Management domain ESXi hosts |
-| 10.0.20.15 | 10.0.20.17 | Workload domain ESXi hosts |
-
-### vSAN (VLAN 30)
-
-| start_ip | end_ip | purpose |
-|----------|--------|---------|
-| 10.0.30.11 | 10.0.30.14 | Management domain ESXi hosts |
-| 10.0.30.15 | 10.0.30.17 | Workload domain ESXi hosts |
-
 ### IP Pools
 
-IP address pools for NSX TEP and overlay. Columns: `pool_name` (NSX pool name), `start_ip`/`end_ip` (range), `subnet` (CIDR), `gateway`, `vlan_id`, `purpose`.
+IP address pools for VCF network services. Columns: `pool_name` (identifier), `start_ip`/`end_ip` (range), `subnet` (CIDR), `gateway`, `vlan_id`, `purpose`.
 
 <!-- pd_ip_pools -->
 | pool_name | start_ip | end_ip | subnet | gateway | vlan_id | purpose |
 |-----------|----------|--------|--------|---------|---------|---------|
+| mgmt-vmotion | 10.0.20.11 | 10.0.20.14 | 10.0.20.0/24 | 10.0.20.1 | 20 | Management domain vMotion |
+| wld-vmotion | 10.0.20.15 | 10.0.20.17 | 10.0.20.0/24 | 10.0.20.1 | 20 | Workload domain vMotion |
+| mgmt-vsan | 10.0.30.11 | 10.0.30.14 | 10.0.30.0/24 | 10.0.30.1 | 30 | Management domain vSAN |
+| wld-vsan | 10.0.30.15 | 10.0.30.17 | 10.0.30.0/24 | 10.0.30.1 | 30 | Workload domain vSAN |
 | tep-ip-pool | 10.0.40.11 | 10.0.40.20 | 10.0.40.0/24 | 10.0.40.1 | 40 | Management domain host TEP |
 | workload-tep-pool | 10.0.40.21 | 10.0.40.23 | 10.0.40.0/24 | 10.0.40.1 | 40 | Workload domain host TEP |
 | edge-tep-pool | 10.0.50.20 | 10.0.50.21 | 10.0.50.0/24 | 10.0.50.1 | 50 | NSX Edge TEP |

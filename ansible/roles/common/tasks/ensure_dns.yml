@@ -10,7 +10,7 @@
 #     ansible.builtin.include_tasks: ../../common/tasks/ensure_dns.yml
 #     vars:
 #       dns_records:
-#         - { hostname: sddc-manager, ip: "{{ lab_mgmt_prefix }}.5" }
+#         - { hostname: sddc-manager, ip: "{{ host_ip['sddc-manager'] }}" }
 
 - name: "DNS | Ensure records on gateway"
   ansible.builtin.lineinfile:

@@ -19,10 +19,10 @@ vcf_bringup_spec:
   managementPoolName: mgmt-network-pool
   dnsSpec:
     nameservers:
-      - "{{ lab_dns_server }}"
+      - "{{ host_ip['gateway'] }}"
     subdomain: "{{ lab_domain }}"
   ntpServers:
-    - "{{ lab_ntp_servers[0] }}"
+    - "{{ host_ip['gateway'] }}"
   vcenterSpec:
     vcenterHostname: "vcenter-mgmt.{{ lab_domain }}"
     rootVcenterPassword: "{{ vcenter_sso_password }}"
@@ -52,16 +52,16 @@ vcf_bringup_spec:
     nsxtManagers:
       - hostname: "nsx-mgr-mgmt-01.{{ lab_domain }}"
     vipFqdn: "nsx-mgr-mgmt.{{ lab_domain }}"
-    transportVlanId: "{{ vlans.host_overlay.id }}"
+    transportVlanId: "{{ vlan['host_overlay'].vlan_id }}"
     ipAddressPoolSpec:
       name: tep-ip-pool
       description: ESXi Host Overlay TEP IP Pool
       subnets:
-        - cidr: "{{ vlans.host_overlay.subnet }}"
-          gateway: "{{ vlans.host_overlay.gateway }}"
+        - cidr: "{{ ip_pool['tep-ip-pool'].subnet }}"
+          gateway: "{{ ip_pool['tep-ip-pool'].gateway }}"
           ipAddressPoolRanges:
-            - start: "{{ lab_overlay_prefix }}.11"
-              end: "{{ lab_overlay_prefix }}.20"
+            - start: "{{ ip_pool['tep-ip-pool'].start_ip }}"
+              end: "{{ ip_pool['tep-ip-pool'].end_ip }}"
   hostSpecs:
     - hostname: esxi-01
       credentials:
@@ -81,51 +81,51 @@ vcf_bringup_spec:
         password: "{{ bootstrap_password }}"
   networkSpecs:
     - networkType: MANAGEMENT
-      subnet: "{{ vlans.management.subnet }}"
-      gateway: "{{ vlans.management.gateway }}"
-      vlanId: "{{ vlans.management.id }}"
-      mtu: "{{ vlans.management.mtu }}"
+      subnet: "{{ vlan['management'].subnet }}"
+      gateway: "{{ vlan['management'].gateway }}"
+      vlanId: "{{ vlan['management'].vlan_id }}"
+      mtu: "{{ vlan['management'].mtu }}"
       portGroupKey: vcf-m01-cl01-vds01-pg-mgmt
       teamingPolicy: loadbalance_loadbased
       activeUplinks:
         - uplink1
       standbyUplinks: []
     - networkType: VM_MANAGEMENT
-      subnet: "{{ vlans.management.subnet }}"
-      gateway: "{{ vlans.management.gateway }}"
-      vlanId: "{{ vlans.management.id }}"
-      mtu: "{{ vlans.management.mtu }}"
+      subnet: "{{ vlan['management'].subnet }}"
+      gateway: "{{ vlan['management'].gateway }}"
+      vlanId: "{{ vlan['management'].vlan_id }}"
+      mtu: "{{ vlan['management'].mtu }}"
       portGroupKey: vcf-m01-cl01-vds01-pg-vm-mgmt
       teamingPolicy: loadbalance_loadbased
       activeUplinks:
         - uplink1
       standbyUplinks: []
     - networkType: VMOTION
-      subnet: "{{ vlans.vmotion.subnet }}"
-      gateway: "{{ vlans.vmotion.gateway }}"
-      vlanId: "{{ vlans.vmotion.id }}"
-      mtu: "{{ vlans.vmotion.mtu }}"
+      subnet: "{{ vlan['vmotion'].subnet }}"
+      gateway: "{{ vlan['vmotion'].gateway }}"
+      vlanId: "{{ vlan['vmotion'].vlan_id }}"
+      mtu: "{{ vlan['vmotion'].mtu }}"
       portGroupKey: vcf-m01-cl01-vds01-pg-vmotion
       teamingPolicy: loadbalance_loadbased
       activeUplinks:
         - uplink1
       standbyUplinks: []
       includeIpAddressRanges:
-        - startIpAddress: "{{ lab_vmotion_prefix }}.11"
-          endIpAddress: "{{ lab_vmotion_prefix }}.20"
+        - startIpAddress: "{{ ip_pool['mgmt-vmotion'].start_ip }}"
+          endIpAddress: "{{ ip_pool['mgmt-vmotion'].end_ip }}"
     - networkType: VSAN
-      subnet: "{{ vlans.vsan.subnet }}"
-      gateway: "{{ vlans.vsan.gateway }}"
-      vlanId: "{{ vlans.vsan.id }}"
-      mtu: "{{ vlans.vsan.mtu }}"
+      subnet: "{{ vlan['vsan'].subnet }}"
+      gateway: "{{ vlan['vsan'].gateway }}"
+      vlanId: "{{ vlan['vsan'].vlan_id }}"
+      mtu: "{{ vlan['vsan'].mtu }}"
       portGroupKey: vcf-m01-cl01-vds01-pg-vsan
       teamingPolicy: loadbalance_loadbased
       activeUplinks:
         - uplink1
       standbyUplinks: []
       includeIpAddressRanges:
-        - startIpAddress: "{{ lab_vsan_prefix }}.11"
-          endIpAddress: "{{ lab_vsan_prefix }}.20"
+        - startIpAddress: "{{ ip_pool['mgmt-vsan'].start_ip }}"
+          endIpAddress: "{{ ip_pool['mgmt-vsan'].end_ip }}"
   dvsSpecs:
     - dvsName: vcf-m01-cl01-vds01
       networks:
