@@ -1,0 +1,10 @@
+---
+# Phase 7 — VKS: Supervisor, Namespace, VKS cluster, test workload
+- name: Phase 7 — VKS deployment
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  environment:
+    HTTPS_PROXY: "socks5h://localhost:1080"
+  roles:
+    - vks

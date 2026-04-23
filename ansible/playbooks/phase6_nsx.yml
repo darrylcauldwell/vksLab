@@ -1,0 +1,11 @@
+---
+# Phase 6 — NSX Networking
+# Edge cluster, Tier-0/1, BGP, VPC, SNAT (all API calls from localhost)
+- name: Phase 6 — NSX networking
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  environment:
+    HTTPS_PROXY: "socks5h://localhost:1080"
+  roles:
+    - nsx_networking
