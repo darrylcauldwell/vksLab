@@ -25,9 +25,9 @@ vcf_wld_domain_spec:
   vcenterSpec:
     name: vcenter-wld
     networkDetailsSpec:
-      ipAddress: "{{ lab_mgmt_prefix }}.9"
+      ipAddress: "{{ host_ip['vcenter-wld'] }}"
       dnsName: "vcenter-wld.{{ lab_domain }}"
-      gateway: "{{ lab_gateway }}"
+      gateway: "{{ vlan['management'].gateway }}"
       subnetMask: 255.255.255.0
     rootPassword: "{{ vcf_wld_password }}"
     datacenterName: workload-dc
@@ -74,23 +74,23 @@ vcf_wld_domain_spec:
                     transportType: OVERLAY
           nsxClusterSpec:
             nsxTClusterSpec:
-              geneveVlanId: "{{ vlans.host_overlay.id }}"
+              geneveVlanId: "{{ vlan['host_overlay'].vlan_id }}"
               ipAddressPoolSpec:
                 name: workload-tep-pool
                 subnets:
                   - ipAddressPoolRanges:
-                      - start: "{{ lab_overlay_prefix }}.21"
-                        end: "{{ lab_overlay_prefix }}.23"
-                    cidr: "{{ vlans.host_overlay.subnet }}"
-                    gateway: "{{ vlans.host_overlay.gateway }}"
+                      - start: "{{ ip_pool['workload-tep-pool'].start_ip }}"
+                        end: "{{ ip_pool['workload-tep-pool'].end_ip }}"
+                    cidr: "{{ ip_pool['workload-tep-pool'].subnet }}"
+                    gateway: "{{ ip_pool['workload-tep-pool'].gateway }}"
   nsxTSpec:
     vipFqdn: "nsx-vip-wld.{{ lab_domain }}"
     nsxManagerSpecs:
       - name: nsx-mgr-wld
         networkDetailsSpec:
           dnsName: "nsx-mgr-wld.{{ lab_domain }}"
-          ipAddress: "{{ lab_mgmt_prefix }}.10"
-          gateway: "{{ lab_gateway }}"
+          ipAddress: "{{ host_ip['nsx-mgr-wld'] }}"
+          gateway: "{{ vlan['management'].gateway }}"
           subnetMask: 255.255.255.0
     nsxManagerAdminPassword: "{{ nsx_admin_password }}"
     formFactor: medium

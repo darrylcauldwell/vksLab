@@ -33,28 +33,28 @@ Host IP allocations. Columns: `ip` (IPv4 address), `hostname` (short name, FQDN 
 | ip | hostname | domain | role |
 |----|----------|--------|------|
 | 10.0.10.1 | gateway | infra | Gateway |
-| 10.0.10.3 | vcf-installer | mgmt | VCF Installer appliance |
+| 10.0.10.2 | vcf-installer | mgmt | VCF Installer appliance (temporary) |
+| 10.0.10.3 | sddc-manager | mgmt | SDDC Manager |
 | 10.0.10.4 | vcenter-mgmt | mgmt | vCenter Server (management) |
-| 10.0.10.5 | sddc-manager | mgmt | SDDC Manager |
-| 10.0.10.6 | nsx-mgr-mgmt | mgmt | NSX Manager VIP (management) |
-| 10.0.10.19 | nsx-mgr-mgmt-01 | mgmt | NSX Manager node (management) |
+| 10.0.10.5 | nsx-mgr-mgmt | mgmt | NSX Manager VIP (management) |
+| 10.0.10.6 | nsx-mgr-mgmt-01 | mgmt | NSX Manager node (management) |
 | 10.0.10.7 | vcf-ops | mgmt | VCF Operations (analytics) |
-| 10.0.10.8 | vcf-auto | mgmt | VCF Automation |
-| 10.0.10.18 | vcf-ops-logs | mgmt | VCF Operations for Logs |
-| 10.0.10.23 | vcf-ops-collector | mgmt | VCF Operations Collector |
-| 10.0.10.24 | vcf-ops-fleet | mgmt | VCF Operations Fleet Management |
-| 10.0.10.9 | vcenter-wld | wld | vCenter Server (workload) |
-| 10.0.10.10 | nsx-mgr-wld | wld | NSX Manager (workload) |
+| 10.0.10.8 | vcf-ops-collector | mgmt | VCF Operations Collector |
+| 10.0.10.9 | vcf-ops-fleet | mgmt | VCF Operations Fleet Management |
+| 10.0.10.10 | vcf-ops-logs | mgmt | VCF Operations for Logs |
+| 10.0.10.11 | vcf-auto | mgmt | VCF Automation (optional) |
+| 10.0.10.20 | vcenter-wld | wld | vCenter Server (workload) |
+| 10.0.10.21 | nsx-mgr-wld | wld | NSX Manager (workload) |
 | 10.0.10.22 | nsx-vip-wld | wld | NSX Manager VIP (workload) |
-| 10.0.10.11 | esxi-01 | mgmt | Management domain ESXi host |
-| 10.0.10.12 | esxi-02 | mgmt | Management domain ESXi host |
-| 10.0.10.13 | esxi-03 | mgmt | Management domain ESXi host |
-| 10.0.10.14 | esxi-04 | mgmt | Management domain ESXi host |
-| 10.0.10.15 | esxi-05 | wld | Workload domain ESXi host |
-| 10.0.10.16 | esxi-06 | wld | Workload domain ESXi host |
-| 10.0.10.17 | esxi-07 | wld | Workload domain ESXi host |
-| 10.0.10.20 | edge-01 | wld | NSX Edge VM |
-| 10.0.10.21 | edge-02 | wld | NSX Edge VM |
+| 10.0.10.30 | edge-01 | wld | NSX Edge VM |
+| 10.0.10.31 | edge-02 | wld | NSX Edge VM |
+| 10.0.10.101 | esxi-01 | mgmt | Management domain ESXi host |
+| 10.0.10.102 | esxi-02 | mgmt | Management domain ESXi host |
+| 10.0.10.103 | esxi-03 | mgmt | Management domain ESXi host |
+| 10.0.10.104 | esxi-04 | mgmt | Management domain ESXi host |
+| 10.0.10.105 | esxi-05 | wld | Workload domain ESXi host |
+| 10.0.10.106 | esxi-06 | wld | Workload domain ESXi host |
+| 10.0.10.107 | esxi-07 | wld | Workload domain ESXi host |
 
 ### vMotion (VLAN 20)
 

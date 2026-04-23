@@ -1,30 +1,29 @@
 # Lab-wide variables
 lab_domain: lab.dreamfold.dev
 
-# Base network prefix — change this to relocate the entire lab
-lab_network_prefix: "10.0"
+# --- DDA convenience lookups ---
+# These derive from pd_* variables injected by the physical_design vars plugin.
+# The design document (docs/markdown/physical-design.md) is the authoritative source.
 
-# VLAN IDs (defined separately to avoid circular references with prefix vars)
-vlan_id_mgmt: 10
-vlan_id_vmotion: 20
-vlan_id_vsan: 30
-vlan_id_host_overlay: 40
-vlan_id_edge_overlay: 50
-vlan_id_edge_uplink: 60
+# Host IP lookup dict: host_ip['sddc-manager'] → '10.0.10.3'
+host_ip: "{{ dict(pd_hosts | map(attribute='hostname') | zip(pd_hosts | map(attribute='ip'))) }}"
 
-# Per-VLAN subnet prefixes (derived from prefix + VLAN ID)
-lab_mgmt_prefix: "{{ lab_network_prefix }}.{{ vlan_id_mgmt }}"
-lab_vmotion_prefix: "{{ lab_network_prefix }}.{{ vlan_id_vmotion }}"
-lab_vsan_prefix: "{{ lab_network_prefix }}.{{ vlan_id_vsan }}"
-lab_overlay_prefix: "{{ lab_network_prefix }}.{{ vlan_id_host_overlay }}"
-lab_edge_tep_prefix: "{{ lab_network_prefix }}.{{ vlan_id_edge_overlay }}"
-lab_uplink_prefix: "{{ lab_network_prefix }}.{{ vlan_id_edge_uplink }}"
+# VLAN lookup dict: vlan['management'] → {vlan_id: 10, subnet: ..., gateway: ..., mtu: ...}
+vlan: "{{ dict(pd_vlans | map(attribute='name') | zip(pd_vlans)) }}"
 
-# Global services — all on management VLAN
-lab_gateway: "{{ lab_mgmt_prefix }}.1"
-lab_dns_server: "{{ lab_mgmt_prefix }}.1"
+# IP pool lookup dict: ip_pool['workload-tep-pool'] → {start_ip: ..., end_ip: ..., ...}
+ip_pool: "{{ dict(pd_ip_pools | map(attribute='pool_name') | zip(pd_ip_pools)) }}"
+
+# BGP lookup dict: bgp_peer['gateway'] → {ip: '10.0.60.1', asn: 65000, ...}
+bgp_peer: "{{ dict(pd_bgp | map(attribute='peer_name') | zip(pd_bgp)) }}"
+
+# --- Derived variables (backwards compatibility) ---
+# These map old variable names to DDA lookups so existing roles work during migration.
+
+lab_gateway: "{{ host_ip['gateway'] }}"
+lab_dns_server: "{{ host_ip['gateway'] }}"
 lab_ntp_servers:
-  - "{{ lab_mgmt_prefix }}.1"
+  - "{{ host_ip['gateway'] }}"
 
 # Gateway public IP (stored in 1Password after vCD deployment)
 gateway_public_ip: "{{ lookup('community.general.onepassword', 'Lab Bootstrap', field='ip_address', vault=onepassword_vault) }}"
@@ -50,49 +49,8 @@ keycloak_realm: lab
 # CA certificate
 ca_cert_path: /tmp/lab-root-ca.crt
 
-# Network configuration
-vlans:
-  management:
-    id: "{{ vlan_id_mgmt }}"
-    subnet: "{{ lab_network_prefix }}.{{ vlan_id_mgmt }}.0/24"
-    gateway: "{{ lab_network_prefix }}.{{ vlan_id_mgmt }}.1"
-    mtu: 1500
-  vmotion:
-    id: "{{ vlan_id_vmotion }}"
-    subnet: "{{ lab_network_prefix }}.{{ vlan_id_vmotion }}.0/24"
-    gateway: "{{ lab_network_prefix }}.{{ vlan_id_vmotion }}.1"
-    mtu: 8900
-  vsan:
-    id: "{{ vlan_id_vsan }}"
-    subnet: "{{ lab_network_prefix }}.{{ vlan_id_vsan }}.0/24"
-    gateway: "{{ lab_network_prefix }}.{{ vlan_id_vsan }}.1"
-    mtu: 8900
-  host_overlay:
-    id: "{{ vlan_id_host_overlay }}"
-    subnet: "{{ lab_network_prefix }}.{{ vlan_id_host_overlay }}.0/24"
-    gateway: "{{ lab_network_prefix }}.{{ vlan_id_host_overlay }}.1"
-    mtu: 8900
-  edge_overlay:
-    id: "{{ vlan_id_edge_overlay }}"
-    subnet: "{{ lab_network_prefix }}.{{ vlan_id_edge_overlay }}.0/24"
-    gateway: "{{ lab_network_prefix }}.{{ vlan_id_edge_overlay }}.1"
-    mtu: 8900
-  edge_uplink:
-    id: "{{ vlan_id_edge_uplink }}"
-    subnet: "{{ lab_network_prefix }}.{{ vlan_id_edge_uplink }}.0/24"
-    gateway: "{{ lab_network_prefix }}.{{ vlan_id_edge_uplink }}.1"
-    mtu: 1500
-
 # VCF depot
 vcf_depot_url: depot.vcf-gcp.broadcom.net
-
-# BGP configuration
-bgp_local_asn: 65000
-bgp_nsx_asn: 65001
-bgp_router_id: "{{ lab_uplink_prefix }}.1"
-bgp_nsx_uplink_ip: "{{ lab_uplink_prefix }}.2"
-bgp_keepalive: 60
-bgp_holdtime: 180
 
 # VKS configuration
 vks_cluster_name: vks-cluster-01

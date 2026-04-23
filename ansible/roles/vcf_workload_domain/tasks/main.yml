@@ -14,13 +14,13 @@
   ansible.builtin.include_tasks: ../../common/tasks/ensure_dns.yml
   vars:
     dns_records:
-      - { hostname: sddc-manager, ip: "{{ lab_mgmt_prefix }}.5" }
-      - { hostname: vcenter-wld, ip: "{{ lab_mgmt_prefix }}.9" }
-      - { hostname: nsx-mgr-wld, ip: "{{ lab_mgmt_prefix }}.10" }
-      - { hostname: nsx-vip-wld, ip: "{{ lab_mgmt_prefix }}.22" }
-      - { hostname: esxi-05, ip: "{{ lab_mgmt_prefix }}.15" }
-      - { hostname: esxi-06, ip: "{{ lab_mgmt_prefix }}.16" }
-      - { hostname: esxi-07, ip: "{{ lab_mgmt_prefix }}.17" }
+      - { hostname: sddc-manager, ip: "{{ host_ip['sddc-manager'] }}" }
+      - { hostname: vcenter-wld, ip: "{{ host_ip['vcenter-wld'] }}" }
+      - { hostname: nsx-mgr-wld, ip: "{{ host_ip['nsx-mgr-wld'] }}" }
+      - { hostname: nsx-vip-wld, ip: "{{ host_ip['nsx-vip-wld'] }}" }
+      - { hostname: esxi-05, ip: "{{ host_ip['esxi-05'] }}" }
+      - { hostname: esxi-06, ip: "{{ host_ip['esxi-06'] }}" }
+      - { hostname: esxi-07, ip: "{{ host_ip['esxi-07'] }}" }
 
 # --- Authenticate once ---
 

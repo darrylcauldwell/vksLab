@@ -10,28 +10,25 @@ nsx_overlay_tz_name: workload-overlay-tz
 nsx_edge_cluster_name: edge-cluster-01
 nsx_edge_vms:
   - name: edge-01
-    management_ip: "{{ lab_mgmt_prefix }}.20"
-    tep_ip: "{{ lab_edge_tep_prefix }}.20"
+    management_ip: "{{ host_ip['edge-01'] }}"
   - name: edge-02
-    management_ip: "{{ lab_mgmt_prefix }}.21"
-    tep_ip: "{{ lab_edge_tep_prefix }}.21"
+    management_ip: "{{ host_ip['edge-02'] }}"
 nsx_edge_size: LARGE
-nsx_edge_tep_vlan: 50
 
 # Tier-0 gateway
 nsx_tier0_name: tier0-gateway
 nsx_tier0_ha_mode: ACTIVE_STANDBY
-nsx_tier0_uplink_ip: "{{ bgp_nsx_uplink_ip }}"
+nsx_tier0_uplink_ip: "{{ bgp_peer['nsx-tier0'].ip }}"
 nsx_tier0_uplink_prefix: 24
-nsx_tier0_uplink_vlan: 60
+nsx_tier0_uplink_vlan: "{{ vlan['edge_uplink'].vlan_id }}"
 
 # Tier-1 gateway
 nsx_tier1_name: tier1-gateway
 
-# BGP (uses global vars from group_vars/all.yml)
-nsx_bgp_local_asn: "{{ bgp_nsx_asn }}"
-nsx_bgp_neighbor_ip: "{{ bgp_router_id }}"
-nsx_bgp_neighbor_asn: "{{ bgp_local_asn }}"
+# BGP
+nsx_bgp_local_asn: "{{ bgp_peer['nsx-tier0'].asn }}"
+nsx_bgp_neighbor_ip: "{{ bgp_peer['gateway'].ip }}"
+nsx_bgp_neighbor_asn: "{{ bgp_peer['gateway'].asn }}"
 
 # VPC
 nsx_vpc_project_name: vks-project
@@ -41,7 +38,7 @@ nsx_vpc_name: vks-vpc
 nsx_snat_rules:
   - name: pod-cidr-snat
     source_network: "{{ vks_pod_cidr }}"
-    translated_ip: "{{ bgp_nsx_uplink_ip }}"
+    translated_ip: "{{ bgp_peer['nsx-tier0'].ip }}"
   - name: service-cidr-snat
     source_network: "{{ vks_service_cidr }}"
-    translated_ip: "{{ bgp_nsx_uplink_ip }}"
+    translated_ip: "{{ bgp_peer['nsx-tier0'].ip }}"

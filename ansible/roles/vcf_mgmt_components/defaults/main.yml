@@ -2,10 +2,6 @@ vcf_mgmt_hostname: "sddc-manager.{{ lab_domain }}"
 vcf_mgmt_username: admin@local
 vcf_mgmt_password: "{{ sddc_admin_password }}"
 
-# VCF Management Components deployment spec
-# Deploys VCF Operations, Collector, and Fleet Management via SDDC Manager API.
-# VCF Automation is optional (omit vcfAutomationSpec to skip).
-# VCF Operations for Logs is deployed separately via Fleet Management (not this API).
 vcf_mgmt_components_spec:
   vcfOperationsSpec:
     nodes:
@@ -26,8 +22,8 @@ vcf_mgmt_components_spec:
     localRegionNetwork:
       networkName: vcf-m01-cl01-vds01-pg-vm-mgmt
       subnetMask: 255.255.255.0
-      gateway: "{{ lab_gateway }}"
+      gateway: "{{ vlan['management'].gateway }}"
     xRegionNetwork:
       networkName: vcf-m01-cl01-vds01-pg-vm-mgmt
       subnetMask: 255.255.255.0
-      gateway: "{{ lab_gateway }}"
+      gateway: "{{ vlan['management'].gateway }}"

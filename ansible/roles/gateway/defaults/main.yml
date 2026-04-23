@@ -53,7 +53,7 @@ gateway_upstream_dns:
 # Each subsequent phase adds its own records via ensure_dns.yml quality gates.
 # This keeps the gateway role modular — it works for any lab topology.
 gateway_dns_records:
-  - {hostname: gateway, ip: "{{ lab_mgmt_prefix }}.1"}
+  - {hostname: gateway, ip: "{{ host_ip['gateway'] }}"}
 
 # DHCP reservations (MAC → IP)
 gateway_dhcp_reservations:

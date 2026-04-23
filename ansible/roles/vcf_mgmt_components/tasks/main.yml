@@ -13,12 +13,12 @@
   ansible.builtin.include_tasks: ../../common/tasks/ensure_dns.yml
   vars:
     dns_records:
-      - { hostname: sddc-manager, ip: "{{ lab_mgmt_prefix }}.5" }
-      - { hostname: vcenter-mgmt, ip: "{{ lab_mgmt_prefix }}.4" }
-      - { hostname: nsx-mgr-mgmt, ip: "{{ lab_mgmt_prefix }}.6" }
-      - { hostname: vcf-ops, ip: "{{ lab_mgmt_prefix }}.7" }
-      - { hostname: vcf-ops-collector, ip: "{{ lab_mgmt_prefix }}.23" }
-      - { hostname: vcf-ops-fleet, ip: "{{ lab_mgmt_prefix }}.24" }
+      - { hostname: sddc-manager, ip: "{{ host_ip['sddc-manager'] }}" }
+      - { hostname: vcenter-mgmt, ip: "{{ host_ip['vcenter-mgmt'] }}" }
+      - { hostname: nsx-mgr-mgmt, ip: "{{ host_ip['nsx-mgr-mgmt'] }}" }
+      - { hostname: vcf-ops, ip: "{{ host_ip['vcf-ops'] }}" }
+      - { hostname: vcf-ops-collector, ip: "{{ host_ip['vcf-ops-collector'] }}" }
+      - { hostname: vcf-ops-fleet, ip: "{{ host_ip['vcf-ops-fleet'] }}" }
 
 # --- Ensure required bundles are downloaded ---
 # Best practice: start bundle downloads manually via SDDC Manager UI

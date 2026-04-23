@@ -9,8 +9,8 @@
   ansible.builtin.include_tasks: ../../common/tasks/ensure_dns.yml
   vars:
     dns_records:
-      - { hostname: sddc-manager, ip: "{{ lab_mgmt_prefix }}.5" }
-      - { hostname: "gateway", ip: "{{ lab_mgmt_prefix }}.1" }
+      - { hostname: sddc-manager, ip: "{{ host_ip['sddc-manager'] }}" }
+      - { hostname: gateway, ip: "{{ host_ip['gateway'] }}" }
 
 # --- Authenticate to SDDC Manager ---
 

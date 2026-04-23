@@ -14,15 +14,15 @@
   ansible.builtin.include_tasks: ../../common/tasks/ensure_dns.yml
   vars:
     dns_records:
-      - { hostname: vcf-installer, ip: "{{ lab_mgmt_prefix }}.3" }
-      - { hostname: vcenter-mgmt, ip: "{{ lab_mgmt_prefix }}.4" }
-      - { hostname: sddc-manager, ip: "{{ lab_mgmt_prefix }}.5" }
-      - { hostname: nsx-mgr-mgmt, ip: "{{ lab_mgmt_prefix }}.6" }
-      - { hostname: nsx-mgr-mgmt-01, ip: "{{ lab_mgmt_prefix }}.19" }
-      - { hostname: esxi-01, ip: "{{ lab_mgmt_prefix }}.11" }
-      - { hostname: esxi-02, ip: "{{ lab_mgmt_prefix }}.12" }
-      - { hostname: esxi-03, ip: "{{ lab_mgmt_prefix }}.13" }
-      - { hostname: esxi-04, ip: "{{ lab_mgmt_prefix }}.14" }
+      - { hostname: vcf-installer, ip: "{{ host_ip['vcf-installer'] }}" }
+      - { hostname: vcenter-mgmt, ip: "{{ host_ip['vcenter-mgmt'] }}" }
+      - { hostname: sddc-manager, ip: "{{ host_ip['sddc-manager'] }}" }
+      - { hostname: nsx-mgr-mgmt, ip: "{{ host_ip['nsx-mgr-mgmt'] }}" }
+      - { hostname: nsx-mgr-mgmt-01, ip: "{{ host_ip['nsx-mgr-mgmt-01'] }}" }
+      - { hostname: esxi-01, ip: "{{ host_ip['esxi-01'] }}" }
+      - { hostname: esxi-02, ip: "{{ host_ip['esxi-02'] }}" }
+      - { hostname: esxi-03, ip: "{{ host_ip['esxi-03'] }}" }
+      - { hostname: esxi-04, ip: "{{ host_ip['esxi-04'] }}" }
 
 # --- Verify depot connectivity ---
 
