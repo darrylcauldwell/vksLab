@@ -6,14 +6,8 @@
 # which honours the HTTPS_PROXY for SOCKS proxy support.
 
 # --- Discover transport zones ---
-# SDDC Manager creates four transport zones during domain creation:
-#   - nsx-vlan-transportzone (default VLAN, networking & security) — use for segments
-#   - nsx.vlan-tz.security.*.workload-cluster-vds01 (security-only) — DFW only, cannot create segments
-#   - nsx-overlay-transportzone (overlay, no hosts)
-#   - overlay-tz-<nsx-vip-fqdn> (overlay, hosts attached) — use for edge TEP
-#
-# For VLAN segments we need the default "nsx-vlan-transportzone".
-# For overlay (edge TEP) we need the one matching our NSX VIP hostname.
+# Transport zone names are defined in the workload domain spec (Phase 4).
+# Look them up to get the full path (which includes the UUID).
 
 - name: Get all transport zones
   vmware_vcf.ansible.vcf_nsx_info:
@@ -23,17 +17,17 @@
     gather: transport_zones
   register: all_tzs
 
-- name: Set VLAN transport zone path (default networking & security TZ)
+- name: Set VLAN transport zone path
   ansible.builtin.set_fact:
-    nsx_vlan_tz_path: "{{ (all_tzs.result | selectattr('display_name', 'equalto', 'nsx-vlan-transportzone') | first).path }}"
+    nsx_vlan_tz_path: "{{ (all_tzs.result | selectattr('display_name', 'equalto', nsx_vlan_tz_name) | first).path }}"
 
-- name: Set Overlay transport zone name (matches NSX VIP hostname)
+- name: Set Overlay transport zone name
   ansible.builtin.set_fact:
-    nsx_overlay_tz_name: "{{ (all_tzs.result | selectattr('display_name', 'search', 'nsx-vip-wld') | first).display_name }}"
+    nsx_overlay_tz_display_name: "{{ (all_tzs.result | selectattr('display_name', 'equalto', nsx_overlay_tz_name) | first).display_name }}"
 
 - name: Display discovered transport zones
   ansible.builtin.debug:
-    msg: "VLAN TZ path: {{ nsx_vlan_tz_path }}, Overlay TZ name: {{ nsx_overlay_tz_name }}"
+    msg: "VLAN TZ path: {{ nsx_vlan_tz_path }}, Overlay TZ: {{ nsx_overlay_tz_display_name }}"
 
 # --- Pre-Flight: Create Required Segments and IP Pools ---
 
@@ -111,7 +105,7 @@
           - host_switch_type: NVDS
             host_switch_name: edge-overlay
             transport_zone_endpoints:
-              - transport_zone_name: "{{ nsx_overlay_tz_name }}"
+              - transport_zone_name: "{{ nsx_overlay_tz_display_name }}"
             ip_assignment_spec:
               ip_pool_name: edge-tep-pool
               resource_type: StaticIpPoolSpec

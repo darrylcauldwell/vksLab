@@ -68,9 +68,9 @@ vcf_wld_domain_spec:
               nsxtSwitchConfig:
                 hostSwitchOperationalMode: STANDARD
                 transportZones:
-                  - name: nsx-vlan-transportzone
+                  - name: workload-vlan-tz
                     transportType: VLAN
-                  - name: "overlay-tz-nsx-vip-wld.{{ lab_domain }}"
+                  - name: workload-overlay-tz
                     transportType: OVERLAY
           nsxClusterSpec:
             nsxTClusterSpec:

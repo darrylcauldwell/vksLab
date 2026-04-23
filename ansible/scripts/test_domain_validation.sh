@@ -63,8 +63,8 @@ curl -sk -X POST "https://${SDDC_HOST}/v1/domains/validations" \
           "nsxtSwitchConfig": {
             "hostSwitchOperationalMode": "STANDARD",
             "transportZones": [
-              {"name": "nsx-vlan-transportzone", "transportType": "VLAN"},
-              {"name": "overlay-tz-nsx-vip-wld.lab.dreamfold.dev", "transportType": "OVERLAY"}
+              {"name": "workload-vlan-tz", "transportType": "VLAN"},
+              {"name": "workload-overlay-tz", "transportType": "OVERLAY"}
             ]
           },
           "portGroupSpecs": [
