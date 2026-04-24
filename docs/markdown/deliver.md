@@ -89,7 +89,7 @@ source .venv/bin/activate
 
 # Install dependencies and sync (also run this before each rebuild)
 pip install ansible-core
-ansible-playbook playbooks/sop/sync.yml
+./run.sh playbooks/sop/sync.yml
 ```
 
 The `sop/sync.yml` playbook installs the vmware-vcf SDK, Ansible Galaxy collections, and vendored vmware_vcf.ansible collection. Run it before each rebuild to pick up the latest changes.
@@ -125,7 +125,7 @@ Pre-installing packages in the template avoids ~10–15 minutes of apt installs 
 ```bash
 source .venv/bin/activate
 cd ansible
-ansible-playbook playbooks/phase1_foundation.yml --tags packages
+./run.sh playbooks/phase1_foundation.yml --tags packages
 ```
 
 > **Verification**: `dpkg -l | grep -c '^ii'` on the gateway shows a significantly higher package count than a base Ubuntu install.
@@ -135,7 +135,7 @@ ansible-playbook playbooks/phase1_foundation.yml --tags packages
 Download `VCF-SDDC-Manager-Appliance-9.0.2.0.25151285.ova` (2.03 GB) from support.broadcom.com and place it in `~/Downloads/` on the operator laptop. The `phase0_operator.yml` playbook uploads it to the gateway:
 
 ```bash
-ansible-playbook playbooks/phase0_operator.yml --tags ova
+./run.sh playbooks/phase0_operator.yml --tags ova
 ```
 
 > **Verification**: `ssh ubuntu@<gateway-ip> 'ls -lh ~/vcf-installer.ova'` shows 2.03 GB.
@@ -184,7 +184,7 @@ All gateway configuration (VLAN sub-interfaces, dnsmasq DNS/DHCP, chrony NTP, st
 ```bash
 source .venv/bin/activate
 cd ansible
-ansible-playbook playbooks/phase1_foundation.yml
+./run.sh playbooks/phase1_foundation.yml
 ```
 
 Phase 1 also prepares the gateway as the Ansible control node for all subsequent phases. It installs Ansible, 1Password CLI, clones the lab repo to `~/dda-vcf`, and installs required Ansible collections. After Phase 1 completes, SSH to the gateway and run all subsequent playbooks locally:
@@ -204,7 +204,7 @@ After the gateway is configured (§4.2), the 7 ESXi VMs will have obtained dynam
 
 ```bash
 cd ansible
-ansible-playbook playbooks/phase2_discover_macs.yml
+./run.sh playbooks/phase2_discover_macs.yml
 ```
 
 The playbook:
@@ -247,9 +247,9 @@ The `esxi_prepare` role then configures all hosts — hostname, DNS, NTP, root p
 
 ```bash
 cd ansible
-ansible-playbook playbooks/phase3_esxi.yml
+./run.sh playbooks/phase3_esxi.yml
 # Or prepare a single host
-ansible-playbook playbooks/phase3_esxi.yml --ask-become-pass --limit esxi-01
+./run.sh playbooks/phase3_esxi.yml --ask-become-pass --limit esxi-01
 ```
 
 The `prepare` command performs these steps on each host via SSH:
@@ -274,7 +274,7 @@ The Phase 3 playbook (`phase3_esxi.yml`) includes built-in validation tasks that
 To re-validate after changes, run the playbook in check mode:
 
 ```bash
-cd ansible && ansible-playbook playbooks/phase3_esxi.yml --limit esxi --check
+cd ansible && ./run.sh playbooks/phase3_esxi.yml --limit esxi --check
 ```
 
 | Check | Command / Method | Expected Result |
@@ -285,7 +285,7 @@ cd ansible && ansible-playbook playbooks/phase3_esxi.yml --limit esxi --check
 | NTP sync | `esxcli system ntp get` on each host | NTP is configured with server 10.0.10.1 |
 | Time sync | Compare time across all hosts | Time across all hosts is within 1 second |
 | vSAN ESA ready | `esxcli vsan storage list` on each host | The NVMe device is marked as SSD |
-| Host status | `cd ansible && ansible-playbook playbooks/phase3_esxi.yml --check` | All tasks report ok with no changes required |
+| Host status | `cd ansible && ./run.sh playbooks/phase3_esxi.yml --check` | All tasks report ok with no changes required |
 
 ## 6. Phase 4 — VCF Management Domain
 
@@ -309,7 +309,7 @@ In VCF 9.0, the SDDC Manager appliance doubles as the VCF Installer (Cloud Build
 The Phase 4 playbook (`phase4_vcf_mgmt.yml`) has two plays: the first deploys the VCF Installer, and the second (§6.3) drives the bringup workflow. Run the full playbook:
 
 ```bash
-cd ansible && ansible-playbook playbooks/phase4_vcf_mgmt.yml
+cd ansible && ./run.sh playbooks/phase4_vcf_mgmt.yml
 ```
 
 The first play deploys the VCF Installer OVA to esxi-01 with the correct network properties, powers it on, and waits for the installer services to become accessible. The deployment is idempotent — if the VM already exists, it skips straight to the service readiness check.
@@ -430,7 +430,7 @@ Then select **Re-run Validations** in the VCF Installer UI.
 The second play of the Phase 4 playbook (`phase4_vcf_mgmt.yml`) drives bringup end-to-end via the `vcf_bringup` role. It configures the offline depot, validates the bringup spec against the VCF Installer API, then submits the deployment and polls until completion. If the VCF Installer was already deployed in a previous run, restart the playbook from the bringup tasks:
 
 ```bash
-cd ansible && ansible-playbook playbooks/phase4_vcf_mgmt.yml --start-at-task="Get VCF Installer API token"
+cd ansible && ./run.sh playbooks/phase4_vcf_mgmt.yml --start-at-task="Get VCF Installer API token"
 ```
 
 | Step | Automated Action | Expected Result | Verification |
@@ -518,7 +518,7 @@ Once the vSAN ESA workaround (Section 7.0) has been applied to SDDC Manager, run
 
 ```bash
 cd ansible/
-ansible-playbook playbooks/phase6_vcf_workload.yml
+./run.sh playbooks/phase6_vcf_workload.yml
 ```
 
 **What the playbook does:**
@@ -537,7 +537,7 @@ ansible-playbook playbooks/phase6_vcf_workload.yml
 - Check the error message in the console output — it will include the actual SDDC Manager error response
 - Verify the vSAN ESA workaround properties are present (Section 7.0)
 - Verify SDDC Manager is operational (`systemctl status operationsmanager` on the SDDC Manager VM)
-- Retry: `ansible-playbook playbooks/phase6_vcf_workload.yml`
+- Retry: `./run.sh playbooks/phase6_vcf_workload.yml`
 
 ### 7.2 Workload Domain Verification
 
@@ -570,7 +570,7 @@ Keycloak OIDC integration is automated in Phase 5 (`phase5_vcf_platform.yml`). P
 **Prerequisites**: SOCKS tunnel running (`ssh -D 1080 -N ubuntu@<gateway-ip>`), VCF Operations bundles downloaded (automated safety net if not done manually).
 
 ```bash
-ansible-playbook playbooks/phase5_vcf_platform.yml
+./run.sh playbooks/phase5_vcf_platform.yml
 ```
 
 The playbook runs three roles in order:
@@ -986,7 +986,7 @@ Supervisor OIDC is configured with Keycloak via pinniped. This enables `kubectl 
 Phase 9 implements R-019, R-020, R-021 via AUTO-01 through AUTO-05. VCF Automation provides the self-service consumption layer for NSX VPC and VKS.
 
 ```bash
-ansible-playbook playbooks/phase9_vcf_automation.yml
+./run.sh playbooks/phase9_vcf_automation.yml
 ```
 
 ### 11.1 Deploy VCF Automation
@@ -1116,9 +1116,9 @@ For additional troubleshooting, see [Operations Guide](operate.md) Section 4.
 
 | Symptom | Cause | Resolution |
 |---------|-------|------------|
-| DHCP does not assign a static IP to an ESXi host | The Phase 2 MAC discovery playbook did not run, or the host had no dynamic lease when discovery ran | Re-run `ansible-playbook playbooks/phase2_discover_macs.yml` from the `ansible/` directory. If the host has no dynamic lease, verify it is powered on and connected to the `lab-trunk` network, then check `cat /var/lib/misc/dnsmasq.leases` on the gateway |
+| DHCP does not assign a static IP to an ESXi host | The Phase 2 MAC discovery playbook did not run, or the host had no dynamic lease when discovery ran | Re-run `./run.sh playbooks/phase2_discover_macs.yml` from the `ansible/` directory. If the host has no dynamic lease, verify it is powered on and connected to the `lab-trunk` network, then check `cat /var/lib/misc/dnsmasq.leases` on the gateway |
 | SSH to ESXi host is refused | SSH was not enabled via DCUI, or the ESXi firewall is blocking connections | Re-enable SSH via DCUI (**F2** > **Troubleshooting Options** > **Enable SSH**) |
-| NVMe device is not marked as SSD after running the playbook | The `esxi_prepare` role did not execute the SSD marking step, or the ESXi host was rebooted after preparation | Re-run `ansible-playbook playbooks/phase3_esxi.yml --limit <host>` and verify with `esxcli vsan storage list` |
+| NVMe device is not marked as SSD after running the playbook | The `esxi_prepare` role did not execute the SSD marking step, or the ESXi host was rebooted after preparation | Re-run `./run.sh playbooks/phase3_esxi.yml --limit <host>` and verify with `esxcli vsan storage list` |
 | vSAN ESA health check shows "disk not claimed" | The NVMe device was not tagged for vSAN use | Run `esxcli vsan storage tag add -d <device-id> -t capacityFlash` on the affected host |
 
 For additional troubleshooting, see [Operations Guide](operate.md) Section 4.
