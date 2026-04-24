@@ -68,3 +68,11 @@ gateway_dhcp_reservations:
   - {mac: "00:50:56:xx:xx:05", hostname: esxi-05, ip: "{{ host_ip['esxi-05'] }}"}
   - {mac: "00:50:56:xx:xx:06", hostname: esxi-06, ip: "{{ host_ip['esxi-06'] }}"}
   - {mac: "00:50:56:xx:xx:07", hostname: esxi-07, ip: "{{ host_ip['esxi-07'] }}"}
+
+# BGP configuration (FRR on gateway)
+bgp_local_asn: "{{ bgp_peer['gateway'].asn }}"
+bgp_router_id: "{{ bgp_peer['gateway'].ip }}"
+bgp_nsx_uplink_ip: "{{ bgp_peer['nsx-tier0'].ip }}"
+bgp_nsx_asn: "{{ bgp_peer['nsx-tier0'].asn }}"
+bgp_keepalive: 60
+bgp_holdtime: 180
