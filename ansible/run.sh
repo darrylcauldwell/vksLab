@@ -18,7 +18,8 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 if [ -z "$VIRTUAL_ENV" ] && [ -f "$REPO_ROOT/.venv/bin/activate" ]; then
     source "$REPO_ROOT/.venv/bin/activate"
 fi
-SECRETS_FILE="$SCRIPT_DIR/inventory/group_vars/secrets.yml"
+mkdir -p "$SCRIPT_DIR/inventory/group_vars/all"
+SECRETS_FILE="$SCRIPT_DIR/inventory/group_vars/all/secrets.yml"
 VAULT="Employee"
 
 if [ -z "$1" ]; then
