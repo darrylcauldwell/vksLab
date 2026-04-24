@@ -198,9 +198,21 @@ ansible-playbook -i inventory/hosts-gateway.yml playbooks/phase3_esxi.yml
 
 > **Note**: The gateway-local inventory (`hosts-gateway.yml`) eliminates SSH ProxyJump — the gateway connects directly to ESXi hosts on the management VLAN. This is faster and more reliable than running from the laptop over the internet. To pull latest changes before running: `cd ~/dda-vcf && git pull`.
 
-### 4.3 Phase 2 — Discover ESXi MACs (Automated)
+### 4.3 Restart vApp (Manual)
 
-After the gateway is configured (§4.2), the 7 ESXi VMs will have obtained dynamic DHCP addresses in the `.100–.199` range. The `phase2_discover_macs.yml` playbook reads these leases, maps each MAC to a static reservation (esxi-01 through esxi-07), writes the reservations into the dnsmasq config, and restarts dnsmasq so the hosts pick up their static IPs (`.11–.17`).
+After Phase 1 completes, the ESXi VMs need fresh DHCP leases from the newly configured dnsmasq. Power off the vApp in vCD, then power it back on. All gateway services (dnsmasq, chrony, step-ca, FRR, Keycloak) restart automatically.
+
+Wait for all 7 ESXi VMs to boot and obtain DHCP leases. Verify from the gateway:
+
+```bash
+ssh ubuntu@<gateway-public-ip> "cat /var/lib/misc/dnsmasq.leases"
+```
+
+You should see 7 entries in the `10.0.10.100–199` dynamic range.
+
+### 4.4 Phase 2 — Discover ESXi MACs (Automated)
+
+After the vApp restart, the 7 ESXi VMs will have obtained dynamic DHCP addresses in the `.100–.199` range. The `phase2_discover_macs.yml` playbook reads these leases, maps each MAC to a static reservation (esxi-01 through esxi-07), writes the reservations into the dnsmasq config, and restarts dnsmasq so the hosts pick up their static IPs (`.11–.17`).
 
 ```bash
 cd ansible
