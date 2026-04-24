@@ -48,7 +48,7 @@
     action: enable_supervisor
     cluster_id: "{{ vks_supervisor_cluster }}"
     spec:
-      size_hint: SMALL
+      size_hint: MEDIUM
       network_provider: NSX_VPC
       default_kubernetes_service_content_library: "{{ vks_content_library_name }}"
   when: supervisor_check.result | length == 0

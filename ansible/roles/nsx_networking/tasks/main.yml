@@ -221,27 +221,12 @@
             - TIER0_CONNECTED
             - TIER0_NAT
 
-# --- Tier-1 Gateway ---
+# --- NSX Project (Transit Gateway auto-created) ---
+# Creating an NSX Project automatically creates a Transit Gateway
+# that connects VPCs to the Provider Gateway (Tier-0).
+# This replaces the legacy Tier-1 gateway model.
 
-- name: Create Tier-1 gateway
-  vmware_vcf.ansible.vcf_nsx_gateway:
-    nsx_hostname: "{{ nsx_manager_hostname }}"
-    nsx_username: "{{ nsx_username }}"
-    nsx_password: "{{ nsx_password }}"
-    state: present
-    gateway_type: tier1
-    gateway_id: "{{ nsx_tier1_name }}"
-    spec:
-      display_name: "{{ nsx_tier1_name }}"
-      tier0_path: "/infra/tier-0s/{{ nsx_tier0_name }}"
-      route_advertisement_types:
-        - TIER1_CONNECTED
-        - TIER1_NAT
-        - TIER1_LB_VIP
-
-# --- VPC ---
-
-- name: Create VPC project
+- name: Create NSX Project (Transit Gateway auto-created)
   vmware_vcf.ansible.vcf_nsx_vpc:
     nsx_hostname: "{{ nsx_manager_hostname }}"
     nsx_username: "{{ nsx_username }}"
@@ -251,6 +236,10 @@
     project_id: "{{ nsx_vpc_project_name }}"
     spec:
       display_name: "{{ nsx_vpc_project_name }}"
+
+# --- VPC (via Transit Gateway) ---
+# VPC connects via the auto-created Transit Gateway, NOT directly to Tier-0.
+# This enables VCF 9.0 enhancements: Auto-SNAT, vCenter/VCF Automation management.
 
 - name: Create VPC
   vmware_vcf.ansible.vcf_nsx_vpc:
@@ -263,27 +252,9 @@
     vpc_id: "{{ nsx_vpc_name }}"
     spec:
       display_name: "{{ nsx_vpc_name }}"
-      connectivity_path: "/infra/tier-0s/{{ nsx_tier0_name }}"
 
-# --- SNAT Rules ---
-
-- name: Create SNAT rules on Tier-0
-  vmware_vcf.ansible.vcf_nsx_nat:
-    nsx_hostname: "{{ nsx_manager_hostname }}"
-    nsx_username: "{{ nsx_username }}"
-    nsx_password: "{{ nsx_password }}"
-    state: present
-    gateway_type: tier0
-    gateway_id: "{{ nsx_tier0_name }}"
-    rule_id: "{{ item.name }}"
-    spec:
-      display_name: "{{ item.name }}"
-      action: SNAT
-      source_network: "{{ item.source_network }}"
-      translated_network: "{{ item.translated_ip }}"
-      enabled: true
-      logging: false
-  loop: "{{ nsx_snat_rules }}"
+# Note: VPC Auto-SNAT is handled automatically by the Transit Gateway model.
+# No manual SNAT rules on Tier-0 are needed.
 
 # --- Verification ---
 

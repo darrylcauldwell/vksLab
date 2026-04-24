@@ -22,7 +22,7 @@ PDFs are regenerated automatically by CI on every push to `main`.
 
 ## Deployment Phases
 
-Ansible playbooks automate the full deployment across 9 phases. Phases 0-3 run from the operator's laptop; phases 4-8 run via SOCKS proxy through the gateway.
+Ansible playbooks automate the full deployment across 10 phases. Phases 0-3 run from the operator's laptop; phases 4-9 run via SOCKS proxy through the gateway.
 
 | Phase | Playbook | What it does |
 |-------|----------|-------------|
@@ -33,8 +33,9 @@ Ansible playbooks automate the full deployment across 9 phases. Phases 0-3 run f
 | 4 | `phase4_vcf_mgmt.yml` | VCF Management Domain (VCF Installer bringup) |
 | 5 | `phase5_vcf_platform.yml` | VCF Platform Services (VCF Ops, Identity, CA certs) |
 | 6 | `phase6_vcf_workload.yml` | VCF Workload Domain (host commission, domain create) |
-| 7 | `phase7_vcf_workload_nsx.yml` | VCF Workload NSX Networking (Edge, Tier-0/1, BGP, VPC) |
-| 8 | `phase8_vcf_workload_vks.yml` | VCF Workload VKS (Supervisor, namespace, cluster) |
+| 7 | `phase7_vcf_workload_nsx.yml` | VCF Workload NSX Networking (Edge, Tier-0, BGP, Transit Gateway, VPC) |
+| 8 | `phase8_vcf_workload_vks.yml` | VCF Workload VKS (Supervisor, clusters, platform services) |
+| 9 | `phase9_vcf_automation.yml` | VCF Automation (self-service portal, VKSM, multi-tenant RBAC) |
 
 ```bash
 # Run a single phase

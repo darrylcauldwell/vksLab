@@ -1,0 +1,76 @@
+---
+# Phase 9 — VCF Automation
+# Deploy VCF Automation, configure Provider/Tenant organisations,
+# enable VKSM, and configure self-service catalog.
+
+# --- Ensure DNS ---
+
+- name: Ensure DNS for VCF Automation
+  ansible.builtin.include_tasks: ../../common/tasks/ensure_dns.yml
+  vars:
+    dns_records:
+      - { hostname: vcf-auto, ip: "{{ host_ip['vcf-auto'] }}" }
+      - { hostname: sddc-manager, ip: "{{ host_ip['sddc-manager'] }}" }
+
+# --- Deploy VCF Automation via SDDC Manager ---
+
+- name: Get SDDC Manager bearer token
+  vmware_vcf.ansible.vcf_sddc_info:
+    sddc_hostname: "{{ vcf_mgmt_hostname }}"
+    sddc_username: "{{ vcf_mgmt_username }}"
+    sddc_password: "{{ vcf_mgmt_password }}"
+    gather: token
+  register: token_response
+  no_log: true
+
+- name: Set bearer token facts
+  ansible.builtin.set_fact:
+    sddc_token: "{{ token_response.result.bearer_token }}"
+    sddc_refresh_token: "{{ token_response.result.refresh_token }}"
+  no_log: true
+
+# VCF Automation deployment via SDDC Manager API
+# Note: The exact API spec for VCF Automation deployment will need
+# validation against the SDDC Manager API when we reach this phase.
+# The deployment pattern follows vcf_mgmt_components (Phase 5).
+
+- name: "LONG RUNNING TASK — Deploying VCF Automation (~45-60 min)"
+  ansible.builtin.debug:
+    msg: "VCF Automation deployment starting. Monitor progress in SDDC Manager → Tasks."
+
+# TODO: VCF Automation deployment task via SDDC Manager API
+# This requires a new SDK method and Ansible module for VCF Automation
+# deployment. The pattern will match vcf_management_components but
+# with the VCF Automation spec.
+
+# --- Configure Provider Organisation ---
+
+# TODO: Configure Provider Organisation with Keycloak OIDC
+# - Create OIDC client 'vcf-automation-provider' in Keycloak
+# - Configure Provider Org with Keycloak issuer URL
+# - Map vcf-admins group to Organisation Administrator
+
+# --- Configure Tenant Organisation ---
+
+# TODO: Configure Tenant Organisation
+# - Create tenant org with Keycloak OIDC
+# - Create project mapping to NSX Project and vSphere Namespace
+# - Map vcf-operators group to Project Administrator
+
+# --- Enable VKSM ---
+
+# TODO: Upload Supervisor Management Proxy manifest to vCenter
+# TODO: Configure VKSM with VCF Automation FQDN
+
+# --- Configure Service Catalog ---
+
+# TODO: Create VKS cluster blueprint
+# TODO: Create VM blueprint
+# TODO: Publish catalog items
+
+- name: Display VCF Automation status
+  ansible.builtin.debug:
+    msg: >-
+      VCF Automation Phase 9 role structure in place.
+      Deployment and configuration tasks require SDK/module development
+      and will be implemented after Phases 0-8 are validated.

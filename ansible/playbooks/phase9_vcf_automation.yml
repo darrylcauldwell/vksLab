@@ -1,0 +1,16 @@
+---
+# Phase 9 — VCF Automation
+# Self-service consumption layer for NSX VPC and VKS.
+# Deploys VCF Automation, configures multi-tenant organisations,
+# enables VKSM, and publishes service catalog.
+- name: Phase 9 — VCF Automation
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  environment:
+    HTTPS_PROXY: "socks5h://localhost:1080"
+  pre_tasks:
+    - name: Ensure SOCKS proxy
+      ansible.builtin.include_tasks: ../roles/common/tasks/ensure_socks.yml
+  roles:
+    - vcf_automation

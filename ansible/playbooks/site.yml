@@ -1,5 +1,5 @@
 ---
-# Full lab deployment — all 9 phases in order
+# Full lab deployment — all 10 phases in order
 - name: Phase 0 — Operator Workstation
   ansible.builtin.import_playbook: phase0_operator.yml
 
@@ -26,3 +26,6 @@
 
 - name: Phase 8 — VCF Workload VKS
   ansible.builtin.import_playbook: phase8_vcf_workload_vks.yml
+
+- name: Phase 9 — VCF Automation
+  ansible.builtin.import_playbook: phase9_vcf_automation.yml

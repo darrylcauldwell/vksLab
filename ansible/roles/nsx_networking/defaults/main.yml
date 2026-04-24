@@ -15,30 +15,20 @@ nsx_edge_vms:
     management_ip: "{{ host_ip['edge-02'] }}"
 nsx_edge_size: LARGE
 
-# Tier-0 gateway
+# Provider Gateway (Tier-0)
 nsx_tier0_name: tier0-gateway
 nsx_tier0_ha_mode: ACTIVE_STANDBY
 nsx_tier0_uplink_ip: "{{ bgp_peer['nsx-tier0'].ip }}"
 nsx_tier0_uplink_prefix: 24
 nsx_tier0_uplink_vlan: "{{ vlan['edge_uplink'].vlan_id }}"
 
-# Tier-1 gateway
-nsx_tier1_name: tier1-gateway
-
 # BGP
 nsx_bgp_local_asn: "{{ bgp_peer['nsx-tier0'].asn }}"
 nsx_bgp_neighbor_ip: "{{ bgp_peer['gateway'].ip }}"
 nsx_bgp_neighbor_asn: "{{ bgp_peer['gateway'].asn }}"
 
-# VPC
-nsx_vpc_project_name: vks-project
-nsx_vpc_name: vks-vpc
+# NSX Project (Transit Gateway auto-created)
+nsx_vpc_project_name: lab-project
 
-# SNAT rules
-nsx_snat_rules:
-  - name: pod-cidr-snat
-    source_network: "{{ vks_pod_cidr }}"
-    translated_ip: "{{ bgp_peer['nsx-tier0'].ip }}"
-  - name: service-cidr-snat
-    source_network: "{{ vks_service_cidr }}"
-    translated_ip: "{{ bgp_peer['nsx-tier0'].ip }}"
+# VPC
+nsx_vpc_name: vks-vpc
