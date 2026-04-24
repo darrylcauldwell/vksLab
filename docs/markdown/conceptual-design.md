@@ -36,7 +36,7 @@ Demonstrate vSphere Kubernetes Services (VKS) on VMware Cloud Foundation (VCF) 9
 | R-005 | Lab MUST deploy a VKS cluster via Supervisor with NSX VPC networking |
 | R-006 | Lab MUST provide BGP peering between NSX Tier-0 Gateway and a virtual router for north-south routing |
 | R-007 | Lab SHOULD use vSAN Express Storage Architecture (ESA) with Failures to Tolerate (FTT)=1 for all clusters |
-| R-008 | Lab SHOULD use NSX VPC with centralised Edge connectivity |
+| R-008 | Lab SHOULD use NSX VPC with Transit Gateway connectivity model for VCF Automation compatibility |
 | R-009 | All TLS certificates SHOULD be issued by the internal step-ca CA |
 | R-010 | Lab MAY be powered off, snapshot, and redeployed as a single vApp |
 | R-011 | VKS workloads SHOULD enforce AppArmor RuntimeDefault profile for container security hardening |
@@ -46,6 +46,10 @@ Demonstrate vSphere Kubernetes Services (VKS) on VMware Cloud Foundation (VCF) 9
 | R-015 | Lab SHOULD provide Kubernetes backup and restore for persistent workloads |
 | R-016 | Lab SHOULD provide GitOps-based application deployment across VKS clusters |
 | R-017 | Lab SHOULD provide centralised log collection for VCF management components |
+| R-018 | Lab SHOULD provide network visibility and flow analytics for NSX overlay and underlay traffic |
+| R-019 | Lab MUST deploy VCF Automation as the self-service consumption layer for NSX VPC and VKS |
+| R-020 | Lab MUST provide multi-tenant self-service provisioning of VKS clusters via VCF Automation VKSM |
+| R-021 | Lab MUST provide unified RBAC across VCF, VKS, and NSX VPC via Keycloak → VCF Automation identity chain |
 
 ## 5. Service Level Objectives
 
@@ -144,7 +148,7 @@ Functional blocks and relationships — no network details. See [Logical Design]
 
 ## 10. Deployment Approach
 
-Deployment proceeds in nine phases, each building on the previous:
+Deployment proceeds in ten phases, each building on the previous:
 
 1. **Phase 0 — Foundation** — vApp creation, gateway deployment
 2. **Phase 1 — Gateway Services** — virtual router, infrastructure services (DNS, NTP, CA, Keycloak)
@@ -153,8 +157,9 @@ Deployment proceeds in nine phases, each building on the previous:
 5. **Phase 4 — VCF Management Domain** — VCF Installer bringup of management components
 6. **Phase 5 — VCF Platform Services** — VCF Management Components (VCF Operations, Collector, Fleet Management), Identity Broker OIDC, CA certificate replacement, SDDC Manager backup configuration. VCF Operations for Logs and VCF Operations for Networks are deployed separately via Fleet Management after automation completes
 7. **Phase 6 — VCF Workload Domain** — host commissioning and workload domain creation
-8. **Phase 7 — VCF Workload NSX Networking** — Edge cluster, NSX Tier-0/Tier-1 gateways, BGP, VPC, SNAT
-9. **Phase 8 — VCF Workload VKS** — Supervisor enablement, namespace creation, VKS cluster deployment, platform services (Contour, Harbor, Velero, ArgoCD)
+8. **Phase 7 — VCF Workload NSX Networking** — Edge cluster, Provider Gateway (Tier-0), BGP, NSX Project with Transit Gateway, VPC
+9. **Phase 8 — VCF Workload VKS** — Supervisor enablement (MEDIUM), VKS clusters, platform services (cert-manager, Contour, Harbor, MinIO, Velero, ArgoCD)
+10. **Phase 9 — VCF Automation** — VCF Automation deployment, Provider/Tenant organisations, VKSM enablement, self-service catalog, Keycloak OIDC integration, multi-tenant RBAC
 
 See [Logical Design](logical-design.md) for phase details and [Delivery Guide](deliver.md) for step-by-step procedures.
 
@@ -182,7 +187,7 @@ See [Logical Design](logical-design.md) for phase details and [Delivery Guide](d
 | R-005 | VKS cluster via Supervisor with NSX VPC | VKS-01, VKS-02, VKS-03, VKS-04, VKS-05, VKS-06, VKS-07, VKS-08 | Phase 8 — Supervisor + VKS | `kubectl get nodes` shows 6 Ready |
 | R-006 | BGP peering between NSX and gateway | NET-02, NSX-01, NSX-02 | Phase 7 — BGP config | `sudo vtysh -c 'show ip bgp summary'` — Established |
 | R-007 | vSAN ESA with FTT=1 | ESX-03 | Phase 3 — ESXi prep (§5.2) | `esxcli vsan health cluster list` green |
-| R-008 | NSX VPC centralised Edge | NSX-03, NSX-04 | Phase 7 — VPC config | VPC shows Realised in NSX Manager |
+| R-008 | NSX VPC with Transit Gateway | NSX-03, NSX-04, NSX-05 | Phase 7 — Transit Gateway + VPC config | VPC shows Realised in NSX Manager; Transit Gateway connected to Provider Gateway |
 | R-009 | TLS certs from internal step-ca | SVC-02 | Phase 1 — CA setup (§4.2) + Phase 3 cert distribution (§5.2) | `step ca health`; certs valid on components |
 | R-010 | vApp snapshot/redeploy | VCD-03 | Operate Guide — snapshot SOP (§1.3) | Snapshot restore + power-on completes successfully |
 | R-011 | AppArmor RuntimeDefault for VKS pods | VKS-05 | Phase 8 — AppArmor verification | `kubectl get pod -o jsonpath` confirms RuntimeDefault |
@@ -193,6 +198,9 @@ See [Logical Design](logical-design.md) for phase details and [Delivery Guide](d
 | R-016 | GitOps-based application deployment | VKS-13 | Phase 8 — ArgoCD installation | `argocd app list` shows Synced/Healthy |
 | R-017 | Centralised log collection | VCF-05 | Phase 5 — VCF Operations for Logs deployment | VCF Operations for Logs UI accessible; log sources connected |
 | R-018 | Network visibility and flow analytics | VCF-08 | Phase 5 — VCF Operations for Networks deployment | VCF Operations for Networks UI accessible; data sources connected |
+| R-019 | VCF Automation self-service consumption | AUTO-01, AUTO-02, AUTO-03 | Phase 9 — VCF Automation deployment and configuration | VCF Automation portal accessible; Provider org configured |
+| R-020 | Multi-tenant VKS cluster provisioning via VKSM | AUTO-04, VKS-21 | Phase 9 — VKSM enablement | VKS clusters visible in VCF Automation; lifecycle management operational |
+| R-021 | Unified RBAC via Keycloak → VCF Automation | AUTO-05, VKS-20 | Phase 9 — Org/Project RBAC configuration | Keycloak users can login to VCF Automation portal; project-scoped access to VKS and VPC |
 
 ### Constraint Traceability
 

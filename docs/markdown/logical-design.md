@@ -491,23 +491,27 @@ The NSX Tier-0 Gateway operates in **Active-Standby** mode across the two Edge V
 ### Gateway Hierarchy
 
 ```
-NSX Tier-0 Gateway (Active-Standby)
+Provider Gateway / Tier-0 (Active-Standby)
     │
     ├── BGP peering with gateway (FRR)
     │   (external connectivity)
     │
-    └── NSX Tier-1 Gateway
+    └── Transit Gateway (auto-created per NSX Project)
             │
-            ├── Route advertisement: connected subnets, NAT IPs, LB VIPs
+            ├── Inter-VPC routing
             │
-            └── NSX VPC
+            └── NSX VPC (per tenant/project)
+                    │
+                    ├── VPC Auto-SNAT (automatic)
                     │
                     └── VKS pod and service networks
 ```
 
-- **Tier-0**: Active-Standby HA mode, BGP uplink to gateway (FRR), source NAT for outbound traffic
-- **Tier-1**: Linked to Tier-0, advertises connected subnets, hosts NSX LB for Kubernetes services
-- **VPC**: Centralised connectivity model — all north-south traffic traverses the Edge cluster
+- **Provider Gateway (Tier-0)**: Active-Standby HA mode, BGP uplink to gateway (FRR), external connectivity
+- **Transit Gateway**: Auto-created when an NSX Project is created. Connects VPCs to the Provider Gateway. Handles inter-VPC routing and enables VCF 9.0 enhancements (Auto-SNAT, vCenter/VCF Automation management)
+- **VPC**: Centralised connectivity model via Transit Gateway — all north-south traffic traverses the Edge cluster. VPC Auto-SNAT replaces manual SNAT rules on the Tier-0
+
+> **Note**: The Tier-1 gateway used in legacy NSX VPC models is replaced by the Transit Gateway. VPCs connected directly to Tier-0 (without Transit Gateway) cannot be managed from vCenter or VCF Automation and do not benefit from VCF 9.0 enhancements.
 
 ### BGP Design
 
@@ -523,30 +527,25 @@ BGP provides dynamic route exchange: the gateway advertises lab infrastructure s
 
 **Timer selection**: Keepalive 60s / hold 180s (3× keepalive) are conservative values suited to a nested lab. Default BGP timers (60/180) provide tolerance for momentary delays caused by nested virtualisation overhead, vSAN latency spikes, or Edge VM resource contention. More aggressive timers (e.g., 10/30) would detect failures faster but risk false positives in a resource-constrained nested environment.
 
-### Centralised VPC Model
+### VPC with Transit Gateway Model
 
-NSX VPC provides project-level network isolation for VKS workloads:
+NSX VPC provides project-level network isolation for VKS workloads. The Transit Gateway model is required for VCF Automation compatibility:
 
 - **Connectivity**: Centralised (via Edge cluster) — not distributed
-- **External connectivity**: Via Tier-0 BGP to gateway
+- **External connectivity**: VPC → Transit Gateway → Provider Gateway (Tier-0) → BGP → gateway
 - **Subnets**: Created dynamically by VKS for pod and service networks
-- **NAT**: Source NAT on Tier-0 for outbound traffic
-- **Load balancing**: NSX LB via Tier-1 for Kubernetes services
+- **NAT**: VPC Auto-SNAT (automatic per-VPC, replaces manual Tier-0 SNAT rules)
+- **Load balancing**: NSX embedded LB for Kubernetes services
+- **Management**: Configurable from NSX Manager, vCenter, and VCF Automation
+- **Multi-tenancy**: Each NSX Project gets its own Transit Gateway; multiple VPCs per project
 
-### Source Network Address Translation (SNAT) Design
+### VPC Auto-SNAT
 
-SNAT on the Tier-0 gateway translates outbound VPC traffic so that external networks (infrastructure VLANs, gateway, internet) see a single routable source IP — the Tier-0 uplink address.
+With the Transit Gateway model, SNAT is handled automatically per VPC — no manual SNAT rules on the Tier-0 are required. Each VPC's outbound traffic is automatically translated to a routable address by the Transit Gateway / Provider Gateway path.
 
-| Parameter | Value |
-|-----------|-------|
-| SNAT source ranges | 192.168.0.0/16 (VKS pod CIDR), 10.96.0.0/12 (VKS service CIDR) |
-| Translated IP | 10.0.60.2 (Tier-0 uplink interface on VLAN 60) |
-| Applied on | Tier-0 gateway |
-| Direction | Outbound (egress from VPC to external) |
+**Why Auto-SNAT replaces manual rules**: In the legacy Tier-0 direct model, manual SNAT rules were required for each VPC CIDR. With Transit Gateway, NSX manages SNAT automatically for each VPC, simplifying multi-tenant deployments where each project has its own VPC with different CIDRs.
 
-**Why SNAT is required**: VPC pod and service CIDRs (192.168.0.0/16, 10.96.0.0/12) are internal overlay addresses. External networks (gateway, internet) cannot route return traffic to these addresses directly. SNAT translates the source to 10.0.60.2, which the gateway knows how to reach via the directly connected VLAN 60 sub-interface. Return traffic is reverse-NATted by the Tier-0 back to the original pod/service IP.
-
-**Inbound traffic** to Kubernetes services uses NSX Load Balancer VIPs on the Tier-1 gateway. The LB VIP is a routable address advertised via Tier-1 → Tier-0 → BGP to the gateway, so inbound traffic does not require DNAT rules on the Tier-0.
+**Inbound traffic** to Kubernetes services uses NSX embedded LB VIPs. The LB VIP is a routable address advertised via Transit Gateway → Provider Gateway → BGP to the gateway.
 
 ### Route Redistribution Chain
 
@@ -646,8 +645,9 @@ Infrastructure VLANs (10.0.10–60.0/24)
 |------|-------------|-----------------|----------------------|-------------------|
 | R-006 | NSX-01 | Two-node NSX Edge cluster sized Large | Follows "Host Fault Tolerant NSX Edge Model" — minimum for Active-Standby HA within single rack; Large sizing required for VKS workloads | Risk: Large Edges consume significant resources (8 vCPU, 32 GB each). Mitigation: Workload domain hosts sized accordingly |
 | R-006 | NSX-02 | Active-Standby Tier-0 with BGP uplink to gateway (FRR) (keepalive 60s, hold 180s) | Provides dynamic route exchange; gateway advertises infrastructure subnets, NSX advertises VPC prefixes; conservative timers tolerate nested virtualisation overhead | Risk: BGP misconfiguration breaks north-south routing. Mitigation: Verify adjacency and route tables in Phase 7 |
-| R-008 | NSX-03 | Centralised VPC connectivity model (via Edge cluster) | Follows "Multi-Tenancy Pattern 1: Single VPC for Multiple Businesses in One Supervisor Zone" — all north-south traffic traverses Edge; simpler than distributed model for lab | Risk: Edge cluster becomes throughput bottleneck. Mitigation: Acceptable for lab traffic volumes |
-| R-008 | NSX-04 | Source NAT on Tier-0 for outbound VPC traffic | Simplifies return routing — external networks see traffic from Tier-0 uplink IP | Risk: NAT hides source IPs. Mitigation: Acceptable for lab; can add specific SNAT rules if needed |
+| R-008 | NSX-03 | Centralised VPC connectivity via Transit Gateway model | Follows "VPC with Full Services Workload Networking Model" — VPCs connect via Transit Gateway (auto-created per NSX Project) to Provider Gateway (Tier-0). Required for VCF Automation compatibility, vCenter/VCF Automation VPC management, and VPC Auto-SNAT | Risk: Transit Gateway adds a routing hop. Mitigation: Negligible latency in nested lab; enables full VCF 9.0 networking features |
+| R-008 | NSX-04 | VPC Auto-SNAT replaces manual Tier-0 SNAT rules | Transit Gateway model enables automatic per-VPC SNAT — no manual rules needed. Simplifies multi-tenant VPC provisioning where each project has different CIDRs | Risk: Less granular control than manual rules. Mitigation: Auto-SNAT is the recommended model for VCF Automation; manual rules can be added if specific translation is needed |
+| R-019 | NSX-05 | NSX Project per tenant with dedicated Transit Gateway | Each tenant gets an NSX Project with auto-created Transit Gateway. VPCs within the project share the Transit Gateway. Provides network isolation between tenants at the Transit Gateway level | Risk: Multiple Transit Gateways consume Edge resources. Mitigation: Lab has 2 tenants maximum; Edge Large sizing is sufficient |
 
 ## 8. VKS Architecture
 
@@ -789,7 +789,7 @@ This is set via the Kubernetes `securityContext.appArmorProfile` field (Kubernet
 
 | Req. | Decision ID | Design Decision | Design Justification | Risk / Mitigation |
 |------|-------------|-----------------|----------------------|-------------------|
-| R-005 | VKS-01 | Supervisor enabled on workload domain cluster with NSX networking | Follows "Tenancy Model 2: Shared Workload Domain for Multiple Organizations" — Supervisor uses NSX VPC for namespace networking and load balancing (VKS-06, VKS-07); guest cluster pod networking uses Antrea CNI (VKS-08) | Risk: Supervisor enablement requires stable NSX and vSAN. Mitigation: Validate both before enabling Supervisor |
+| R-005 | VKS-01 | Supervisor enabled on workload domain cluster with NSX networking, sized MEDIUM | Follows "Tenancy Model 2: Shared Workload Domain for Multiple Organizations" — Supervisor uses NSX VPC for namespace networking and load balancing (VKS-06, VKS-07); guest cluster pod networking uses Antrea CNI (VKS-08). MEDIUM sizing required for VKSM (VKS Cluster Management) integration with VCF Automation | Risk: MEDIUM Supervisor consumes more resources than SMALL. Mitigation: Workload domain hosts have sufficient headroom; MEDIUM is the minimum for VKSM |
 | R-005 | VKS-02 | 3 control plane + 3 worker nodes for VKS cluster | HA control plane with 3 workers provides realistic cluster topology | Risk: 6 VMs consume significant workload domain resources. Mitigation: Use best-effort-medium VM class (2 vCPU, 8 GB) |
 | R-005 | VKS-03 | Subscribed content library for VKr images | Automatic sync of Kubernetes release images from VMware | Risk: Requires internet access from nested environment. Mitigation: Route via gateway → vCD public network |
 | C-004 | VKS-04 | best-effort-medium VM class for VKS nodes | Balances resource use against lab constraints | Risk: Insufficient resources for complex workloads. Mitigation: Scale VM class up if needed; monitor resource utilisation |
@@ -904,3 +904,71 @@ Manual `kubectl apply` and Helm installs do not provide drift detection, audit t
 | R-016 | VKS-18 | ArgoCD sources manifests from `dda-vcf` repo (`kubernetes/apps/` path) with App of Apps pattern | Single repo for infrastructure and application manifests aligns with DDA philosophy; App of Apps enables self-management and declarative multi-app deployment; hub on services cluster manages both clusters | Risk: Repo coupling — infrastructure changes and app changes share git history. Mitigation: Separate directory paths provide logical separation; ArgoCD path filters prevent unintended syncs |
 | R-016 | VKS-19 | ArgoCD authenticates via Keycloak OIDC through Dex sidecar | Single sign-on with same identity as vCenter, NSX Manager, and VCF Operations; `vcf-admins` Keycloak group maps to ArgoCD `role:admin`; `vcf-operators` maps to `role:readonly` | Risk: Dex adds a component to manage. Mitigation: Dex is bundled with ArgoCD Helm chart; Keycloak is the authoritative identity source — Dex is stateless |
 | R-005 | VKS-20 | Supervisor OIDC configured with Keycloak via pinniped for kubectl access | Single identity for VCF management UIs and Kubernetes CLI; `vcf-admins` → `cluster-admin`, `vcf-operators` → namespace `edit` role; `kubectl vsphere login` triggers OIDC flow | Risk: Pinniped adds complexity to the authentication path. Mitigation: Pinniped is the standard Supervisor OIDC mechanism; well-tested with VKS |
+| R-020 | VKS-21 | VKS Cluster Management (VKSM) enabled via Supervisor Management Proxy | Enables full VKS lifecycle management (create, scale, upgrade, backup, restore) from VCF Automation portal. Requires Supervisor MEDIUM sizing. Clusters automatically attach to VKSM — no per-cluster agent install | Risk: VKSM adds services to Supervisor control plane. Mitigation: MEDIUM sizing accommodates the additional load |
+
+## 9. VCF Automation Architecture
+
+### Deployment Model
+
+VCF Automation follows the **Simple VCF Automation Model** — single-node deployment in the management domain. It provides self-service consumption of NSX VPC networking and VKS clusters via a tenant portal, with infrastructure blueprints for repeatable deployments.
+
+> Reference: [Simple VCF Automation Model](https://techdocs.broadcom.com/us/en/vmware-cis/vcf/vcf-9-0-and-later/9-0/design/design-library/vcf-automation-deployment-models(1)/vcf-automation-simple-deployment-model.html), [VPC with Full Services Workload Networking Model](https://techdocs.broadcom.com/us/en/vmware-cis/vcf/vcf-9-0-and-later/9-0/design/design-library/design-library-workload-networking/design-library-workload-networking-vcfa-all-apps-org-compatible.html)
+
+### Organisation and Multi-Tenancy Model
+
+VCF Automation uses a three-tier hierarchy:
+
+```
+Provider Organisation (platform admin)
+    │
+    └── Tenant Organisation (per business unit / team)
+            │
+            └── Project (maps to NSX Project + vSphere Namespace)
+                    │
+                    ├── NSX VPC (via Transit Gateway)
+                    ├── VKS clusters (via VKSM)
+                    └── VM workloads (via cloud templates)
+```
+
+- **Provider Organisation**: Managed by `vcf-admins` Keycloak group. Configures infrastructure, cloud zones, and service catalog
+- **Tenant Organisation**: One per team/business unit. Keycloak OIDC provides SSO. Users see only their projects
+- **Project**: Maps to an NSX Project (with Transit Gateway and VPC) and a vSphere Namespace. Resource quotas and RBAC are scoped to the project
+
+### Identity Chain
+
+```
+Keycloak (Phase 1)
+    │
+    ├── VCF Identity Broker (Phase 5) → vCenter/NSX SSO
+    │
+    └── VCF Automation Provider Org OIDC (Phase 9)
+            │
+            ├── Provider Admin Portal (vcf-admins)
+            │
+            └── Tenant Org OIDC
+                    │
+                    ├── VCF Automation Self-Service Portal
+                    ├── vSphere Namespace permissions (delegated)
+                    ├── VKS cluster access (via VKSM)
+                    └── NSX VPC access (via NSX Project)
+```
+
+A single Keycloak login provides access to: vCenter, NSX Manager, VCF Operations, VCF Automation portal, VKS clusters (kubectl), and ArgoCD.
+
+### VCF Orchestrator
+
+VCF Operations Orchestrator (formerly vRealize Orchestrator) is embedded within VCF Automation — not deployed separately. It provides:
+
+- Custom workflow automation for multi-step provisioning with approvals
+- Extensibility actions in cloud templates / blueprints
+- Integration with third-party systems via plugins
+
+### VCF Automation Design Decisions
+
+| Req. | Decision ID | Design Decision | Design Justification | Risk / Mitigation |
+|------|-------------|-----------------|----------------------|-------------------|
+| R-019 | AUTO-01 | VCF Automation deployed in management domain (Simple model) | Single-node deployment follows "Simple VCF Automation Model"; provides self-service portal for NSX VPC and VKS consumption without the complexity of a multi-node deployment | Risk: Single-node — no HA. Mitigation: Acceptable for lab; vSphere HA restarts the appliance on host failure |
+| R-019 | AUTO-02 | VCF Automation configured as All Apps Organisation | All Apps mode enables both VM and Kubernetes workload provisioning. Required for VKSM integration, NSX VPC self-service, and cloud template blueprints | Risk: All Apps consumes more resources than VM-only mode. Mitigation: Management domain has sufficient headroom |
+| R-019 | AUTO-03 | Service catalog with VKS cluster and VM blueprints | Pre-configured cloud templates enable self-service provisioning. Tenants select from a curated catalog rather than building infrastructure from scratch | Risk: Blueprint maintenance overhead. Mitigation: Lab has a small catalog; ArgoCD can manage blueprint definitions via GitOps |
+| R-020 | AUTO-04 | VKSM enabled via Supervisor Management Proxy | VKSM provides unified VKS lifecycle management from the VCF Automation portal — create, scale, upgrade, backup, restore. Eliminates need for direct kubectl access for cluster lifecycle operations | Risk: VKSM adds dependency on VCF Automation for cluster management. Mitigation: Direct kubectl access remains available as fallback |
+| R-021 | AUTO-05 | Keycloak OIDC for VCF Automation Provider and Tenant organisations | Same Keycloak realm and groups (`vcf-admins`, `vcf-operators`) used across all VCF components. Provider org maps `vcf-admins` to Organisation Administrator. Tenant orgs map project membership via Keycloak groups | Risk: Keycloak becomes single point of failure for all authentication. Mitigation: Keycloak runs on the gateway with Docker restart policy; lab is not production |
