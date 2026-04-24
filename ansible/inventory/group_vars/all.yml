@@ -30,9 +30,15 @@ lab_ntp_servers:
 # 1Password vault name
 onepassword_vault: Employee
 
-# Secrets — loaded by ensure_1password.yml pre-play at playbook start.
+# Gateway public IP — must be a lookup (not set_fact) because the inventory
+# needs it at parse time for ProxyJump and ansible_host. This is the ONE
+# 1Password lookup that triggers at inventory load. All other secrets are
+# fetched by ensure_1password.yml pre-play (single biometric prompt).
+gateway_public_ip: "{{ lookup('community.general.onepassword', 'Lab Bootstrap', field='ip_address', vault=onepassword_vault) }}"
+
+# All other secrets — loaded by ensure_1password.yml pre-play at playbook start.
 # Single biometric prompt, then cached as facts on all hosts.
-# DO NOT use onepassword lookup here — it triggers per-evaluation biometric prompts.
+# DO NOT add onepassword lookups here — they trigger per-evaluation biometric prompts.
 
 # Keycloak
 keycloak_realm: lab
