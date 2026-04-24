@@ -1,0 +1,72 @@
+---
+# Phase 8 — MinIO S3-compatible object storage (Helm chart)
+# Backend storage for Velero backups. Single-pod deployment with vSAN-backed PVC.
+
+- name: Add MinIO Helm repository
+  kubernetes.core.helm_repository:
+    name: minio
+    repo_url: "{{ vks_minio_chart_repo }}"
+
+- name: Deploy MinIO
+  kubernetes.core.helm:
+    name: "{{ vks_minio_release_name }}"
+    chart_ref: minio/minio
+    chart_version: "{{ vks_minio_chart_version }}"
+    release_namespace: "{{ vks_services_namespace }}"
+    create_namespace: false
+    wait: true
+    wait_timeout: 300
+    values:
+      mode: standalone
+      replicas: 1
+      rootUser: "{{ vks_minio_root_user }}"
+      rootPassword: "{{ vks_minio_root_password }}"
+      persistence:
+        enabled: true
+        storageClass: "{{ vks_minio_storage_class }}"
+        size: "{{ vks_minio_storage_size }}"
+      resources:
+        requests:
+          cpu: 250m
+          memory: 1Gi
+
+- name: Wait for MinIO pod to be ready
+  kubernetes.core.k8s_info:
+    kind: Pod
+    namespace: "{{ vks_services_namespace }}"
+    label_selectors:
+      - "app=minio"
+  register: minio_pods
+  until: >
+    minio_pods.resources | length > 0 and
+    (minio_pods.resources[0].status.phase | default('')) == 'Running'
+  retries: 20
+  delay: 15
+
+- name: Create Velero backup bucket
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: batch/v1
+      kind: Job
+      metadata:
+        name: create-velero-bucket
+        namespace: "{{ vks_services_namespace }}"
+      spec:
+        template:
+          spec:
+            restartPolicy: Never
+            containers:
+              - name: mc
+                image: minio/mc:latest
+                command:
+                  - /bin/sh
+                  - -c
+                  - |
+                    mc alias set local http://{{ vks_minio_release_name }}:9000 {{ vks_minio_root_user }} {{ vks_minio_root_password }}
+                    mc mb --ignore-existing local/velero
+        backoffLimit: 3
+
+- name: Display MinIO status
+  ansible.builtin.debug:
+    msg: "MinIO deployed in {{ vks_services_namespace }}. Velero bucket created."

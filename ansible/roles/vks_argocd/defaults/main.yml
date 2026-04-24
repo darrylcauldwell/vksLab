@@ -1,0 +1,6 @@
+vks_services_namespace: vks-services
+
+vks_argocd_release_name: argocd
+vks_argocd_chart_repo: https://argoproj.github.io/argo-helm
+vks_argocd_chart_version: "7.8.0"
+vks_argocd_hostname: "argocd.{{ lab_domain }}"

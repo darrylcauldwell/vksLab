@@ -1,0 +1,109 @@
+---
+# Phase 8 — VKS Supervisor: Content library, Supervisor enablement, namespaces
+
+# --- Ensure DNS for Phase 8 dependencies ---
+
+- name: Ensure DNS for VKS
+  ansible.builtin.include_tasks: ../../common/tasks/ensure_dns.yml
+  vars:
+    dns_records:
+      - { hostname: vcenter-wld, ip: "{{ host_ip['vcenter-wld'] }}" }
+      - { hostname: nsx-mgr-wld, ip: "{{ host_ip['nsx-mgr-wld'] }}" }
+
+# --- Content Library ---
+
+- name: Create subscribed content library
+  vmware_vcf.ansible.vcf_vcenter_content_library:
+    vcenter_hostname: "{{ vcenter_wld_hostname }}"
+    vcenter_username: "{{ vcenter_wld_username }}"
+    vcenter_password: "{{ vcenter_wld_password }}"
+    state: present
+    library_type: subscribed
+    spec:
+      name: "{{ vks_content_library_name }}"
+      subscription_info:
+        subscription_url: "{{ vks_content_library_url }}"
+        automatic_sync_enabled: true
+        on_demand: true
+      storage_backings:
+        - type: DATASTORE
+          datastore_id: "{{ vks_datastore_id | default('datastore-1') }}"
+  register: content_library_result
+
+# --- Supervisor ---
+
+- name: Check Supervisor status
+  vmware_vcf.ansible.vcf_vcenter_supervisor:
+    vcenter_hostname: "{{ vcenter_wld_hostname }}"
+    vcenter_username: "{{ vcenter_wld_username }}"
+    vcenter_password: "{{ vcenter_wld_password }}"
+    action: list_supervisors
+  register: supervisor_check
+
+- name: Enable Supervisor on workload cluster
+  vmware_vcf.ansible.vcf_vcenter_supervisor:
+    vcenter_hostname: "{{ vcenter_wld_hostname }}"
+    vcenter_username: "{{ vcenter_wld_username }}"
+    vcenter_password: "{{ vcenter_wld_password }}"
+    action: enable_supervisor
+    cluster_id: "{{ vks_supervisor_cluster }}"
+    spec:
+      size_hint: SMALL
+      network_provider: NSX_VPC
+      default_kubernetes_service_content_library: "{{ vks_content_library_name }}"
+  when: supervisor_check.result | length == 0
+
+- name: "LONG RUNNING TASK — Waiting for Supervisor to be running (~15-30 min)"
+  ansible.builtin.debug:
+    msg: "Supervisor enablement in progress. Monitor in vCenter > Workload Management."
+
+- name: Wait for Supervisor to be running
+  vmware_vcf.ansible.vcf_vcenter_supervisor:
+    vcenter_hostname: "{{ vcenter_wld_hostname }}"
+    vcenter_username: "{{ vcenter_wld_username }}"
+    vcenter_password: "{{ vcenter_wld_password }}"
+    action: list_supervisors
+  register: supervisor_status
+  until: >
+    (supervisor_status.result | selectattr('cluster', 'equalto', vks_supervisor_cluster) | first).config_status | default('') == "RUNNING"
+  retries: 90
+  delay: 30
+
+# --- vSphere Namespaces ---
+
+- name: Create workloads namespace
+  vmware_vcf.ansible.vcf_vcenter_supervisor:
+    vcenter_hostname: "{{ vcenter_wld_hostname }}"
+    vcenter_username: "{{ vcenter_wld_username }}"
+    vcenter_password: "{{ vcenter_wld_password }}"
+    action: create_namespace
+    spec:
+      namespace: "{{ vks_namespace }}"
+      cluster: "{{ vks_supervisor_cluster }}"
+      vm_service_spec:
+        vm_classes:
+          - best-effort-small
+          - best-effort-medium
+        content_libraries:
+          - "{{ vks_content_library_name }}"
+      storage_specs:
+        - policy: "{{ vks_storage_class }}"
+  register: namespace_result
+
+- name: Create services namespace
+  vmware_vcf.ansible.vcf_vcenter_supervisor:
+    vcenter_hostname: "{{ vcenter_wld_hostname }}"
+    vcenter_username: "{{ vcenter_wld_username }}"
+    vcenter_password: "{{ vcenter_wld_password }}"
+    action: create_namespace
+    spec:
+      namespace: "{{ vks_services_namespace }}"
+      cluster: "{{ vks_supervisor_cluster }}"
+      vm_service_spec:
+        vm_classes:
+          - best-effort-small
+          - best-effort-medium
+        content_libraries:
+          - "{{ vks_content_library_name }}"
+      storage_specs:
+        - policy: "{{ vks_storage_class }}"

@@ -1,0 +1,17 @@
+vcenter_wld_hostname: "vcenter-wld.{{ lab_domain }}"
+vcenter_wld_username: "administrator@vsphere.local"
+vcenter_wld_password: "{{ vcenter_sso_password }}"
+
+# Content library
+vks_content_library_name: vkr-content-library
+vks_content_library_url: "https://wp-content.vmware.com/v2/latest/lib.json"
+
+# Supervisor
+vks_supervisor_cluster: workload-cluster
+
+# Workloads namespace
+vks_namespace: vks-workloads
+vks_storage_class: vSAN Default
+
+# Services namespace
+vks_services_namespace: vks-services

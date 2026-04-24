@@ -1,0 +1,45 @@
+---
+# Phase 8 — Harbor container registry (VKS Standard Package)
+# Requires cert-manager and Contour. Provides proxy cache for container images.
+
+- name: Check if Harbor is already enabled
+  vmware_vcf.ansible.vcf_vcenter_supervisor_service:
+    vcenter_hostname: "{{ vcenter_wld_hostname }}"
+    vcenter_username: "{{ vcenter_wld_username }}"
+    vcenter_password: "{{ vcenter_wld_password }}"
+    action: get_cluster_service
+    cluster_id: "{{ vks_supervisor_cluster }}"
+    service_id: "{{ vks_harbor_service_id }}"
+  register: harbor_status
+  failed_when: false
+
+- name: Get Harbor versions
+  vmware_vcf.ansible.vcf_vcenter_supervisor_service:
+    vcenter_hostname: "{{ vcenter_wld_hostname }}"
+    vcenter_username: "{{ vcenter_wld_username }}"
+    vcenter_password: "{{ vcenter_wld_password }}"
+    action: list_versions
+    service_id: "{{ vks_harbor_service_id }}"
+  register: harbor_versions
+  when: harbor_status.result is not defined or harbor_status.failed | default(false)
+
+- name: Set latest Harbor version
+  ansible.builtin.set_fact:
+    vks_harbor_version: "{{ harbor_versions.result | sort(attribute='version', reverse=true) | first | attr('version') }}"
+  when: harbor_versions is not skipped
+
+- name: Enable Harbor on Supervisor cluster
+  vmware_vcf.ansible.vcf_vcenter_supervisor_service:
+    vcenter_hostname: "{{ vcenter_wld_hostname }}"
+    vcenter_username: "{{ vcenter_wld_username }}"
+    vcenter_password: "{{ vcenter_wld_password }}"
+    action: enable_service
+    cluster_id: "{{ vks_supervisor_cluster }}"
+    service_id: "{{ vks_harbor_service_id }}"
+    spec:
+      version: "{{ vks_harbor_version }}"
+  when: harbor_status.result is not defined or harbor_status.failed | default(false)
+
+- name: Display Harbor status
+  ansible.builtin.debug:
+    msg: "Harbor {{ 'already enabled' if not (harbor_status.failed | default(false)) else 'enabled (version ' + vks_harbor_version + ')' }}"

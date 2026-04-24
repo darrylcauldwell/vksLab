@@ -1,0 +1,22 @@
+vcenter_wld_hostname: "vcenter-wld.{{ lab_domain }}"
+vcenter_wld_username: "administrator@vsphere.local"
+vcenter_wld_password: "{{ vcenter_sso_password }}"
+
+vks_supervisor_cluster: workload-cluster
+vks_topology_class: tanzukubernetescluster
+
+# Workload cluster
+vks_cluster_name: vks-cluster-01
+vks_namespace: vks-workloads
+vks_control_plane_replicas: 3
+vks_worker_replicas: 3
+vks_vm_class: best-effort-medium
+vks_storage_class: vSAN Default
+vks_pod_cidr: "192.168.0.0/16"
+vks_service_cidr: "10.96.0.0/12"
+
+# Services cluster
+vks_services_cluster_name: vks-services-01
+vks_services_namespace: vks-services
+vks_services_control_plane_replicas: 3
+vks_services_worker_replicas: 3

@@ -1,0 +1,64 @@
+---
+# Phase 8 — ArgoCD GitOps controller (Helm chart)
+# Hub-and-spoke deployment on services cluster. Manages both clusters.
+# Exposed via Contour HTTPProxy.
+
+- name: Add ArgoCD Helm repository
+  kubernetes.core.helm_repository:
+    name: argo
+    repo_url: "{{ vks_argocd_chart_repo }}"
+
+- name: Deploy ArgoCD
+  kubernetes.core.helm:
+    name: "{{ vks_argocd_release_name }}"
+    chart_ref: argo/argo-cd
+    chart_version: "{{ vks_argocd_chart_version }}"
+    release_namespace: "{{ vks_services_namespace }}"
+    create_namespace: false
+    wait: true
+    wait_timeout: 600
+    values:
+      global:
+        domain: "{{ vks_argocd_hostname }}"
+      server:
+        ingress:
+          enabled: false
+      configs:
+        params:
+          server.insecure: true
+
+- name: Wait for ArgoCD server to be ready
+  kubernetes.core.k8s_info:
+    kind: Pod
+    namespace: "{{ vks_services_namespace }}"
+    label_selectors:
+      - "app.kubernetes.io/name=argocd-server"
+  register: argocd_pods
+  until: >
+    argocd_pods.resources | length > 0 and
+    (argocd_pods.resources[0].status.phase | default('')) == 'Running'
+  retries: 30
+  delay: 15
+
+- name: Create Contour HTTPProxy for ArgoCD
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: projectcontour.io/v1
+      kind: HTTPProxy
+      metadata:
+        name: argocd
+        namespace: "{{ vks_services_namespace }}"
+      spec:
+        virtualhost:
+          fqdn: "{{ vks_argocd_hostname }}"
+        routes:
+          - conditions:
+              - prefix: /
+            services:
+              - name: "{{ vks_argocd_release_name }}-server"
+                port: 80
+
+- name: Display ArgoCD status
+  ansible.builtin.debug:
+    msg: "ArgoCD deployed. UI at https://{{ vks_argocd_hostname }}"

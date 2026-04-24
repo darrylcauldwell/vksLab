@@ -1,0 +1,53 @@
+---
+# Phase 8 — cert-manager (VKS Standard Package)
+# Prerequisite for Contour and Harbor TLS certificate management.
+
+- name: List available Supervisor Services
+  vmware_vcf.ansible.vcf_vcenter_supervisor_service:
+    vcenter_hostname: "{{ vcenter_wld_hostname }}"
+    vcenter_username: "{{ vcenter_wld_username }}"
+    vcenter_password: "{{ vcenter_wld_password }}"
+    action: list_services
+  register: available_services
+
+- name: Check if cert-manager is already enabled
+  vmware_vcf.ansible.vcf_vcenter_supervisor_service:
+    vcenter_hostname: "{{ vcenter_wld_hostname }}"
+    vcenter_username: "{{ vcenter_wld_username }}"
+    vcenter_password: "{{ vcenter_wld_password }}"
+    action: get_cluster_service
+    cluster_id: "{{ vks_supervisor_cluster }}"
+    service_id: "{{ vks_certmanager_service_id }}"
+  register: certmanager_status
+  failed_when: false
+
+- name: Get cert-manager versions
+  vmware_vcf.ansible.vcf_vcenter_supervisor_service:
+    vcenter_hostname: "{{ vcenter_wld_hostname }}"
+    vcenter_username: "{{ vcenter_wld_username }}"
+    vcenter_password: "{{ vcenter_wld_password }}"
+    action: list_versions
+    service_id: "{{ vks_certmanager_service_id }}"
+  register: certmanager_versions
+  when: certmanager_status.result is not defined or certmanager_status.failed | default(false)
+
+- name: Set latest cert-manager version
+  ansible.builtin.set_fact:
+    vks_certmanager_version: "{{ certmanager_versions.result | sort(attribute='version', reverse=true) | first | attr('version') }}"
+  when: certmanager_versions is not skipped
+
+- name: Enable cert-manager on Supervisor cluster
+  vmware_vcf.ansible.vcf_vcenter_supervisor_service:
+    vcenter_hostname: "{{ vcenter_wld_hostname }}"
+    vcenter_username: "{{ vcenter_wld_username }}"
+    vcenter_password: "{{ vcenter_wld_password }}"
+    action: enable_service
+    cluster_id: "{{ vks_supervisor_cluster }}"
+    service_id: "{{ vks_certmanager_service_id }}"
+    spec:
+      version: "{{ vks_certmanager_version }}"
+  when: certmanager_status.result is not defined or certmanager_status.failed | default(false)
+
+- name: Display cert-manager status
+  ansible.builtin.debug:
+    msg: "cert-manager {{ 'already enabled' if not (certmanager_status.failed | default(false)) else 'enabled (version ' + vks_certmanager_version + ')' }}"

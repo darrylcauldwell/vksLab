@@ -1,5 +1,7 @@
 ---
-# Phase 8 — VCF Workload VKS: Supervisor, Namespace, VKS cluster, test workload
+# Phase 8 — VCF Workload VKS
+# Supervisor, namespaces, VKS clusters, and platform services.
+# Each role is independently re-runnable.
 - name: Phase 8 — VCF Workload VKS
   hosts: localhost
   connection: local
@@ -10,4 +12,11 @@
     - name: Ensure SOCKS proxy
       ansible.builtin.include_tasks: ../roles/common/tasks/ensure_socks.yml
   roles:
-    - vks
+    - vks_supervisor      # Content library, Supervisor, namespaces
+    - vks_cluster          # Workload + services VKS clusters
+    - vks_certmanager      # TLS certificate management (VKS Standard Package)
+    - vks_contour          # L7 ingress controller (VKS Standard Package)
+    - vks_harbor           # Container registry proxy cache (VKS Standard Package)
+    - vks_minio            # S3-compatible storage for Velero (Helm)
+    - vks_velero           # Kubernetes backup/restore (VKS Standard Package)
+    - vks_argocd           # GitOps deployment (Helm)

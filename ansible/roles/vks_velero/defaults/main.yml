@@ -1,0 +1,6 @@
+vcenter_wld_hostname: "vcenter-wld.{{ lab_domain }}"
+vcenter_wld_username: "administrator@vsphere.local"
+vcenter_wld_password: "{{ vcenter_sso_password }}"
+
+vks_supervisor_cluster: workload-cluster
+vks_velero_service_id: velero

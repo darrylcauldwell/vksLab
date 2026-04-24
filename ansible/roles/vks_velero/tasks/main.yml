@@ -1,0 +1,45 @@
+---
+# Phase 8 — Velero backup/restore (VKS Standard Package)
+# Requires MinIO as S3-compatible storage backend.
+
+- name: Check if Velero is already enabled
+  vmware_vcf.ansible.vcf_vcenter_supervisor_service:
+    vcenter_hostname: "{{ vcenter_wld_hostname }}"
+    vcenter_username: "{{ vcenter_wld_username }}"
+    vcenter_password: "{{ vcenter_wld_password }}"
+    action: get_cluster_service
+    cluster_id: "{{ vks_supervisor_cluster }}"
+    service_id: "{{ vks_velero_service_id }}"
+  register: velero_status
+  failed_when: false
+
+- name: Get Velero versions
+  vmware_vcf.ansible.vcf_vcenter_supervisor_service:
+    vcenter_hostname: "{{ vcenter_wld_hostname }}"
+    vcenter_username: "{{ vcenter_wld_username }}"
+    vcenter_password: "{{ vcenter_wld_password }}"
+    action: list_versions
+    service_id: "{{ vks_velero_service_id }}"
+  register: velero_versions
+  when: velero_status.result is not defined or velero_status.failed | default(false)
+
+- name: Set latest Velero version
+  ansible.builtin.set_fact:
+    vks_velero_version: "{{ velero_versions.result | sort(attribute='version', reverse=true) | first | attr('version') }}"
+  when: velero_versions is not skipped
+
+- name: Enable Velero on Supervisor cluster
+  vmware_vcf.ansible.vcf_vcenter_supervisor_service:
+    vcenter_hostname: "{{ vcenter_wld_hostname }}"
+    vcenter_username: "{{ vcenter_wld_username }}"
+    vcenter_password: "{{ vcenter_wld_password }}"
+    action: enable_service
+    cluster_id: "{{ vks_supervisor_cluster }}"
+    service_id: "{{ vks_velero_service_id }}"
+    spec:
+      version: "{{ vks_velero_version }}"
+  when: velero_status.result is not defined or velero_status.failed | default(false)
+
+- name: Display Velero status
+  ansible.builtin.debug:
+    msg: "Velero {{ 'already enabled' if not (velero_status.failed | default(false)) else 'enabled (version ' + vks_velero_version + ')' }}"

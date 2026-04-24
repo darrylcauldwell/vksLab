@@ -1,0 +1,132 @@
+---
+# Phase 8 — VKS Cluster: create workload and services clusters
+
+# --- Discover Kubernetes versions ---
+
+- name: Discover available Kubernetes versions
+  vmware_vcf.ansible.vcf_vcenter_supervisor:
+    vcenter_hostname: "{{ vcenter_wld_hostname }}"
+    vcenter_username: "{{ vcenter_wld_username }}"
+    vcenter_password: "{{ vcenter_wld_password }}"
+    action: list_k8s_versions
+    cluster_id: "{{ vks_supervisor_cluster }}"
+  register: k8s_versions
+
+- name: Set latest Kubernetes version
+  ansible.builtin.set_fact:
+    vks_kubernetes_version: "{{ k8s_versions.result | sort(attribute='version', reverse=true) | first | attr('version') }}"
+
+- name: Display Kubernetes version
+  ansible.builtin.debug:
+    msg: "Using Kubernetes version: {{ vks_kubernetes_version }}"
+
+# --- Workload Cluster ---
+
+- name: Template workload VKS cluster manifest
+  ansible.builtin.template:
+    src: vks-cluster.yml.j2
+    dest: /tmp/vks-cluster-workload.yml
+    mode: "0644"
+
+- name: Apply workload VKS cluster manifest
+  kubernetes.core.k8s:
+    state: present
+    src: /tmp/vks-cluster-workload.yml
+    wait: true
+    wait_timeout: 1800
+  register: vks_cluster_result
+
+- name: "LONG RUNNING TASK — Waiting for workload cluster to provision (~20-30 min)"
+  ansible.builtin.debug:
+    msg: "Cluster provisioning in progress. Monitor in vCenter > Workload Management > {{ vks_namespace }}."
+
+- name: Wait for workload cluster to be provisioned
+  kubernetes.core.k8s_info:
+    api_version: cluster.x-k8s.io/v1beta1
+    kind: Cluster
+    name: "{{ vks_cluster_name }}"
+    namespace: "{{ vks_namespace }}"
+  register: cluster_status
+  until: cluster_status.resources[0].status.phase | default('') == "Provisioned"
+  retries: 60
+  delay: 30
+
+# --- Services Cluster ---
+
+- name: Template services VKS cluster manifest
+  ansible.builtin.template:
+    src: vks-cluster.yml.j2
+    dest: /tmp/vks-cluster-services.yml
+    mode: "0644"
+  vars:
+    vks_cluster_name: "{{ vks_services_cluster_name }}"
+    vks_namespace: "{{ vks_services_namespace }}"
+    vks_control_plane_replicas: "{{ vks_services_control_plane_replicas }}"
+    vks_worker_replicas: "{{ vks_services_worker_replicas }}"
+
+- name: Apply services VKS cluster manifest
+  kubernetes.core.k8s:
+    state: present
+    src: /tmp/vks-cluster-services.yml
+    wait: true
+    wait_timeout: 1800
+
+- name: "LONG RUNNING TASK — Waiting for services cluster to provision (~20-30 min)"
+  ansible.builtin.debug:
+    msg: "Services cluster provisioning in progress."
+
+- name: Wait for services cluster to be provisioned
+  kubernetes.core.k8s_info:
+    api_version: cluster.x-k8s.io/v1beta1
+    kind: Cluster
+    name: "{{ vks_services_cluster_name }}"
+    namespace: "{{ vks_services_namespace }}"
+  register: services_cluster_status
+  until: services_cluster_status.resources[0].status.phase | default('') == "Provisioned"
+  retries: 60
+  delay: 30
+
+# --- Verification ---
+
+- name: Verify workload cluster storage (test PVC)
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: test-pvc
+        namespace: "{{ vks_namespace }}"
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: "{{ vks_storage_class }}"
+        resources:
+          requests:
+            storage: 1Gi
+    wait: true
+    wait_timeout: 300
+
+- name: Wait for test PVC to bind
+  kubernetes.core.k8s_info:
+    kind: PersistentVolumeClaim
+    name: test-pvc
+    namespace: "{{ vks_namespace }}"
+  register: pvc_status
+  until: pvc_status.resources[0].status.phase == "Bound"
+  retries: 20
+  delay: 15
+
+- name: Clean up test PVC
+  kubernetes.core.k8s:
+    state: absent
+    kind: PersistentVolumeClaim
+    name: test-pvc
+    namespace: "{{ vks_namespace }}"
+
+- name: Display cluster summary
+  ansible.builtin.debug:
+    msg: >-
+      Both clusters provisioned.
+      Workload: {{ vks_cluster_name }} ({{ vks_namespace }}).
+      Services: {{ vks_services_cluster_name }} ({{ vks_services_namespace }}).
+      Kubernetes: {{ vks_kubernetes_version }}.

@@ -1,0 +1,9 @@
+vks_services_namespace: vks-services
+
+vks_minio_release_name: minio
+vks_minio_chart_repo: https://charts.min.io/
+vks_minio_chart_version: "5.4.0"
+vks_minio_storage_size: 100Gi
+vks_minio_storage_class: vSAN Default
+vks_minio_root_user: minio
+vks_minio_root_password: "{{ bootstrap_password }}"
