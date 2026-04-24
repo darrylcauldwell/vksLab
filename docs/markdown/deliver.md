@@ -951,36 +951,60 @@ Velero provides Kubernetes resource and PersistentVolume backup.
 
 | Step | Action | Expected Result | Verification |
 |------|--------|-----------------|--------------|
-| 10.6.1 | Install Velero: `vcf package install velero` with BackupStorageLocation pointing to MinIO (`http://minio.velero.svc:9000`, bucket `velero`) | Velero server and node-agent pods are deployed | `kubectl get pods -n velero` shows velero and node-agent Running |
-| 10.6.2 | Enable CSI snapshot support | VolumeSnapshot CRDs are available | `kubectl get crd volumesnapshots.snapshot.storage.k8s.io` exists |
-| 10.6.3 | Create a test backup: `velero backup create test-backup --include-namespaces default` | The backup completes | `velero backup get test-backup` shows Completed |
-| 10.6.4 | Create a daily backup schedule: `velero schedule create daily-backup --schedule="0 2 * * *" --include-namespaces default,harbor` | The schedule is created | `velero schedule get` shows daily-backup |
+| 10.6.1 | Install Velero: `vcf package install velero` with BackupStorageLocation pointing to MinIO (`http://minio:9000`, bucket `velero`) | Velero server and node-agent pods are deployed | `kubectl get pods -n velero` shows velero and node-agent Running |
+| 10.6.2 | Create BackupStorageLocation with MinIO credentials (`velero-minio-credentials` secret) | BSL status is Available | `velero backup-location get` shows default as Available |
+| 10.6.3 | Create VolumeSnapshotLocation with vSphere CSI provider | VSL is available | `velero snapshot-location get` shows default |
+| 10.6.4 | Create a test backup: `velero backup create test-backup --include-namespaces vks-services` | The backup completes | `velero backup get test-backup` shows Completed |
+| 10.6.5 | Create daily backup schedule: `daily-all-namespaces`, cron `0 2 * * *`, scope `vks-services`, TTL 168h (7 days), CSI snapshots enabled | The schedule is created | `velero schedule get` shows daily-all-namespaces |
 
 ### 10.7 Install ArgoCD (Helm)
 
-ArgoCD provides GitOps-based deployment across both VKS clusters.
+ArgoCD provides GitOps-based deployment across both VKS clusters. Sources manifests from the `dda-vcf` repo (`kubernetes/apps/` path) with an App of Apps pattern. Authenticates via Keycloak OIDC through its bundled Dex sidecar.
 
 | Step | Action | Expected Result | Verification |
 |------|--------|-----------------|--------------|
 | 10.7.1 | Add ArgoCD Helm repo: `helm repo add argo https://argoproj.github.io/argo-helm` | Repo added | `helm repo list` shows argo |
-| 10.7.2 | Install ArgoCD: `helm install argocd argo/argo-cd --namespace argocd --create-namespace` | ArgoCD pods are deployed | `kubectl get pods -n argocd` shows all Running |
-| 10.7.3 | Configure Contour HTTPProxy for ArgoCD UI: create HTTPProxy resource for `argocd.lab.dreamfold.dev` pointing to `argocd-server` service | ArgoCD UI is accessible via Contour | `curl https://argocd.lab.dreamfold.dev` loads the login page |
-| 10.7.4 | Retrieve initial admin password: `kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' \| base64 -d` | The admin password is obtained | Login to ArgoCD UI succeeds |
-| 10.7.5 | Register workload cluster as a spoke: `argocd cluster add vks-cluster-01 --name workload` | The workload cluster is registered | `argocd cluster list` shows both clusters |
+| 10.7.2 | Install ArgoCD with Dex OIDC configured for Keycloak (`lab` realm, `argocd` client) | ArgoCD pods are deployed | `kubectl get pods -n vks-services` shows argocd-server, argocd-repo-server, argocd-dex-server Running |
+| 10.7.3 | Create Contour HTTPProxy for ArgoCD UI at `argocd.lab.dreamfold.dev` with TLS via `lab-ca` ClusterIssuer | ArgoCD UI is accessible via Contour | `curl https://argocd.lab.dreamfold.dev` loads the login page |
+| 10.7.4 | Verify Keycloak OIDC login: click "Login via Keycloak" on ArgoCD UI | Redirected to Keycloak, login as `lab-admin`, returned to ArgoCD | ArgoCD shows logged in user with `role:admin` |
+| 10.7.5 | Add `dda-vcf` Git repository as ArgoCD source: `https://github.com/darrylcauldwell/dda-vcf.git`, path `kubernetes/apps/` | Repository connected | ArgoCD UI shows repository as Connected |
+| 10.7.6 | Register workload cluster as a spoke: `argocd cluster add vks-cluster-01 --name workload` | The workload cluster is registered | `argocd cluster list` shows both clusters |
+| 10.7.7 | Create App of Apps root application pointing at `kubernetes/apps/` | Root app syncs and creates child applications | `argocd app list` shows root app as Synced/Healthy |
 
-### 10.8 Platform Services Verification
+### 10.8 Configure Kubernetes RBAC via OIDC
+
+Supervisor OIDC is configured with Keycloak via pinniped. This enables `kubectl vsphere login` with Keycloak credentials and maps Keycloak groups to Kubernetes RBAC roles.
+
+| Step | Action | Expected Result | Verification |
+|------|--------|-----------------|--------------|
+| 10.8.1 | Configure Supervisor OIDC provider with Keycloak issuer URL and `groups` claim | OIDC provider registered | Supervisor OIDC settings show Keycloak endpoint |
+| 10.8.2 | Create ClusterRoleBinding: `vcf-admins` group → `cluster-admin` | Admins have full cluster access | `kubectl auth can-i '*' '*' --as-group=vcf-admins` returns yes |
+| 10.8.3 | Create RoleBinding: `vcf-operators` group → `edit` role in workload namespaces | Operators can manage resources in their namespace | `kubectl auth can-i create pods -n vks-workloads --as-group=vcf-operators` returns yes |
+| 10.8.4 | Test kubectl OIDC login: `kubectl vsphere login --server=<supervisor-ip> --tanzu-kubernetes-cluster-name=vks-cluster-01` | OIDC flow completes, kubeconfig updated | `kubectl get nodes` succeeds with Keycloak identity |
+
+### 10.9 Platform Services Verification
 
 | Check | Command / Method | Expected Result |
 |-------|------------------|-----------------|
 | Shared-services cluster health | `kubectl get nodes` on vks-services-01 | All 6 nodes Ready |
+| cert-manager | `kubectl get clusterissuer lab-ca` | Ready=True |
 | Contour | `kubectl get pods -n projectcontour` | All Running |
 | Envoy LB VIP | `kubectl get svc -n projectcontour envoy` | EXTERNAL-IP assigned |
 | Harbor health | `curl https://harbor.lab.dreamfold.dev/api/v2.0/health` | `{"status":"healthy"}` |
 | Harbor proxy cache | Pull image via `harbor.lab.dreamfold.dev/ghcr-proxy/...` | Image cached successfully |
+| Harbor TLS | `curl -v https://harbor.lab.dreamfold.dev` | Certificate issued by lab CA |
 | MinIO | `mc admin info minio` | Connected, bucket `velero` exists |
-| Velero | `velero backup get` | Recent backup shows Completed |
+| Velero BSL | `velero backup-location get` | default shows Available |
+| Velero schedule | `velero schedule get` | daily-all-namespaces shows Active |
+| Velero test backup | `velero backup create test --include-namespaces vks-services` | Completed |
 | ArgoCD UI | Browse `https://argocd.lab.dreamfold.dev` | Login page loads |
+| ArgoCD TLS | `curl -v https://argocd.lab.dreamfold.dev` | Certificate issued by lab CA |
+| ArgoCD OIDC | Click "Login via Keycloak" | Keycloak login → ArgoCD dashboard |
 | ArgoCD clusters | `argocd cluster list` | Both clusters listed, healthy |
+| ArgoCD apps | `argocd app list` | Root app Synced/Healthy |
+| kubectl OIDC | `kubectl vsphere login --server=<supervisor>` | Keycloak auth → kubeconfig updated |
+| RBAC admin | `kubectl auth can-i '*' '*'` (as vcf-admins member) | yes |
+| RBAC operator | `kubectl auth can-i create pods -n vks-workloads` (as vcf-operators member) | yes |
 
 ## 11. Ready for Operations Testing
 

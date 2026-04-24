@@ -452,6 +452,64 @@ A subscribed content library provides VKr images. The library syncs from VMware'
 
 All HTTPProxy resources with the annotation `cert-manager.io/cluster-issuer: lab-ca` receive TLS certificates signed by the lab CA. This extends the trust chain established in Phase 1 (step-ca creation) and Phase 5 (VCF component certificate replacement) into Kubernetes ingress.
 
+#### Velero Backup Configuration
+
+> Implements VKS-16 (backup schedule and retention). See [Logical Design](logical-design.md) Section 8.
+
+| Setting | Value |
+|---------|-------|
+| BackupStorageLocation | MinIO (`http://minio:9000/velero`) |
+| VolumeSnapshotLocation | vSphere CSI |
+| Schedule | Daily at 02:00 UTC |
+| Scope | `vks-services` namespace |
+| Retention (TTL) | 7 days (168h) |
+| Credentials Secret | `velero-minio-credentials` |
+
+#### Harbor Proxy Cache Configuration
+
+> Implements VKS-17 (GHCR proxy cache). See [Logical Design](logical-design.md) Section 8.
+
+| Setting | Value |
+|---------|-------|
+| Project Name | `ghcr-proxy` |
+| Project Type | Proxy cache |
+| Upstream Registry | `https://ghcr.io` |
+| Hostname | `harbor.lab.dreamfold.dev` |
+| TLS | cert-manager `lab-ca` ClusterIssuer |
+| Ingress | Contour HTTPProxy |
+| Pull URL | `harbor.lab.dreamfold.dev/ghcr-proxy/<owner>/<image>:<tag>` |
+
+#### ArgoCD Configuration
+
+> Implements VKS-18 (Git source), VKS-19 (OIDC authentication). See [Logical Design](logical-design.md) Section 8.
+
+| Setting | Value |
+|---------|-------|
+| Git Repository | `https://github.com/darrylcauldwell/dda-vcf.git` |
+| App Manifests Path | `kubernetes/apps/` |
+| Deployment Pattern | App of Apps (self-managing) |
+| Hub Cluster | `vks-services-01` |
+| Managed Clusters | `vks-services-01`, `vks-cluster-01` |
+| Hostname | `argocd.lab.dreamfold.dev` |
+| TLS | cert-manager `lab-ca` ClusterIssuer |
+| Ingress | Contour HTTPProxy |
+| OIDC Provider | Keycloak via Dex sidecar |
+| Admin Group | `vcf-admins` → `role:admin` |
+| Operator Group | `vcf-operators` → `role:readonly` |
+
+#### Kubernetes RBAC via OIDC
+
+> Implements VKS-20 (Supervisor OIDC with Keycloak). See [Logical Design](logical-design.md) Section 8.
+
+| Setting | Value |
+|---------|-------|
+| OIDC Provider | Keycloak (via Supervisor pinniped) |
+| Keycloak Realm | `lab` |
+| Group Claim | `groups` |
+| `vcf-admins` | `cluster-admin` ClusterRoleBinding |
+| `vcf-operators` | `edit` RoleBinding (per namespace) |
+| kubectl Auth | `kubectl vsphere login --server=<supervisor-ip>` |
+
 #### Platform Services Resource Budget
 
 | Service | Delivery | CPU Request | Memory Request | Storage (PVC) |
