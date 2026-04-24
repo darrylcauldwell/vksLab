@@ -63,6 +63,74 @@
               - name: harbor-core
                 port: 80
 
+# --- Configure GHCR proxy cache project ---
+
+- name: Wait for Harbor API to be ready
+  ansible.builtin.uri:
+    url: "https://{{ vks_harbor_hostname }}/api/v2.0/health"
+    validate_certs: true
+    status_code: [200]
+  register: harbor_health
+  until: harbor_health.status == 200
+  retries: 30
+  delay: 15
+
+- name: Check if ghcr-proxy project exists
+  ansible.builtin.uri:
+    url: "https://{{ vks_harbor_hostname }}/api/v2.0/projects/ghcr-proxy"
+    validate_certs: true
+    method: GET
+    headers:
+      Authorization: "Basic {{ ('admin:' + bootstrap_password) | b64encode }}"
+    status_code: [200, 404]
+  register: ghcr_project_check
+
+- name: Create GHCR registry endpoint
+  ansible.builtin.uri:
+    url: "https://{{ vks_harbor_hostname }}/api/v2.0/registries"
+    validate_certs: true
+    method: POST
+    headers:
+      Authorization: "Basic {{ ('admin:' + bootstrap_password) | b64encode }}"
+      Content-Type: application/json
+    body_format: json
+    body:
+      name: ghcr
+      type: github-ghcr
+      url: https://ghcr.io
+    status_code: [201, 409]
+  when: ghcr_project_check.status == 404
+
+- name: Get GHCR registry ID
+  ansible.builtin.uri:
+    url: "https://{{ vks_harbor_hostname }}/api/v2.0/registries?name=ghcr"
+    validate_certs: true
+    method: GET
+    headers:
+      Authorization: "Basic {{ ('admin:' + bootstrap_password) | b64encode }}"
+  register: ghcr_registry
+  when: ghcr_project_check.status == 404
+
+- name: Create ghcr-proxy project
+  ansible.builtin.uri:
+    url: "https://{{ vks_harbor_hostname }}/api/v2.0/projects"
+    validate_certs: true
+    method: POST
+    headers:
+      Authorization: "Basic {{ ('admin:' + bootstrap_password) | b64encode }}"
+      Content-Type: application/json
+    body_format: json
+    body:
+      project_name: ghcr-proxy
+      registry_id: "{{ ghcr_registry.json[0].id }}"
+      public: true
+      metadata:
+        public: "true"
+    status_code: [201]
+  when: ghcr_project_check.status == 404
+
 - name: Display Harbor status
   ansible.builtin.debug:
-    msg: "Harbor {{ 'already enabled' if not (harbor_status.failed | default(false)) else 'enabled (version ' + vks_harbor_version + ')' }}. UI at https://{{ vks_harbor_hostname }}"
+    msg: >-
+      Harbor configured. UI at https://{{ vks_harbor_hostname }}.
+      Pull images via: harbor.{{ lab_domain }}/ghcr-proxy/<owner>/<image>:<tag>

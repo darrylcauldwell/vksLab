@@ -1,0 +1,68 @@
+---
+# Phase 8 — Kubernetes RBAC via Keycloak OIDC
+# Configures Supervisor OIDC with Keycloak, creates ClusterRoleBindings
+# and RoleBindings mapping Keycloak groups to K8s roles.
+
+# --- ClusterRoleBinding: vcf-admins → cluster-admin ---
+
+- name: Create ClusterRoleBinding for vcf-admins
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRoleBinding
+      metadata:
+        name: vcf-admins-cluster-admin
+      roleRef:
+        apiGroup: rbac.authorization.k8s.io
+        kind: ClusterRole
+        name: cluster-admin
+      subjects:
+        - apiGroup: rbac.authorization.k8s.io
+          kind: Group
+          name: vcf-admins
+
+# --- RoleBindings: vcf-operators → edit (per namespace) ---
+
+- name: Create RoleBinding for vcf-operators in workloads namespace
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: RoleBinding
+      metadata:
+        name: vcf-operators-edit
+        namespace: "{{ vks_namespace }}"
+      roleRef:
+        apiGroup: rbac.authorization.k8s.io
+        kind: ClusterRole
+        name: edit
+      subjects:
+        - apiGroup: rbac.authorization.k8s.io
+          kind: Group
+          name: vcf-operators
+
+- name: Create RoleBinding for vcf-operators in services namespace
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: RoleBinding
+      metadata:
+        name: vcf-operators-edit
+        namespace: "{{ vks_services_namespace }}"
+      roleRef:
+        apiGroup: rbac.authorization.k8s.io
+        kind: ClusterRole
+        name: edit
+      subjects:
+        - apiGroup: rbac.authorization.k8s.io
+          kind: Group
+          name: vcf-operators
+
+- name: Display RBAC configuration
+  ansible.builtin.debug:
+    msg: >-
+      RBAC configured. vcf-admins → cluster-admin (cluster-wide).
+      vcf-operators → edit ({{ vks_namespace }}, {{ vks_services_namespace }}).
+      Authenticate via: kubectl vsphere login --server=<supervisor-ip>

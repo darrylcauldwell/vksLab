@@ -1,0 +1,14 @@
+vcenter_wld_hostname: "vcenter-wld.{{ lab_domain }}"
+vcenter_wld_username: "administrator@vsphere.local"
+vcenter_wld_password: "{{ vcenter_sso_password }}"
+
+vks_supervisor_cluster: workload-cluster
+
+# OIDC provider (Keycloak)
+keycloak_hostname: "gateway.{{ lab_domain }}"
+keycloak_port: 8443
+keycloak_realm: lab
+
+# Namespace RBAC
+vks_namespace: vks-workloads
+vks_services_namespace: vks-services

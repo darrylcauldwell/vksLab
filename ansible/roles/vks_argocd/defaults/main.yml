@@ -4,3 +4,13 @@ vks_argocd_release_name: argocd
 vks_argocd_chart_repo: https://argoproj.github.io/argo-helm
 vks_argocd_chart_version: "7.8.0"
 vks_argocd_hostname: "argocd.{{ lab_domain }}"
+
+# Git source
+vks_argocd_repo_url: "https://github.com/darrylcauldwell/dda-vcf.git"
+vks_argocd_apps_path: "kubernetes/apps"
+
+# OIDC via Keycloak/Dex
+keycloak_hostname: "gateway.{{ lab_domain }}"
+keycloak_port: 8443
+keycloak_realm: lab
+vks_argocd_oidc_client_id: argocd

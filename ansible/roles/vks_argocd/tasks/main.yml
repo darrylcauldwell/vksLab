@@ -1,14 +1,14 @@
 ---
 # Phase 8 — ArgoCD GitOps controller (Helm chart)
 # Hub-and-spoke deployment on services cluster. Manages both clusters.
-# Exposed via Contour HTTPProxy.
+# Exposed via Contour HTTPProxy. OIDC via Keycloak/Dex.
 
 - name: Add ArgoCD Helm repository
   kubernetes.core.helm_repository:
     name: argo
     repo_url: "{{ vks_argocd_chart_repo }}"
 
-- name: Deploy ArgoCD
+- name: Deploy ArgoCD with Dex OIDC
   kubernetes.core.helm:
     name: "{{ vks_argocd_release_name }}"
     chart_ref: argo/argo-cd
@@ -26,6 +26,28 @@
       configs:
         params:
           server.insecure: true
+        cm:
+          url: "https://{{ vks_argocd_hostname }}"
+          dex.config: |
+            connectors:
+              - type: oidc
+                id: keycloak
+                name: Keycloak
+                config:
+                  issuer: https://{{ keycloak_hostname }}:{{ keycloak_port }}/realms/{{ keycloak_realm }}
+                  clientID: {{ vks_argocd_oidc_client_id }}
+                  clientSecret: $dex.keycloak.clientSecret
+                  insecureEnableGroups: true
+                  scopes:
+                    - openid
+                    - profile
+                    - email
+                    - groups
+        rbac:
+          policy.csv: |
+            g, vcf-admins, role:admin
+            g, vcf-operators, role:readonly
+          policy.default: role:readonly
 
 - name: Wait for ArgoCD server to be ready
   kubernetes.core.k8s_info:
@@ -63,6 +85,50 @@
               - name: "{{ vks_argocd_release_name }}-server"
                 port: 80
 
+# --- Configure Git repository and App of Apps ---
+
+- name: Add dda-vcf Git repository to ArgoCD
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: dda-vcf-repo
+        namespace: "{{ vks_services_namespace }}"
+        labels:
+          argocd.argoproj.io/secret-type: repository
+      type: Opaque
+      stringData:
+        type: git
+        url: "{{ vks_argocd_repo_url }}"
+
+- name: Create App of Apps root application
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: argoproj.io/v1alpha1
+      kind: Application
+      metadata:
+        name: apps
+        namespace: "{{ vks_services_namespace }}"
+      spec:
+        project: default
+        source:
+          repoURL: "{{ vks_argocd_repo_url }}"
+          targetRevision: main
+          path: "{{ vks_argocd_apps_path }}"
+        destination:
+          server: https://kubernetes.default.svc
+          namespace: "{{ vks_services_namespace }}"
+        syncPolicy:
+          automated:
+            prune: true
+            selfHeal: true
+
 - name: Display ArgoCD status
   ansible.builtin.debug:
-    msg: "ArgoCD deployed. UI at https://{{ vks_argocd_hostname }}"
+    msg: >-
+      ArgoCD deployed. UI at https://{{ vks_argocd_hostname }}.
+      Login via Keycloak (vcf-admins → role:admin).
+      Git source: {{ vks_argocd_repo_url }} ({{ vks_argocd_apps_path }}/).
