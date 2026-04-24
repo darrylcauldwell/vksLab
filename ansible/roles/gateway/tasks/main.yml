@@ -917,6 +917,13 @@
   changed_when: "'was installed' in collections_install.stdout"
   tags: ansible-env
 
+- name: Install vmware-vcf SDK from PyPI
+  ansible.builtin.pip:
+    name: vmware-vcf
+    state: latest
+  become: true
+  tags: ansible-env
+
 - name: Create VCF backup directory
   ansible.builtin.file:
     path: /home/ubuntu/vcf-backups
