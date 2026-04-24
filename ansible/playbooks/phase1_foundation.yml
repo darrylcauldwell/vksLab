@@ -70,7 +70,7 @@
       failed_when: "'ok' not in ca_result.stdout"
       tags: verify
 
-    - name: "Verify VLAN sub-interfaces (including management on VLAN {{ vlan_id_mgmt }})"
+    - name: "Verify VLAN sub-interfaces (including management on VLAN {{ vlan['management'].vlan_id }})"
       ansible.builtin.shell:
         cmd: "ip addr show {{ gateway_vlan_trunk_nic }}.{{ item.vlan }} | grep 'inet {{ item.ip }}'"
       loop: "{{ gateway_vlan_interfaces }}"

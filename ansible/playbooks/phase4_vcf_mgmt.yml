@@ -36,7 +36,7 @@
       ansible.builtin.shell: >
         sshpass -e ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null
         root@{{ hostvars['esxi-01']['ansible_host'] }}
-        "esxcli network vswitch standard portgroup set -p 'VM Network' -v {{ vlan_id_mgmt }}"
+        "esxcli network vswitch standard portgroup set -p 'VM Network' -v {{ vlan['management'].vlan_id }}"
       environment:
         SSHPASS: "{{ bootstrap_password }}"
       changed_when: true
