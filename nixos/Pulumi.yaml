@@ -1,0 +1,6 @@
+name: vmnx
+runtime:
+  name: python
+  options:
+    virtualenv: venv
+description: Declarative NixOS VM deployment on vSphere
