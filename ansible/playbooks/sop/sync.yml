@@ -1,0 +1,59 @@
+---
+# SOP — Sync local environment
+#
+# Pulls latest repo changes and installs/upgrades dependencies.
+# Run from the operator's laptop after making changes or before a rebuild.
+#
+# Usage:
+#   cd ansible
+#   ansible-playbook playbooks/sop/sync.yml
+#
+# What it does:
+#   1. Git pull latest from origin/main
+#   2. Upgrade vmware-vcf SDK to latest from PyPI
+#   3. Install/update Ansible collections from requirements.yml
+#   4. Install vendored vmware_vcf.ansible collection
+
+- name: SOP — Sync local environment
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    repo_root: "{{ playbook_dir }}/../../.."
+  tasks:
+    - name: Pull latest changes from origin
+      ansible.builtin.command:
+        cmd: git pull origin main
+        chdir: "{{ repo_root }}"
+      register: git_pull
+      changed_when: "'Already up to date' not in git_pull.stdout"
+
+    - name: Display git pull result
+      ansible.builtin.debug:
+        msg: "{{ git_pull.stdout }}"
+
+    - name: Upgrade vmware-vcf SDK to latest
+      ansible.builtin.pip:
+        name: vmware-vcf
+        state: latest
+      register: pip_result
+
+    - name: Install Ansible Galaxy collections
+      ansible.builtin.command:
+        cmd: ansible-galaxy collection install -r {{ repo_root }}/ansible/collections/requirements.yml --force
+      register: galaxy_result
+      changed_when: "'was installed' in galaxy_result.stdout"
+
+    - name: Install vendored vmware_vcf.ansible collection
+      ansible.builtin.command:
+        cmd: ansible-galaxy collection install {{ repo_root }}/ansible/collections/ansible_collections/vmware_vcf/ansible --force
+      register: vcf_collection
+      changed_when: "'was installed' in vcf_collection.stdout"
+
+    - name: Sync summary
+      ansible.builtin.debug:
+        msg: >-
+          Sync complete.
+          Git: {{ 'updated' if git_pull.changed else 'already up to date' }}.
+          SDK: vmware-vcf {{ pip_result.version | default('latest') }}.
+          Collections: {{ 'updated' if galaxy_result.changed or vcf_collection.changed else 'up to date' }}.
