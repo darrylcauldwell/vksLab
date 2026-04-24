@@ -20,6 +20,10 @@ ansible/scripts/openapi/
 *.swp
 *.swo
 
+# Claude Code — ephemeral agent worktrees and local settings
+.claude/worktrees/
+.claude/settings.local.json
+
 # OS
 .DS_Store
 Thumbs.db
