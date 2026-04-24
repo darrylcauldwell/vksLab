@@ -24,6 +24,9 @@ ansible/scripts/openapi/
 .claude/worktrees/
 .claude/settings.local.json
 
+# 1Password secrets cache (written by ensure_1password.yml)
+ansible/inventory/group_vars/secrets.yml
+
 # OS
 .DS_Store
 Thumbs.db

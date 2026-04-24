@@ -12,7 +12,7 @@
 - name: Phase 4 — Load secrets
   hosts: localhost
   connection: local
-  gather_facts: false
+  gather_facts: true
   tasks:
     - name: Load 1Password secrets
       ansible.builtin.include_tasks: ../roles/common/tasks/ensure_1password.yml

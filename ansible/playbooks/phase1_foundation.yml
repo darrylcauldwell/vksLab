@@ -26,7 +26,7 @@
 - name: Phase 1 — Ensure 1Password session
   hosts: localhost
   connection: local
-  gather_facts: false
+  gather_facts: true
   tasks:
     - name: Ensure 1Password session
       ansible.builtin.include_tasks: ../roles/common/tasks/ensure_1password.yml
@@ -43,7 +43,6 @@
   hosts: gateways
   gather_facts: false
   become: true
-  vars_files:
     - ../roles/gateway/defaults/main.yml
   tasks:
     - name: "Verify DNS — forward lookup"
