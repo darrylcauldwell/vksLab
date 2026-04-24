@@ -30,10 +30,11 @@ lab_ntp_servers:
 # 1Password vault name
 onepassword_vault: Employee
 
-# All secrets are loaded from /tmp/.lab-secrets.yml (created by ensure_1password.yml).
-# Every play must include: vars_files: [/tmp/.lab-secrets.yml]
-# Run ensure_1password.yml as the first play — single biometric prompt, 1-hour cache.
-# DO NOT add onepassword lookups here.
+# Gateway public IP — must be a lookup because inventory needs it at parse time
+# for ProxyJump and ansible_host. This ONE lookup is unavoidable.
+# All other secrets are in group_vars/secrets.yml (written by ensure_1password.yml).
+gateway_public_ip: "{{ lookup('community.general.onepassword', 'Lab Bootstrap', field='ip_address', vault=onepassword_vault) }}"
+gateway_password: "{{ lookup('community.general.onepassword', 'Jumpbox Ubuntu', field='password', vault=onepassword_vault) }}"
 
 # Keycloak
 keycloak_realm: lab
