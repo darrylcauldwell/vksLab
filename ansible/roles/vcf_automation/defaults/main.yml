@@ -10,12 +10,21 @@ keycloak_hostname: "gateway.{{ lab_domain }}"
 keycloak_port: 8443
 keycloak_realm: lab
 
+# OIDC clients for VCF Automation
+vcf_auto_provider_oidc_client_id: vcf-automation-provider
+vcf_auto_provider_oidc_client_secret: "{{ keycloak_admin_password }}"
+vcf_auto_tenant_oidc_client_id: vcf-automation-tenant
+vcf_auto_tenant_oidc_client_secret: "{{ keycloak_admin_password }}"
+
 # Provider organisation
 vcf_auto_provider_org_name: lab-provider
 
 # Tenant organisation
 vcf_auto_tenant_org_name: lab-tenant
 vcf_auto_tenant_project_name: lab-project
+
+# NSX Project mapping (for tenant project)
+vcf_auto_nsx_project_name: lab-project
 
 # VKSM
 vcf_auto_vksm_proxy_version: "0.4.0"
@@ -25,3 +34,10 @@ vcenter_wld_hostname: "vcenter-wld.{{ lab_domain }}"
 vcenter_wld_username: "administrator@vsphere.local"
 vcenter_wld_password: "{{ vcenter_sso_password }}"
 vks_supervisor_cluster: workload-cluster
+
+# VCF Automation deployment spec (SDDC Manager API)
+vcf_auto_deploy_spec:
+  nodes:
+    - hostname: "{{ vcf_auto_hostname }}"
+      type: master
+  applianceSize: small
