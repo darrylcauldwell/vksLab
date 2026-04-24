@@ -666,7 +666,7 @@
   become: true
   ansible.builtin.apt:
     update_cache: true
-  when: k8s_repo is changed or smallstep_repo is changed or vscode_repo is changed
+  when: (k8s_repo is defined and k8s_repo is changed) or (smallstep_repo is defined and smallstep_repo is changed) or (vscode_repo is defined and vscode_repo is changed)
   tags: repos
 
 - name: Install third-party packages
