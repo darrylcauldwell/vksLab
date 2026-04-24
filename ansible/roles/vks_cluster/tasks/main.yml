@@ -36,9 +36,9 @@
     wait_timeout: 1800
   register: vks_cluster_result
 
-- name: "LONG RUNNING TASK — Waiting for workload cluster to provision (~20-30 min)"
+- name: Progress — waiting for workload cluster to provision
   ansible.builtin.debug:
-    msg: "Cluster provisioning in progress. Monitor in vCenter > Workload Management > {{ vks_namespace }}."
+    msg: "LONG RUNNING TASK — Waiting for workload cluster to provision (~20-30 min). Monitor in vCenter > Workload Management > {{ vks_namespace }}."
 
 - name: Wait for workload cluster to be provisioned
   kubernetes.core.k8s_info:
@@ -71,9 +71,9 @@
     wait: true
     wait_timeout: 1800
 
-- name: "LONG RUNNING TASK — Waiting for services cluster to provision (~20-30 min)"
+- name: Progress — waiting for services cluster to provision
   ansible.builtin.debug:
-    msg: "Services cluster provisioning in progress."
+    msg: "LONG RUNNING TASK — Waiting for services cluster to provision (~20-30 min)."
 
 - name: Wait for services cluster to be provisioned
   kubernetes.core.k8s_info:

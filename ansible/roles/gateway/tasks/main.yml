@@ -54,9 +54,9 @@
     mode: "0644"
   tags: [packages, dns]
 
-- name: "LONG RUNNING TASK — Upgrading all packages (~5-10 min on first run)"
+- name: Progress — upgrading all packages
   ansible.builtin.debug:
-    msg: "Running apt dist-upgrade with cache update. This is slow on first build."
+    msg: "LONG RUNNING TASK — Upgrading all packages (~5-10 min on first run). Running apt dist-upgrade with cache update."
   tags: packages
 
 - name: Upgrade all packages to latest versions
@@ -74,9 +74,9 @@
   changed_when: false
   tags: packages
 
-- name: "LONG RUNNING TASK — Installing packages (~3-5 min)"
+- name: Progress — installing packages
   ansible.builtin.debug:
-    msg: "Installing {{ gateway_packages | length }} packages."
+    msg: "LONG RUNNING TASK — Installing packages (~3-5 min). Installing {{ gateway_packages | length }} packages."
   tags: packages
 
 - name: Install required packages
@@ -703,9 +703,9 @@
     mode: "0600"
   tags: ca
 
-- name: "LONG RUNNING TASK — Initialising step-ca (~1-2 min)"
+- name: Progress — initialising step-ca
   ansible.builtin.debug:
-    msg: "Generating CA keypair and configuring ACME provisioner."
+    msg: "LONG RUNNING TASK — Initialising step-ca (~1-2 min). Generating CA keypair and configuring ACME provisioner."
   tags: ca
 
 - name: Initialise step-ca
@@ -925,9 +925,9 @@
     force: true
   tags: ansible-env
 
-- name: "LONG RUNNING TASK — Installing Ansible collections (~2-5 min)"
+- name: Progress — installing Ansible collections
   ansible.builtin.debug:
-    msg: "Downloading collections from Galaxy and installing vendored vmware_vcf."
+    msg: "LONG RUNNING TASK — Installing Ansible collections (~2-5 min). Downloading collections from Galaxy and installing vendored vmware_vcf."
   tags: ansible-env
 
 - name: Install Ansible collections

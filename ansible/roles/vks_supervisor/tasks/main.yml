@@ -53,9 +53,9 @@
       default_kubernetes_service_content_library: "{{ vks_content_library_name }}"
   when: supervisor_check.result | length == 0
 
-- name: "LONG RUNNING TASK — Waiting for Supervisor to be running (~15-30 min)"
+- name: Progress — waiting for Supervisor to be running
   ansible.builtin.debug:
-    msg: "Supervisor enablement in progress. Monitor in vCenter > Workload Management."
+    msg: "LONG RUNNING TASK — Waiting for Supervisor to be running (~15-30 min). Monitor in vCenter > Workload Management."
 
 - name: Wait for Supervisor to be running
   vmware_vcf.ansible.vcf_vcenter_supervisor:

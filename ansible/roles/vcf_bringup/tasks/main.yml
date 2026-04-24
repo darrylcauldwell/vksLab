@@ -79,9 +79,9 @@
   ansible.builtin.debug:
     msg: "{{ vcf_bringup_spec | to_nice_json }}"
 
-- name: "LONG RUNNING TASK — VCF management domain bringup (~3-4 hours). Monitor progress at https://{{ vcf_bringup_hostname }}"
+- name: Progress — VCF management domain bringup
   ansible.builtin.debug:
-    msg: "Bringup starting. Track progress in VCF Installer UI. This task will wait up to 4 hours for completion."
+    msg: "LONG RUNNING TASK — VCF management domain bringup (~3-4 hours). Monitor progress at https://{{ vcf_bringup_hostname }}. Track in VCF Installer UI. This task will wait up to 4 hours for completion."
 
 - name: Validate and deploy management domain
   vmware_vcf.ansible.vcf_cloud_builder:
