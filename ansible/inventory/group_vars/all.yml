@@ -27,11 +27,11 @@ lab_dns_server: "{{ host_ip['gateway'] }}"
 lab_ntp_servers:
   - "{{ host_ip['gateway'] }}"
 
+# 1Password vault name
+onepassword_vault: Employee
+
 # Gateway public IP (stored in 1Password after vCD deployment)
 gateway_public_ip: "{{ lookup('community.general.onepassword', 'Lab Bootstrap', field='ip_address', vault=onepassword_vault) }}"
-
-# 1Password vault and item names for secret lookups
-onepassword_vault: Employee
 
 # Bootstrap password — simple, typed manually into vCD console and ESXi DCUI
 bootstrap_password: "{{ lookup('community.general.onepassword', 'Lab Bootstrap', field='password', vault=onepassword_vault) }}"
