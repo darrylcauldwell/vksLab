@@ -900,13 +900,17 @@ spec:
 
 ### 10.2 Install cert-manager (VKS Standard Package)
 
-cert-manager is a prerequisite for Contour TLS certificate management.
+cert-manager is a prerequisite for Contour TLS certificate management. After installation, a ClusterIssuer is configured to use the lab step-ca ACME endpoint so all ingress TLS certificates are signed by the same CA as VCF components (Phase 5).
 
 | Step | Action | Expected Result | Verification |
 |------|--------|-----------------|--------------|
 | 10.2.1 | Login to VKS shared-services cluster | Authentication succeeds | `kubectl get nodes` shows 6 Ready |
 | 10.2.2 | Install cert-manager: `vcf package install cert-manager` | cert-manager pods are deployed | `kubectl get pods -n cert-manager` shows all Running |
 | 10.2.3 | Verify cert-manager webhook is ready | Webhook is operational | `kubectl get apiservice v1.cert-manager.io` shows Available=True |
+| 10.2.4 | Create `lab-ca` ClusterIssuer pointing at step-ca ACME endpoint | ClusterIssuer registered | `kubectl get clusterissuer lab-ca` shows Ready=True |
+| 10.2.5 | Verify ACME account registration | cert-manager can reach step-ca | ClusterIssuer conditions show `ACMEAccountRegistered` |
+
+> **Note**: The `lab-ca` ClusterIssuer uses HTTP-01 challenge validation via the Contour ingress class. Contour must be installed (§10.3) before certificates can actually be issued, but the ClusterIssuer can be created first — cert-manager will retry until the solver is available.
 
 ### 10.3 Install Contour (VKS Standard Package)
 

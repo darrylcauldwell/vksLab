@@ -438,6 +438,20 @@ A subscribed content library provides VKr images. The library syncs from VMware'
 | Storage Policies | vSAN Default |
 | Content Library | VKS Kubernetes releases |
 
+#### cert-manager ClusterIssuer (step-ca Integration)
+
+> Implements VKS-15 (cert-manager + step-ca integration). See [Logical Design](logical-design.md) Section 8, Platform Services.
+
+| Setting | Value |
+|---------|-------|
+| ClusterIssuer Name | `lab-ca` |
+| ACME Server | `https://gateway.lab.dreamfold.dev:443/acme/acme/directory` |
+| CA Bundle | step-ca root certificate (`/root/.step/certs/root_ca.crt`) |
+| Private Key Secret | `lab-ca-account-key` (auto-created by cert-manager) |
+| HTTP-01 Solver | Contour ingress class |
+
+All HTTPProxy resources with the annotation `cert-manager.io/cluster-issuer: lab-ca` receive TLS certificates signed by the lab CA. This extends the trust chain established in Phase 1 (step-ca creation) and Phase 5 (VCF component certificate replacement) into Kubernetes ingress.
+
 #### Platform Services Resource Budget
 
 | Service | Delivery | CPU Request | Memory Request | Storage (PVC) |
