@@ -1,6 +1,6 @@
-# VKS Lab — Project Instructions
+# DDA-VCF — Project Instructions
 
-This project is a nested VMware Cloud Foundation (VCF) 9 lab demonstrating vSphere Kubernetes Services (VKS) with NSX VPC networking, hosted entirely within a vCloud Director vApp.
+Documentation Driven Architecture (DDA) for VMware Cloud Foundation (VCF) 9.0 — a nested lab where the physical design document is both human-readable documentation and machine-readable configuration. Hosted in a vCloud Director vApp.
 
 ## Change Review Process (MANDATORY)
 
@@ -128,6 +128,7 @@ Every acronym is expanded on **first use per document** (each document stands al
 
 | Acronym | First Use Expansion |
 |---------|-------------------|
+| DDA | Documentation Driven Architecture (DDA) |
 | VCF | VMware Cloud Foundation (VCF) |
 | NSX | VCF Networking (NSX) |
 | VKS | vSphere Kubernetes Services (VKS) |
