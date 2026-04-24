@@ -136,3 +136,30 @@
           All checks passed: DNS, NTP, CA, VLANs, inter-VLAN routing,
           FRR/BGP, Keycloak, IP masquerade, lab hostname resolution.
       tags: verify
+
+- name: Phase 1 — Trust lab CA on operator workstation
+  hosts: localhost
+  connection: local
+  gather_facts: true
+  tasks:
+    - name: Fetch lab root CA certificate from gateway
+      ansible.builtin.shell: >
+        scp -o StrictHostKeyChecking=no
+        ubuntu@{{ gateway_public_ip }}:/tmp/lab-root-ca.crt
+        {{ ansible_env.HOME }}/.lab-root-ca.crt
+      args:
+        creates: "{{ ansible_env.HOME }}/.lab-root-ca.crt"
+      tags: ca
+
+    - name: Trust lab root CA in macOS system keychain
+      ansible.builtin.shell: >
+        security verify-cert -c {{ ansible_env.HOME }}/.lab-root-ca.crt 2>/dev/null
+        && echo "already_trusted"
+        || (sudo security add-trusted-cert -d -r trustRoot
+        -k /Library/Keychains/System.keychain
+        {{ ansible_env.HOME }}/.lab-root-ca.crt
+        && echo "imported")
+      register: ca_import
+      changed_when: "'imported' in ca_import.stdout"
+      when: ansible_os_family == 'Darwin'
+      tags: ca

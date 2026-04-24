@@ -15,8 +15,9 @@
 # Available tags:
 #   ova       — upload VCF Installer OVA to gateway
 #   ssh       — SSH config, key clearing, SOCKS tunnel, LaunchAgent
-#   ca        — fetch and trust lab root CA
 #   bookmarks — generate Firefox bookmarks HTML
+#
+# Note: CA trust moved to Phase 1 (runs after step-ca is configured)
 
 - name: Phase 0 — Configure operator workstation
   hosts: localhost
@@ -140,44 +141,6 @@
         launchctl bootstrap gui/$(id -u) {{ ansible_env.HOME }}/Library/LaunchAgents/dev.dreamfold.lab-tunnel.plist
       changed_when: true
       tags: ssh
-
-    - name: Check if step-ca root cert exists on gateway
-      ansible.builtin.shell: >
-        ssh -o StrictHostKeyChecking=no ubuntu@{{ gateway_public_ip }}
-        "sudo test -f /root/.step/certs/root_ca.crt && echo exists || echo missing"
-      register: ca_check
-      changed_when: false
-      failed_when: false
-      tags: ca
-
-    - name: Fetch lab root CA certificate from gateway
-      ansible.builtin.shell: >
-        scp -o StrictHostKeyChecking=no
-        ubuntu@{{ gateway_public_ip }}:/tmp/lab-root-ca.crt
-        {{ ansible_env.HOME }}/.lab-root-ca.crt
-      args:
-        creates: "{{ ansible_env.HOME }}/.lab-root-ca.crt"
-      when: "'exists' in ca_check.stdout | default('')"
-      tags: ca
-
-    - name: Trust lab root CA in macOS system keychain
-      ansible.builtin.shell: >
-        security verify-cert -c {{ ansible_env.HOME }}/.lab-root-ca.crt 2>/dev/null
-        && echo "already_trusted"
-        || (sudo security add-trusted-cert -d -r trustRoot
-        -k /Library/Keychains/System.keychain
-        {{ ansible_env.HOME }}/.lab-root-ca.crt
-        && echo "imported")
-      register: ca_import
-      changed_when: "'imported' in ca_import.stdout"
-      when: "'exists' in ca_check.stdout | default('')"
-      tags: ca
-
-    - name: Skip CA trust (step-ca not yet configured)
-      ansible.builtin.debug:
-        msg: "step-ca not configured on gateway yet — run Phase 1 first, then re-run Phase 0 with --tags ca"
-      when: "'exists' not in ca_check.stdout | default('')"
-      tags: ca
 
     - name: Generate Firefox bookmarks HTML for import
       ansible.builtin.copy:
