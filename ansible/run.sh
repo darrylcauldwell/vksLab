@@ -32,7 +32,7 @@ fi
 echo "Fetching secrets from 1Password (single biometric prompt)..."
 cat > "$SECRETS_FILE" <<EOF
 ---
-gateway_public_ip: "$(op read "op://$VAULT/Lab Bootstrap/ip_address")"
+gateway_public_ip: "$(op read "op://$VAULT/Jumpbox Ubuntu/ip_address")"
 gateway_password: "$(op read "op://$VAULT/Jumpbox Ubuntu/password")"
 bootstrap_password: "$(op read "op://$VAULT/Lab Bootstrap/password")"
 esxi_root_password: "$(op read "op://$VAULT/ESXi Root/password")"
