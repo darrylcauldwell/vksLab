@@ -152,15 +152,30 @@
         creates: "{{ ansible_env.HOME }}/.lab-root-ca.crt"
       tags: ca
 
-    - name: Trust lab root CA in macOS system keychain
+    - name: Check if lab CA is already trusted
       ansible.builtin.shell: >
         security verify-cert -c {{ ansible_env.HOME }}/.lab-root-ca.crt 2>/dev/null
-        && echo "already_trusted"
-        || (sudo security add-trusted-cert -d -r trustRoot
+        && echo "trusted" || echo "untrusted"
+      register: ca_check
+      changed_when: false
+      failed_when: false
+      tags: ca
+
+    - name: Trust lab root CA in macOS system keychain
+      ansible.builtin.shell: >
+        sudo security add-trusted-cert -d -r trustRoot
         -k /Library/Keychains/System.keychain
         {{ ansible_env.HOME }}/.lab-root-ca.crt
-        && echo "imported")
+      when: "'untrusted' in ca_check.stdout"
       register: ca_import
-      changed_when: "'imported' in ca_import.stdout"
-      when: ansible_os_family == 'Darwin'
+      changed_when: ca_import.rc == 0
+      failed_when: false
+      tags: ca
+
+    - name: Manual CA trust required
+      ansible.builtin.debug:
+        msg: >-
+          Could not auto-trust CA (sudo required). Run manually:
+          sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain ~/.lab-root-ca.crt
+      when: "'untrusted' in ca_check.stdout and (ca_import.rc | default(1)) != 0"
       tags: ca
