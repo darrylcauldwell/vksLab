@@ -12,6 +12,12 @@
 
 set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+# Activate venv if not already active
+if [ -z "$VIRTUAL_ENV" ] && [ -f "$REPO_ROOT/.venv/bin/activate" ]; then
+    source "$REPO_ROOT/.venv/bin/activate"
+fi
 SECRETS_FILE="$SCRIPT_DIR/inventory/group_vars/secrets.yml"
 VAULT="Employee"
 
