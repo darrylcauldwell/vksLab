@@ -21,6 +21,13 @@
   vars:
     repo_root: "{{ playbook_dir }}/../../.."
   tasks:
+    - name: Ensure sshpass is installed (macOS)
+      ansible.builtin.command:
+        cmd: brew install hudochenkov/sshpass/sshpass
+      register: sshpass_result
+      changed_when: "'already installed' not in sshpass_result.stderr"
+      failed_when: false
+
     - name: Pull latest changes from origin
       ansible.builtin.command:
         cmd: git pull origin main
