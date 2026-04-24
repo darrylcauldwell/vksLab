@@ -4,3 +4,13 @@ vcenter_wld_password: "{{ vcenter_sso_password }}"
 
 vks_supervisor_cluster: workload-cluster
 vks_velero_service_id: velero
+vks_services_namespace: vks-services
+
+# MinIO connection (must match vks_minio defaults)
+vks_velero_s3_url: "http://minio:9000"
+vks_velero_s3_bucket: velero
+vks_velero_s3_region: minio
+
+# Backup schedule
+vks_velero_schedule_name: daily-all-namespaces
+vks_velero_schedule_cron: "0 2 * * *"

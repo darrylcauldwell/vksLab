@@ -40,6 +40,74 @@
       version: "{{ vks_velero_version }}"
   when: velero_status.result is not defined or velero_status.failed | default(false)
 
+# --- Configure Velero with MinIO backend ---
+
+- name: Create BackupStorageLocation
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: velero.io/v1
+      kind: BackupStorageLocation
+      metadata:
+        name: default
+        namespace: velero
+      spec:
+        provider: aws
+        objectStorage:
+          bucket: "{{ vks_velero_s3_bucket }}"
+        config:
+          region: "{{ vks_velero_s3_region }}"
+          s3ForcePathStyle: "true"
+          s3Url: "{{ vks_velero_s3_url }}"
+        credential:
+          name: velero-minio-credentials
+          key: cloud
+        default: true
+
+- name: Create VolumeSnapshotLocation for vSphere CSI
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: velero.io/v1
+      kind: VolumeSnapshotLocation
+      metadata:
+        name: default
+        namespace: velero
+      spec:
+        provider: csi
+
+- name: Create daily backup schedule
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: velero.io/v1
+      kind: Schedule
+      metadata:
+        name: "{{ vks_velero_schedule_name }}"
+        namespace: velero
+      spec:
+        schedule: "{{ vks_velero_schedule_cron }}"
+        template:
+          includedNamespaces:
+            - "{{ vks_services_namespace }}"
+          snapshotVolumes: true
+          ttl: 168h0m0s
+
+- name: Wait for BackupStorageLocation to be available
+  kubernetes.core.k8s_info:
+    api_version: velero.io/v1
+    kind: BackupStorageLocation
+    name: default
+    namespace: velero
+  register: bsl_status
+  until: >
+    bsl_status.resources | length > 0 and
+    (bsl_status.resources[0].status.phase | default('')) == 'Available'
+  retries: 20
+  delay: 10
+
 - name: Display Velero status
   ansible.builtin.debug:
-    msg: "Velero {{ 'already enabled' if not (velero_status.failed | default(false)) else 'enabled (version ' + vks_velero_version + ')' }}"
+    msg: >-
+      Velero configured. BSL: MinIO ({{ vks_velero_s3_url }}/{{ vks_velero_s3_bucket }}).
+      Schedule: {{ vks_velero_schedule_name }} ({{ vks_velero_schedule_cron }}).

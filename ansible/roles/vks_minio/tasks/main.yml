@@ -67,6 +67,22 @@
                     mc mb --ignore-existing local/velero
         backoffLimit: 3
 
+- name: Create Velero credentials secret
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: velero-minio-credentials
+        namespace: "{{ vks_services_namespace }}"
+      type: Opaque
+      stringData:
+        cloud: |
+          [default]
+          aws_access_key_id={{ vks_minio_root_user }}
+          aws_secret_access_key={{ vks_minio_root_password }}
+
 - name: Display MinIO status
   ansible.builtin.debug:
-    msg: "MinIO deployed in {{ vks_services_namespace }}. Velero bucket created."
+    msg: "MinIO deployed in {{ vks_services_namespace }}. Velero bucket and credentials secret created."
