@@ -1,6 +1,14 @@
 ---
 # Phase 7 — VCF Workload NSX Networking
 # Edge cluster, Tier-0/1, BGP, VPC, SNAT (all API calls from localhost)
+- name: Phase 7 — Load secrets
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Load 1Password secrets
+      ansible.builtin.include_tasks: ../roles/common/tasks/ensure_1password.yml
+
 - name: Phase 7 — VCF Workload NSX Networking
   hosts: localhost
   connection: local

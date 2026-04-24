@@ -30,20 +30,9 @@ lab_ntp_servers:
 # 1Password vault name
 onepassword_vault: Employee
 
-# Gateway public IP (stored in 1Password after vCD deployment)
-gateway_public_ip: "{{ lookup('community.general.onepassword', 'Lab Bootstrap', field='ip_address', vault=onepassword_vault) }}"
-
-# Bootstrap password — simple, typed manually into vCD console and ESXi DCUI
-bootstrap_password: "{{ lookup('community.general.onepassword', 'Lab Bootstrap', field='password', vault=onepassword_vault) }}"
-
-# Runtime passwords — complex, injected by Ansible (never typed manually)
-esxi_root_password: "{{ lookup('community.general.onepassword', 'ESXi Root', field='password', vault=onepassword_vault) }}"
-vcenter_sso_password: "{{ lookup('community.general.onepassword', 'vCenter SSO', field='password', vault=onepassword_vault) }}"
-sddc_admin_password: "{{ lookup('community.general.onepassword', 'SDDC Manager', field='password', vault=onepassword_vault) }}"
-nsx_admin_password: "{{ lookup('community.general.onepassword', 'NSX Manager', field='password', vault=onepassword_vault) }}"
-keycloak_admin_password: "{{ lookup('community.general.onepassword', 'Keycloak Admin', field='password', vault=onepassword_vault) }}"
-depot_username: "{{ lookup('community.general.onepassword', 'Offline Depot', field='username', vault=onepassword_vault) }}"
-depot_password: "{{ lookup('community.general.onepassword', 'Offline Depot', field='password', vault=onepassword_vault) }}"
+# Secrets — loaded by ensure_1password.yml pre-play at playbook start.
+# Single biometric prompt, then cached as facts on all hosts.
+# DO NOT use onepassword lookup here — it triggers per-evaluation biometric prompts.
 
 # Keycloak
 keycloak_realm: lab

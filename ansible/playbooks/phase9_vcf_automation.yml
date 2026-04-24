@@ -3,6 +3,14 @@
 # Self-service consumption layer for NSX VPC and VKS.
 # Deploys VCF Automation, configures multi-tenant organisations,
 # enables VKSM, and publishes service catalog.
+- name: Phase 9 — Load secrets
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Load 1Password secrets
+      ansible.builtin.include_tasks: ../roles/common/tasks/ensure_1password.yml
+
 - name: Phase 9 — VCF Automation
   hosts: localhost
   connection: local

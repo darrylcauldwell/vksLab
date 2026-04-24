@@ -3,6 +3,14 @@
 # Commissions workload hosts and creates a VI workload domain.
 # Runs on localhost — API calls reach SDDC Manager via SOCKS proxy through the gateway.
 # Requires: ssh -D 1080 -N ubuntu@<gateway-public-ip>
+- name: Phase 6 — Load secrets
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Load 1Password secrets
+      ansible.builtin.include_tasks: ../roles/common/tasks/ensure_1password.yml
+
 - name: Phase 6 — VCF Workload Domain
   hosts: localhost
   connection: local

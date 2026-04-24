@@ -3,6 +3,14 @@
 # VCF Operations, Identity Broker (Keycloak OIDC), and CA certificate replacement.
 # Run after Phase 4 (management domain) so management components and trusted certs
 # are in place before the workload domain is created.
+- name: Phase 5 — Load secrets
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Load 1Password secrets
+      ansible.builtin.include_tasks: ../roles/common/tasks/ensure_1password.yml
+
 - name: Phase 5 — VCF Platform Services
   hosts: localhost
   connection: local

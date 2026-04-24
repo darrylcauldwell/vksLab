@@ -9,6 +9,14 @@
 #   Drives the VCF Installer API to deploy vCenter, SDDC Manager,
 #   and NSX Manager.
 
+- name: Phase 4 — Load secrets
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Load 1Password secrets
+      ansible.builtin.include_tasks: ../roles/common/tasks/ensure_1password.yml
+
 - name: Phase 4 — Deploy VCF Installer OVA
   hosts: gateways
   gather_facts: false
