@@ -40,7 +40,7 @@
   retries: 30
   delay: 15
 
-- name: Create Contour HTTPProxy for ArgoCD
+- name: Create Contour HTTPProxy for ArgoCD (TLS via lab CA)
   kubernetes.core.k8s:
     state: present
     definition:
@@ -49,9 +49,13 @@
       metadata:
         name: argocd
         namespace: "{{ vks_services_namespace }}"
+        annotations:
+          cert-manager.io/cluster-issuer: lab-ca
       spec:
         virtualhost:
           fqdn: "{{ vks_argocd_hostname }}"
+          tls:
+            secretName: argocd-tls
         routes:
           - conditions:
               - prefix: /

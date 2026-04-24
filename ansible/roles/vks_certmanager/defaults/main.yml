@@ -4,3 +4,6 @@ vcenter_wld_password: "{{ vcenter_sso_password }}"
 
 vks_supervisor_cluster: workload-cluster
 vks_certmanager_service_id: cert-manager
+
+# step-ca root certificate (fetched to controller in Phase 1)
+ca_cert_path: /root/.step/certs/root_ca.crt

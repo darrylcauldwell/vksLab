@@ -4,3 +4,5 @@ vcenter_wld_password: "{{ vcenter_sso_password }}"
 
 vks_supervisor_cluster: workload-cluster
 vks_harbor_service_id: harbor
+vks_harbor_hostname: "harbor.{{ lab_domain }}"
+vks_services_namespace: vks-services

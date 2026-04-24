@@ -40,6 +40,29 @@
       version: "{{ vks_harbor_version }}"
   when: harbor_status.result is not defined or harbor_status.failed | default(false)
 
+- name: Create Contour HTTPProxy for Harbor (TLS via lab CA)
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: projectcontour.io/v1
+      kind: HTTPProxy
+      metadata:
+        name: harbor
+        namespace: "{{ vks_services_namespace }}"
+        annotations:
+          cert-manager.io/cluster-issuer: lab-ca
+      spec:
+        virtualhost:
+          fqdn: "{{ vks_harbor_hostname }}"
+          tls:
+            secretName: harbor-tls
+        routes:
+          - conditions:
+              - prefix: /
+            services:
+              - name: harbor-core
+                port: 80
+
 - name: Display Harbor status
   ansible.builtin.debug:
-    msg: "Harbor {{ 'already enabled' if not (harbor_status.failed | default(false)) else 'enabled (version ' + vks_harbor_version + ')' }}"
+    msg: "Harbor {{ 'already enabled' if not (harbor_status.failed | default(false)) else 'enabled (version ' + vks_harbor_version + ')' }}. UI at https://{{ vks_harbor_hostname }}"

@@ -51,3 +51,58 @@
 - name: Display cert-manager status
   ansible.builtin.debug:
     msg: "cert-manager {{ 'already enabled' if not (certmanager_status.failed | default(false)) else 'enabled (version ' + vks_certmanager_version + ')' }}"
+
+# --- Integrate with lab step-ca ---
+# Create a ClusterIssuer that uses step-ca's ACME endpoint so all
+# ingress TLS certs (Harbor, ArgoCD) are signed by the lab CA —
+# consistent with VCF component certificates from Phase 5.
+
+- name: Create step-ca root CA secret for cert-manager
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: lab-ca-root
+        namespace: cert-manager
+      type: Opaque
+      data:
+        ca.crt: "{{ lookup('file', ca_cert_path) | b64encode }}"
+
+- name: Create ClusterIssuer for lab step-ca
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: cert-manager.io/v1
+      kind: ClusterIssuer
+      metadata:
+        name: lab-ca
+      spec:
+        acme:
+          server: "https://gateway.{{ lab_domain }}:443/acme/acme/directory"
+          caBundle: "{{ lookup('file', ca_cert_path) | b64encode }}"
+          privateKeySecretRef:
+            name: lab-ca-account-key
+          solvers:
+            - http01:
+                ingress:
+                  ingressClassName: contour
+
+- name: Wait for ClusterIssuer to be ready
+  kubernetes.core.k8s_info:
+    api_version: cert-manager.io/v1
+    kind: ClusterIssuer
+    name: lab-ca
+  register: issuer_status
+  until: >
+    issuer_status.resources | length > 0 and
+    (issuer_status.resources[0].status.conditions | default([]) |
+     selectattr('type', 'equalto', 'Ready') |
+     selectattr('status', 'equalto', 'True') | list | length > 0)
+  retries: 20
+  delay: 10
+
+- name: Display ClusterIssuer status
+  ansible.builtin.debug:
+    msg: "ClusterIssuer lab-ca ready — cert-manager will use step-ca for all TLS certificates"
