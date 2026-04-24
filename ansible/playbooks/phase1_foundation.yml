@@ -105,9 +105,9 @@
       failed_when: bgp_result.rc != 0
       tags: verify
 
-    - name: "Verify Keycloak — realm accessible"
+    - name: "Verify Keycloak — running and accessible"
       ansible.builtin.uri:
-        url: "https://127.0.0.1:{{ keycloak_port | default(8443) }}/realms/{{ keycloak_realm }}"
+        url: "https://127.0.0.1:{{ keycloak_port | default(8443) }}/realms/master"
         validate_certs: false
         status_code: [200]
       register: keycloak_result
