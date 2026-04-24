@@ -54,6 +54,11 @@
     mode: "0644"
   tags: [packages, dns]
 
+- name: "LONG RUNNING TASK — Upgrading all packages (~5-10 min on first run)"
+  ansible.builtin.debug:
+    msg: "Running apt dist-upgrade with cache update. This is slow on first build."
+  tags: packages
+
 - name: Upgrade all packages to latest versions
   become: true
   ansible.builtin.apt:
@@ -67,6 +72,11 @@
   become: true
   ansible.builtin.command: dpkg --configure -a
   changed_when: false
+  tags: packages
+
+- name: "LONG RUNNING TASK — Installing packages (~3-5 min)"
+  ansible.builtin.debug:
+    msg: "Installing {{ gateway_packages | length }} packages."
   tags: packages
 
 - name: Install required packages
@@ -693,6 +703,11 @@
     mode: "0600"
   tags: ca
 
+- name: "LONG RUNNING TASK — Initialising step-ca (~1-2 min)"
+  ansible.builtin.debug:
+    msg: "Generating CA keypair and configuring ACME provisioner."
+  tags: ca
+
 - name: Initialise step-ca
   become: true
   ansible.builtin.command:
@@ -908,6 +923,11 @@
     dest: /home/ubuntu/dda-vcf
     version: main
     force: true
+  tags: ansible-env
+
+- name: "LONG RUNNING TASK — Installing Ansible collections (~2-5 min)"
+  ansible.builtin.debug:
+    msg: "Downloading collections from Galaxy and installing vendored vmware_vcf."
   tags: ansible-env
 
 - name: Install Ansible collections

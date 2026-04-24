@@ -81,6 +81,11 @@
   changed_when: false
   tags: keycloak
 
+- name: "LONG RUNNING TASK — Starting Keycloak container (~2-3 min first pull)"
+  ansible.builtin.debug:
+    msg: "Pulling Keycloak image and starting container. First run downloads ~400 MB."
+  tags: keycloak
+
 - name: Run Keycloak container
   become: true
   ansible.builtin.shell: >
