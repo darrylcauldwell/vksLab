@@ -23,6 +23,14 @@
 #   keycloak  — Docker, Keycloak container, realm, users, OIDC clients
 #   verify    — foundation verification checks
 
+- name: Phase 1 — Ensure 1Password session
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Ensure 1Password session
+      ansible.builtin.include_tasks: ../roles/common/tasks/ensure_1password.yml
+
 - name: Phase 1 — Configure gateway
   hosts: gateways
   gather_facts: true

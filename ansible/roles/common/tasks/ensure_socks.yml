@@ -9,6 +9,9 @@
 #     - name: Ensure SOCKS proxy
 #       ansible.builtin.include_tasks: roles/common/tasks/ensure_socks.yml
 
+- name: "1Password | Warm session cache"
+  ansible.builtin.include_tasks: ensure_1password.yml
+
 - name: "SDK | Ensure latest vmware-vcf SDK"
   ansible.builtin.pip:
     name: vmware-vcf

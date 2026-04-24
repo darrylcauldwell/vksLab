@@ -22,6 +22,14 @@
 #   cd ansible
 #   ansible-playbook playbooks/phase2_discover_macs.yml
 
+- name: Phase 2 — Ensure 1Password session
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Ensure 1Password session
+      ansible.builtin.include_tasks: ../roles/common/tasks/ensure_1password.yml
+
 - name: Phase 2 — Discover ESXi MACs
   hosts: gateways
   gather_facts: false
