@@ -644,44 +644,17 @@ router bgp 65000
 
 > **BGP timers**: `timers bgp 60 180` sets keepalive to 60 seconds and hold time to 180 seconds (3× keepalive). These are conservative values suited to a nested lab where Edge VM reboots or vSAN latency spikes may briefly delay BGP keepalives. The NSX Tier-0 must be configured with matching timers (keepalive 60, hold 180) to avoid asymmetric dead-peer detection.
 
-### 8.4 Configure Tier-1 Gateway
+### 8.4 Create NSX Project and VPC (Transit Gateway Model)
+
+Creating an NSX Project automatically creates a Transit Gateway that connects VPCs to the Provider Gateway (Tier-0). This replaces the legacy Tier-1 gateway model and enables VCF Automation compatibility, Auto-SNAT, and vCenter/VCF Automation management.
 
 | Step | Action | Expected Result | Verification |
 |------|--------|-----------------|--------------|
-| 8.4.1 | Navigate to **Networking** > **Tier-1 Gateways** > **Add Tier-1 Gateway**. Name: `tier1-gateway`, linked to `tier0-gateway` | The NSX Tier-1 Gateway is created and linked to the Tier-0 | The gateway status shows Realised in NSX Manager |
-| 8.4.2 | Configure route advertisement (connected subnets, NAT IPs, LB VIPs) | Route advertisements are enabled | — |
+| 8.4.1 | Navigate to **Networking** > **VPC** > **Projects** > **Add Project**. Name: `lab-project` | The NSX Project is created with an auto-created Transit Gateway | Project status shows Realised; Transit Gateway visible in project details |
+| 8.4.2 | Within the project, create a VPC named `vks-vpc` | The VPC is created and connected via the Transit Gateway | VPC status shows Realised |
+| 8.4.3 | Verify VPC Auto-SNAT is active | Outbound traffic from VPC is automatically NATted | No manual SNAT rules needed on the Tier-0 |
 
-### 8.5 Configure NSX VPC
-
-| Step | Action | Expected Result | Verification |
-|------|--------|-----------------|--------------|
-| 8.5.1 | Navigate to **Networking** > **VPC** > **Projects** > **Add Project**. Name: `vks-project` | The VPC project is created in NSX Manager | — |
-| 8.5.2 | Within the project, create a VPC named `vks-vpc` with connectivity mode **Centralised** | The VPC is created with centralised connectivity | The VPC status shows Realised |
-| 8.5.3 | Configure external connectivity via Tier-0 | External routing is configured via the Tier-0 Gateway | — |
-| 8.5.4 | Configure Source Network Address Translation (SNAT) on Tier-0 for outbound VPC traffic | The SNAT rules are active | See SNAT steps below |
-
-#### Configure SNAT Rules on Tier-0
-
-Two SNAT rules are required — one for the VKS pod CIDR and one for the service CIDR. Both translate outbound traffic to the Tier-0 uplink IP (10.0.60.2) so that external networks can route return traffic.
-
-| Step | Action | Expected Result | Verification |
-|------|--------|-----------------|--------------|
-| 8.5.4a | In NSX Manager, navigate to Networking → NAT → tier0-gateway | The NAT rules page is displayed for the Tier-0 Gateway | — |
-| 8.5.4b | Add SNAT rule: source 192.168.0.0/16 → translated IP 10.0.60.2 | The SNAT rule for the pod CIDR is created | The rule status shows Active |
-| 8.5.4c | Add SNAT rule: source 10.96.0.0/12 → translated IP 10.0.60.2 | The SNAT rule for the service CIDR is created | The rule status shows Active |
-| 8.5.4d | Verify NAT rules are realised | Both SNAT rules show Active status | NSX Manager → NAT → tier0-gateway shows 2 SNAT rules |
-
-SNAT rule parameters:
-
-| Field | Pod CIDR Rule | Service CIDR Rule |
-|-------|--------------|-------------------|
-| Action | SNAT | SNAT |
-| Source | 192.168.0.0/16 | 10.96.0.0/12 |
-| Translated IP | 10.0.60.2 | 10.0.60.2 |
-| Applied To | Tier-0 uplink interface | Tier-0 uplink interface |
-| Logging | Disabled | Disabled |
-
-> **Note**: These CIDRs match the VKS cluster manifest (`pods.cidrBlocks` and `services.cidrBlocks`). If you change the cluster CIDRs, update the SNAT rules to match.
+> **Note**: VPC Auto-SNAT replaces the manual SNAT rules used in the legacy Tier-0 direct model. The Transit Gateway handles NAT automatically for each VPC. No manual SNAT configuration is required.
 
 ### 8.6 NSX Networking Verification
 
@@ -1006,7 +979,54 @@ Supervisor OIDC is configured with Keycloak via pinniped. This enables `kubectl 
 | RBAC admin | `kubectl auth can-i '*' '*'` (as vcf-admins member) | yes |
 | RBAC operator | `kubectl auth can-i create pods -n vks-workloads` (as vcf-operators member) | yes |
 
-## 11. Ready for Operations Testing
+## 11. Phase 9 — VCF Automation
+
+Phase 9 implements R-019, R-020, R-021 via AUTO-01 through AUTO-05. VCF Automation provides the self-service consumption layer for NSX VPC and VKS.
+
+```bash
+ansible-playbook playbooks/phase9_vcf_automation.yml
+```
+
+### 11.1 Deploy VCF Automation
+
+VCF Automation is deployed via SDDC Manager API, following the same pattern as VCF Operations in Phase 5.
+
+| Step | Action | Expected Result | Verification |
+|------|--------|-----------------|--------------|
+| 11.1.1 | Deploy VCF Automation via SDDC Manager | VCF Automation appliance deployed | `https://vcf-auto.lab.dreamfold.dev` loads login page |
+| 11.1.2 | Configure Provider Organisation with Keycloak OIDC | Provider admins can login via Keycloak | `vcf-admins` members see Organisation Administrator portal |
+| 11.1.3 | Create Tenant Organisation with Keycloak OIDC | Tenant users can login via Keycloak | `vcf-operators` members see project-scoped portal |
+| 11.1.4 | Create project mapping to NSX Project `lab-project` and vSphere Namespace | Project resources are scoped | VPC and namespace visible in tenant portal |
+
+### 11.2 Enable VKSM
+
+| Step | Action | Expected Result | Verification |
+|------|--------|-----------------|--------------|
+| 11.2.1 | Download Supervisor Management Proxy YAML (v0.4.0) from Broadcom Support Portal | Manifest file obtained | `supervisor-management-proxy.yml` downloaded |
+| 11.2.2 | Upload manifest to vCenter → Supervisor Management → Services | Supervisor Management Proxy service registered | Service shows in Supervisor Services list |
+| 11.2.3 | Configure proxy with VCF Automation FQDN (`vcf-auto.lab.dreamfold.dev:443`) and API port 10094 | VKSM connected to VCF Automation | VCF Automation portal → Services → VKS Cluster Management shows healthy |
+| 11.2.4 | Verify VKS clusters are visible in VCF Automation | Existing clusters auto-attach | `vks-cluster-01` and `vks-services-01` visible in VKSM |
+
+### 11.3 Configure Service Catalog
+
+| Step | Action | Expected Result | Verification |
+|------|--------|-----------------|--------------|
+| 11.3.1 | Create VKS cluster cloud template (blueprint) | Blueprint available in catalog | Tenant users can request VKS clusters |
+| 11.3.2 | Create VM cloud template | Blueprint available in catalog | Tenant users can request VMs |
+| 11.3.3 | Publish catalog items to tenant organisation | Items visible in tenant self-service portal | Tenant users see catalog on login |
+
+### 11.4 Phase 9 Verification
+
+| Check | Command / Method | Expected Result |
+|-------|------------------|-----------------|
+| VCF Automation UI | Browse `https://vcf-auto.lab.dreamfold.dev` | Login page loads |
+| Provider OIDC | Login as `lab-admin` via Keycloak | Organisation Administrator dashboard |
+| Tenant OIDC | Login as `lab-operator` via Keycloak | Project-scoped self-service portal |
+| VKSM health | VCF Automation → Services → VKS Cluster Management | Service healthy, clusters visible |
+| Catalog | Login as tenant → Service Broker → Catalog | VKS and VM blueprints available |
+| Self-service test | Request a VKS cluster from catalog | Cluster provisioned via VKSM |
+
+## 12. Ready for Operations Testing
 
 Final verification checklist before the lab is considered operational.
 
@@ -1133,7 +1153,7 @@ For additional troubleshooting, see [Operations Guide](operate.md) Section 4.
 | Edge VM deployment fails with "PDPE1GB CPU instruction not available" | The nested ESXi host VM does not expose 1GB hugepage support | Add the VM Advanced Setting `featMask.vm.cpuid.PDPE1GB = Val:1` to each ESXi host VM in vCD, then power-cycle the host |
 | Edge OVF deployment fails with `VALIDATION_ERROR: CERTIFICATE_EXPIRED` | The NSX Edge OVF certificate has expired | Follow VMware KB 424034 to replace the expired OVF certificate, then retry Edge deployment |
 | BGP session is stuck in Active state (not Established) | Timer mismatch between FRR and NSX Tier-0, or the uplink VLAN segment is misconfigured | Verify both sides use keepalive `60` / hold `180`. Check that the Tier-0 uplink interface IP (`10.0.60.2`) and the FRR neighbor IP (`10.0.60.1`) are on the same VLAN 60 segment. Confirm with `sudo vtysh -c 'show ip bgp summary'` on the gateway |
-| SNAT rules are not working — pods cannot reach external networks | The SNAT rules are not applied to the correct Tier-0 uplink interface, or the source CIDR does not match the VKS cluster CIDRs | Verify the SNAT rules in NSX Manager > **Networking** > **NAT** > `tier0-gateway`. Ensure the source CIDRs match `192.168.0.0/16` (pods) and `10.96.0.0/12` (services), and "Applied To" is set to the Tier-0 uplink interface |
+| Pods cannot reach external networks | VPC Auto-SNAT is not functioning, or BGP route exchange is broken | Verify VPC status in NSX Manager shows Realised. Check Transit Gateway connectivity to Provider Gateway. Verify BGP adjacency on the gateway (`sudo vtysh -c 'show ip bgp summary'`). Test from inside a pod: `kubectl exec -it <pod> -- curl -v http://10.0.10.1` |
 | Edge transport node status shows "Degraded" | TEP connectivity issue — the Edge TEP VLAN or IP is misconfigured | Verify Edge TEP IPs (`10.0.50.20`/`10.0.50.21`) are on VLAN 50, and that the gateway can ping both TEP addresses |
 
 For additional troubleshooting, see [Operations Guide](operate.md) Section 4.
@@ -1143,9 +1163,9 @@ For additional troubleshooting, see [Operations Guide](operate.md) Section 4.
 | Symptom | Cause | Resolution |
 |---------|-------|------------|
 | Content library sync fails — "unable to connect to subscription URL" | The gateway cannot reach `https://wp-content.vmware.com` due to DNS or firewall issues | Verify external DNS resolution from the gateway: `dig wp-content.vmware.com`. Ensure NAT/masquerading is active: `sudo iptables -t nat -L POSTROUTING` |
-| Supervisor enablement stalls at "Configuring" for more than 45 minutes | The NSX VPC or Edge cluster is unhealthy, preventing the Supervisor from creating its networking stack | Check NSX Manager for VPC and Edge cluster health. Verify the Tier-0 and Tier-1 gateways show Realised status. Review vCenter > **Workload Management** > **Supervisor** > **Events** for specific errors |
+| Supervisor enablement stalls at "Configuring" for more than 45 minutes | The NSX VPC or Edge cluster is unhealthy, preventing the Supervisor from creating its networking stack | Check NSX Manager for VPC and Edge cluster health. Verify the Provider Gateway (Tier-0) and Transit Gateway show Realised status. Review vCenter > **Workload Management** > **Supervisor** > **Events** for specific errors |
 | VKS cluster is stuck in "Provisioning" state | The VM class is not assigned to the namespace, or the content library does not contain a compatible Kubernetes version | Verify VM classes (best-effort-small, best-effort-medium) and the content library (`vkr-content-library`) are assigned to the `vks-workloads` namespace. Check `kubectl describe cluster vks-cluster-01` for event details |
-| LoadBalancer service has no EXTERNAL-IP (shows `<pending>`) | The NSX VPC load balancer is not provisioned, or SNAT rules prevent return traffic | Verify the VPC has an active load balancer. Check SNAT rules on the Tier-0 Gateway. Review `kubectl describe svc nginx-test` for events indicating the failure reason |
+| LoadBalancer service has no EXTERNAL-IP (shows `<pending>`) | The NSX VPC load balancer is not provisioned, or Transit Gateway connectivity is broken | Verify the VPC has an active load balancer. Check Transit Gateway and Provider Gateway status in NSX Manager. Review `kubectl describe svc nginx-test` for events indicating the failure reason |
 | Pods are running but cannot reach external networks | SNAT rules are missing or the BGP route exchange is not working | Verify SNAT rules are Active in NSX Manager. Check BGP adjacency on the gateway (`sudo vtysh -c 'show ip bgp summary'`). Test from inside a pod: `kubectl exec -it <pod> -- curl -v http://10.0.10.1` to confirm gateway reachability |
 
 For additional troubleshooting, see [Operations Guide](operate.md) Section 4.
@@ -1154,8 +1174,8 @@ For additional troubleshooting, see [Operations Guide](operate.md) Section 4.
 
 | Symptom | Cause | Resolution |
 |---------|-------|------------|
-| `vcf package install` fails — "package not found" | The VKS Standard Package repository is not synced or the cluster does not have internet access | Verify content library sync is current; confirm pods can reach external registries via SNAT |
-| Contour Envoy service stuck at `<pending>` EXTERNAL-IP | The NSX VPC load balancer is not provisioning a VIP for the Envoy service | Check NSX Manager → VPC → Load Balancer status; verify the Tier-1 gateway is healthy and LB VIP pool has available IPs |
+| `vcf package install` fails — "package not found" | The VKS Standard Package repository is not synced or the cluster does not have internet access | Verify content library sync is current; confirm pods can reach external registries via VPC Auto-SNAT |
+| Contour Envoy service stuck at `<pending>` EXTERNAL-IP | The NSX VPC load balancer is not provisioning a VIP for the Envoy service | Check NSX Manager → VPC → Load Balancer status; verify the Transit Gateway is healthy and connected to the Provider Gateway |
 | Harbor pods in CrashLoopBackOff | PVC not bound or insufficient storage | Check `kubectl get pvc -n harbor` — all PVCs should be Bound. Verify vSAN capacity in vCenter → vSAN → Capacity |
 | Harbor proxy cache returns 502 for GHCR images | The proxy cache endpoint is misconfigured or GHCR is unreachable from Harbor | Verify the `ghcr-proxy` project endpoint is `https://ghcr.io` in Harbor UI; test outbound connectivity from a Harbor pod |
 | Velero backup fails with "BackupStorageLocation unavailable" | MinIO is not running or the bucket does not exist | Check `kubectl get pods -n velero` for MinIO status; verify bucket with `mc ls minio/velero` |
