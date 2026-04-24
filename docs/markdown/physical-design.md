@@ -311,24 +311,27 @@ Edge VMs are sized as **Large** (8 vCPU, 32 GB RAM) to support VKS workloads.
 | BGP ASN | 65001 |
 | BGP Neighbor | 10.0.60.1 (Gateway FRR, ASN 65000) |
 
-### NSX Tier-1 Gateway Settings
+### NSX Project and Transit Gateway
 
 | Setting | Value |
 |---------|-------|
-| Name | tier1-gateway |
-| Linked to | tier0-gateway |
-| Route Advertisement | Connected subnets, NAT IPs, LB VIPs |
+| Project Name | lab-project |
+| Transit Gateway | Auto-created with project |
+| Transit Gateway Mode | Centralised (Active-Standby on Edge cluster) |
+
+> **Note**: The Transit Gateway is auto-created when the NSX Project is created. It connects VPCs within the project to the Provider Gateway (Tier-0). No manual Tier-1 gateway is needed.
 
 ### NSX VPC Settings
 
 | Setting | Value |
 |---------|-------|
 | VPC Name | vks-vpc |
-| Connectivity | Centralised (via Edge cluster) |
-| External Connectivity | Via Tier-0 BGP to gateway |
+| NSX Project | lab-project |
+| Connectivity | Via Transit Gateway → Provider Gateway (Tier-0) |
+| External Connectivity | Transit Gateway → Tier-0 → BGP → gateway |
 | Subnets | Created dynamically by VKS for pod and service networks |
-| NAT | Source NAT on Tier-0 for outbound traffic |
-| Load Balancing | NSX LB via Tier-1 for Kubernetes services |
+| NAT | VPC Auto-SNAT (automatic, no manual SNAT rules) |
+| Load Balancing | NSX embedded LB for Kubernetes services |
 
 ### Expected Route Tables (Post-Phase 7)
 
@@ -369,11 +372,11 @@ GET https://nsx-mgr-wld.lab.dreamfold.dev/policy/api/v1/infra/tier-0s/tier0-gate
 | 10.0.40.0/24 | 10.0.60.1 | BGP | Gateway (host overlay) |
 | 10.0.50.0/24 | 10.0.60.1 | BGP | Gateway (edge overlay) |
 | 10.0.60.0/24 | — | Connected | Tier-0 uplink |
-| 192.168.x.0/24 | — | Connected | Tier-1 (VKS pod subnets) |
-| 10.96.x.0/24 | — | Connected | Tier-1 (VKS service subnets) |
+| 192.168.x.0/24 | — | Connected | Transit Gateway (VKS pod subnets) |
+| 10.96.x.0/24 | — | Connected | Transit Gateway (VKS service subnets) |
 | 0.0.0.0/0 | 10.0.60.1 | Static | Default route to gateway |
 
-> **Expected route count**: ~6 BGP routes from gateway (one per VLAN SVI) plus connected/redistributed routes from Tier-1. The exact count depends on how many VPC subnets are created by the Supervisor and VKS.
+> **Expected route count**: ~6 BGP routes from gateway (one per VLAN SVI) plus connected/redistributed routes from Transit Gateway. The exact count depends on how many VPC subnets are created by the Supervisor and VKS.
 
 ## 8. VKS Cluster Specification
 
@@ -384,6 +387,7 @@ GET https://nsx-mgr-wld.lab.dreamfold.dev/policy/api/v1/infra/tier-0s/tier0-gate
 | Setting | Value |
 |---------|-------|
 | Cluster | Workload domain cluster |
+| Size | MEDIUM (required for VKSM integration with VCF Automation) |
 | Networking | NSX |
 | Control Plane Network | VPC subnet (auto-provisioned) |
 | Storage Policy | vSAN Default |
@@ -526,7 +530,47 @@ All HTTPProxy resources with the annotation `cert-manager.io/cluster-issuer: lab
 
 > **Note**: Platform services PVCs add ~172 Gi to vSAN consumption on the workload domain. This is within the vSAN capacity but makes storage the tighter constraint. Monitor vSAN capacity utilisation closely — see [Operations Guide](operate.md) Section 5.
 
-## 9. Resource Summary Tables
+## 9. VCF Automation Specification
+
+> Implements AUTO-01 (Simple model), AUTO-02 (All Apps Organisation), AUTO-04 (VKSM), AUTO-05 (Keycloak OIDC). See [Logical Design](logical-design.md) Section 9.
+
+### VCF Automation Appliance
+
+| Setting | Value |
+|---------|-------|
+| Hostname | vcf-auto |
+| IP | 10.0.10.12 |
+| Deployment Model | Simple (single-node) |
+| Organisation Mode | All Apps |
+| Deployed via | SDDC Manager API (Phase 9) |
+
+### Provider Organisation
+
+| Setting | Value |
+|---------|-------|
+| Name | lab-provider |
+| OIDC Provider | Keycloak (`lab` realm) |
+| Admin Group | `vcf-admins` → Organisation Administrator |
+
+### Tenant Organisation
+
+| Setting | Value |
+|---------|-------|
+| Name | lab-tenant |
+| OIDC Provider | Keycloak (`lab` realm) |
+| User Group | `vcf-operators` → Project Administrator |
+| Project | lab-project (maps to NSX Project `lab-project`) |
+
+### VKSM Configuration
+
+| Setting | Value |
+|---------|-------|
+| Supervisor Management Proxy | v0.4.0 (uploaded to Supervisor Services) |
+| VCFA FQDN | vcf-auto.lab.dreamfold.dev |
+| VKSM API Port | 10094 |
+| Supervisor Size | MEDIUM (prerequisite) |
+
+## 10. Resource Summary Tables
 
 ### vCD Resource Requirements
 
