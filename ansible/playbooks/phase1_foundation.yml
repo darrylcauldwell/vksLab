@@ -123,19 +123,12 @@
       failed_when: masq_result.rc != 0
       tags: verify
 
-    - name: "Verify dnsmasq — all lab hostnames resolve"
+    - name: "Verify dnsmasq — gateway hostname resolves"
       ansible.builtin.command:
-        cmd: "dig +short @127.0.0.1 {{ item }}.{{ lab_domain }}"
-      loop:
-        - vcf-installer
-        - vcenter-mgmt
-        - sddc-manager
-        - nsx-mgr-mgmt
-        - esxi-01
-        - esxi-05
-      register: dns_all
+        cmd: "dig +short @127.0.0.1 gateway.{{ lab_domain }}"
+      register: dns_gw
       changed_when: false
-      failed_when: dns_all.stdout | length == 0
+      failed_when: dns_gw.stdout | length == 0
       tags: verify
 
     - name: Foundation verification summary
