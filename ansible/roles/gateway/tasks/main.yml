@@ -904,15 +904,15 @@
 
 - name: Clone lab repo to gateway
   ansible.builtin.git:
-    repo: https://github.com/darrylcauldwell/vksLab.git
-    dest: /home/ubuntu/vksLab
+    repo: https://github.com/darrylcauldwell/dda-vcf.git
+    dest: /home/ubuntu/dda-vcf
     version: main
     force: true
   tags: ansible-env
 
 - name: Install Ansible collections
   ansible.builtin.command:
-    cmd: ansible-galaxy collection install -r /home/ubuntu/vksLab/ansible/collections/requirements.yml
+    cmd: ansible-galaxy collection install -r /home/ubuntu/dda-vcf/ansible/collections/requirements.yml
   register: collections_install
   changed_when: "'was installed' in collections_install.stdout"
   tags: ansible-env

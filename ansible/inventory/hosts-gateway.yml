@@ -2,7 +2,7 @@
 # No ProxyJump needed; gateway targets localhost; ESXi hosts reached directly.
 #
 # Usage (from gateway):
-#   cd ~/vksLab/ansible
+#   cd ~/dda-vcf/ansible
 #   ansible-playbook -i inventory/hosts-gateway.yml playbooks/phase3_esxi.yml
 all:
   vars:

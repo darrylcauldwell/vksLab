@@ -185,16 +185,16 @@ cd ansible
 ansible-playbook playbooks/phase1_foundation.yml
 ```
 
-Phase 1 also prepares the gateway as the Ansible control node for all subsequent phases. It installs Ansible, 1Password CLI, clones the lab repo to `~/vksLab`, and installs required Ansible collections. After Phase 1 completes, SSH to the gateway and run all subsequent playbooks locally:
+Phase 1 also prepares the gateway as the Ansible control node for all subsequent phases. It installs Ansible, 1Password CLI, clones the lab repo to `~/dda-vcf`, and installs required Ansible collections. After Phase 1 completes, SSH to the gateway and run all subsequent playbooks locally:
 
 ```bash
 ssh ubuntu@<gateway-ip>
-cd ~/vksLab/ansible
+cd ~/dda-vcf/ansible
 op signin    # authenticate 1Password CLI
 ansible-playbook -i inventory/hosts-gateway.yml playbooks/phase3_esxi.yml
 ```
 
-> **Note**: The gateway-local inventory (`hosts-gateway.yml`) eliminates SSH ProxyJump — the gateway connects directly to ESXi hosts on the management VLAN. This is faster and more reliable than running from the laptop over the internet. To pull latest changes before running: `cd ~/vksLab && git pull`.
+> **Note**: The gateway-local inventory (`hosts-gateway.yml`) eliminates SSH ProxyJump — the gateway connects directly to ESXi hosts on the management VLAN. This is faster and more reliable than running from the laptop over the internet. To pull latest changes before running: `cd ~/dda-vcf && git pull`.
 
 ### 4.3 Phase 2 — Discover ESXi MACs (Automated)
 
