@@ -1,7 +1,7 @@
 gateway_ip: "{{ host_ip['gateway'] }}"
 gateway_private_nic: ens34
 gateway_public_nic: ens33
-gateway_lab_network: "{{ lab_network_prefix }}.0.0/16"
+gateway_lab_network: "{{ vlan['management'].gateway | regex_replace('\\.[0-9]+\\.[0-9]+$', '.0.0/16') }}"
 gateway_vlan_trunk_nic: ens34
 
 gateway_packages:
