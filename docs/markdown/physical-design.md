@@ -42,7 +42,8 @@ Host IP allocations. Columns: `ip` (IPv4 address), `hostname` (short name, FQDN 
 | 10.0.10.8 | vcf-ops-collector | mgmt | VCF Operations Collector |
 | 10.0.10.9 | vcf-ops-fleet | mgmt | VCF Operations Fleet Management |
 | 10.0.10.10 | vcf-ops-logs | mgmt | VCF Operations for Logs |
-| 10.0.10.11 | vcf-auto | mgmt | VCF Automation (optional) |
+| 10.0.10.11 | vcf-ops-net | mgmt | VCF Operations for Networks |
+| 10.0.10.12 | vcf-auto | mgmt | VCF Automation (optional) |
 | 10.0.10.20 | vcenter-wld | wld | vCenter Server (workload) |
 | 10.0.10.21 | nsx-mgr-wld | wld | NSX Manager (workload) |
 | 10.0.10.22 | nsx-vip-wld | wld | NSX Manager VIP (workload) |
@@ -255,10 +256,11 @@ With FTT=1 RAID-1, each object is mirrored — raw capacity is halved for data p
 | SDDC Manager | sddc-manager | 10.0.10.5 | VCF lifecycle and domain management |
 | NSX Manager | nsx-mgr-mgmt | 10.0.10.6 | Management domain NSX (single node) |
 | VCF Operations | vcf-ops | 10.0.10.7 | Monitoring, capacity, and analytics |
-| VCF Operations Collector | vcf-ops-collector | 10.0.10.23 | Local data collection agent |
-| VCF Operations Fleet Management | vcf-ops-fleet | 10.0.10.24 | Lifecycle management for VCF management components |
-| VCF Operations for Logs | vcf-ops-logs | 10.0.10.18 | Centralised log collection (deployed via Fleet Management) |
-| VCF Automation | vcf-auto | 10.0.10.8 | Infrastructure automation (optional) |
+| VCF Operations Collector | vcf-ops-collector | 10.0.10.8 | Local data collection agent |
+| VCF Operations Fleet Management | vcf-ops-fleet | 10.0.10.9 | Lifecycle management for VCF management components |
+| VCF Operations for Logs | vcf-ops-logs | 10.0.10.10 | Centralised log collection (deployed via Fleet Management) |
+| VCF Operations for Networks | vcf-ops-net | 10.0.10.11 | Network visibility and flow analytics (deployed via Fleet Management) |
+| VCF Automation | vcf-auto | 10.0.10.12 | Infrastructure automation (optional) |
 
 ### Installer Prerequisites
 
@@ -480,10 +482,11 @@ These run inside the nested environment and consume resources from the ESXi host
 | VCF Operations Collector (small) | 4 | 16 | 280 |
 | VCF Operations Fleet Management | 4 | 12 | 206 |
 | VCF Operations for Logs | 4 | 8 | 530 |
+| VCF Operations for Networks | 4 | 12 | 200 |
 | VCF Automation (optional) | 4 | 24 | 100 |
-| **Nested Total** | **62** | **262** | **3,106** |
+| **Nested Total** | **66** | **274** | **3,306** |
 
-> **Note**: The nested appliance resources are consumed from the 896 GB RAM and 1,792 GB storage provisioned to the ESXi VMs. The remaining ~634 GB RAM is available for VKS workloads and Supervisor VMs. VCF Operations is sized xsmall for the lab to minimise resource consumption.
+> **Note**: The nested appliance resources are consumed from the 896 GB RAM and 1,792 GB storage provisioned to the ESXi VMs. The remaining ~622 GB RAM is available for VKS workloads and Supervisor VMs. VCF Operations is sized xsmall for the lab to minimise resource consumption.
 
 ### 9.1 Capacity Headroom Analysis
 
@@ -501,11 +504,12 @@ The management domain hosts run all VCF infrastructure appliances. The VCF Insta
 | VCF Operations Collector (small) | 4 | 16 |
 | VCF Operations Fleet Management | 4 | 12 |
 | VCF Operations for Logs | 4 | 8 |
+| VCF Operations for Networks | 4 | 12 |
 | VCF Automation (optional) | 4 | 24 |
-| **Appliance subtotal** | **32** | **129** |
+| **Appliance subtotal** | **36** | **141** |
 | VCF Installer (temporary, reclaimed after bringup) | 4 | 24 |
-| **Remaining after bringup** | **64** | **383** |
-| **Utilisation** | **~33%** | **~25%** |
+| **Remaining after bringup** | **60** | **371** |
+| **Utilisation** | **~38%** | **~28%** |
 
 > **Note**: Management domain hosts have substantial headroom. The surplus provides a comfortable buffer for SDDC Manager lifecycle operations (e.g., in-place upgrades that temporarily run two appliance instances).
 

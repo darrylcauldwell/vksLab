@@ -19,6 +19,8 @@
       - { hostname: vcf-ops, ip: "{{ host_ip['vcf-ops'] }}" }
       - { hostname: vcf-ops-collector, ip: "{{ host_ip['vcf-ops-collector'] }}" }
       - { hostname: vcf-ops-fleet, ip: "{{ host_ip['vcf-ops-fleet'] }}" }
+      - { hostname: vcf-ops-logs, ip: "{{ host_ip['vcf-ops-logs'] }}" }
+      - { hostname: vcf-ops-net, ip: "{{ host_ip['vcf-ops-net'] }}" }
 
 # --- Ensure required bundles are downloaded ---
 # Best practice: start bundle downloads manually via SDDC Manager UI

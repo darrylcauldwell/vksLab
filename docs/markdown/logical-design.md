@@ -86,6 +86,8 @@ See [Delivery Guide](deliver.md) for step-by-step deployment procedures with exa
 | VCF Networking (NSX) Manager | 2 | Management + workload domain |
 | NSX Edge VMs | 2 | North-south routing, Virtual Private Cloud (VPC) |
 | VCF Operations | 1 | Monitoring and analytics |
+| VCF Operations for Logs | 1 | Centralised log collection |
+| VCF Operations for Networks | 1 | Network visibility and flow analytics |
 | VCF Automation | 1 | Infrastructure automation |
 
 ## 2. vCloud Director Layer
@@ -430,6 +432,7 @@ The management domain follows the **VCF Fleet in a Single Site with Minimal Foot
 | VCF Operations Collector | Local data collection agent for the VCF instance |
 | VCF Operations Fleet Management | Lifecycle management for VCF management components |
 | VCF Operations for Logs | Centralised log collection (deployed via Fleet Management, Simple model) |
+| VCF Operations for Networks | Network visibility, flow analytics, and micro-segmentation planning (deployed via Fleet Management) |
 | VCF Automation | Infrastructure-as-code and self-service (optional) |
 
 ### Workload Domain Components
@@ -459,6 +462,7 @@ Phases 4–8 run from the operator's laptop via SOCKS proxy (`ssh -D 1080`) thro
 | R-004 | VCF-06 | Workload domain uses isolated SSO domain | SDDC Manager requires an isolated SSO domain for VI workload domains — joining the management domain ELM ring is not supported for domain creation via API | Risk: Separate SSO domain means separate administrator credentials. Mitigation: Keycloak OIDC federation provides unified login across both domains |
 | R-006 | VCF-07 | Workload domain VDS uses nsxtSwitchConfig with explicit VLAN and Overlay transport zones | The deprecated `isUsedByNsxt` flag creates security-only VLAN transport zones which cannot host VLAN-backed segments for Edge uplinks. Explicit `nsxtSwitchConfig` with both VLAN and OVERLAY transport zones enables full NSX networking capability (segments, Edge uplinks, Tier-0/Tier-1 gateways) | Risk: None — matches management domain pattern |
 | R-017 | VCF-05 | VCF Operations for Logs deployed in management domain (Simple model — single node) | Follows "VCF Operations for Logs — Simple Model" — centralised log collection for VCF management components; single-node deployment with vSphere HA for availability | Risk: Single-node — no log HA. Mitigation: Acceptable for lab; vSphere HA restarts the appliance on host failure |
+| R-018 | VCF-08 | VCF Operations for Networks deployed in management domain | Network visibility and flow analytics for NSX overlay and underlay traffic; micro-segmentation planning; deployed via Fleet Management after VCF Operations is available | Risk: Additional resource consumption (~4 vCPU, 12 GB RAM). Mitigation: Acceptable for lab; provides visibility into NSX VPC networking used by VKS |
 
 ## 7. NSX Networking Architecture
 

@@ -573,7 +573,7 @@ ansible-playbook playbooks/phase5_vcf_platform.yml
 
 The playbook runs three roles in order:
 
-1. **vcf_mgmt_components** — Ensures DNS records, downloads required bundles (VROPS, VRSLCM, VCF_OPS_CLOUD_PROXY), deploys VCF Operations (xsmall), Collector (small), and Fleet Management via SDDC Manager API. Takes ~30–60 minutes.
+1. **vcf_mgmt_components** — Ensures DNS records (including VCF Operations for Logs and Networks), downloads required bundles (VROPS, VRSLCM, VCF_OPS_CLOUD_PROXY), deploys VCF Operations (xsmall), Collector (small), and Fleet Management via SDDC Manager API. Takes ~30–60 minutes. VCF Operations for Logs and VCF Operations for Networks are deployed separately via Fleet Management UI after automation completes.
 2. **vcf_identity** — Configures VCF Identity Broker with Keycloak OIDC via VCF Operations internal APIs. Registers `vcf-identity-broker` client, maps `vcf-admins` group to administrator role, configures SSO for vCenter, NSX, and VCF Operations.
 3. **vcf_platform** — Configures OpenSSL CA in SDDC Manager, generates CSRs for all domains, signs them with step-ca on the gateway, installs signed certificates. Configures SDDC Manager backups to gateway via SFTP.
 

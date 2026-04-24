@@ -102,7 +102,7 @@ A virtual router provides inter-Virtual LAN (VLAN) routing across all VCF networ
 
 Two VCF domains provide separation of concerns:
 
-- **Management domain** — hosts VCF management components (vCenter, Software-Defined Data Center (SDDC) Manager, NSX Manager, VCF Operations, VCF Automation)
+- **Management domain** — hosts VCF management components (vCenter, Software-Defined Data Center (SDDC) Manager, NSX Manager, VCF Operations, VCF Operations for Logs, VCF Operations for Networks, VCF Automation)
 - **Workload domain** — hosts the NSX Edge cluster, Supervisor, and VKS workloads
 
 ### VKS Cluster
@@ -151,7 +151,7 @@ Deployment proceeds in nine phases, each building on the previous:
 3. **Phase 2 — MAC Discovery** — discover ESXi MAC addresses from dnsmasq leases
 4. **Phase 3 — Nested Compute** — ESXi host deployment and network preparation
 5. **Phase 4 — VCF Management Domain** — VCF Installer bringup of management components
-6. **Phase 5 — VCF Platform Services** — VCF Management Components (VCF Operations, Collector, Fleet Management), Identity Broker OIDC, CA certificate replacement, SDDC Manager backup configuration
+6. **Phase 5 — VCF Platform Services** — VCF Management Components (VCF Operations, Collector, Fleet Management), Identity Broker OIDC, CA certificate replacement, SDDC Manager backup configuration. VCF Operations for Logs and VCF Operations for Networks are deployed separately via Fleet Management after automation completes
 7. **Phase 6 — VCF Workload Domain** — host commissioning and workload domain creation
 8. **Phase 7 — VCF Workload NSX Networking** — Edge cluster, NSX Tier-0/Tier-1 gateways, BGP, VPC, SNAT
 9. **Phase 8 — VCF Workload VKS** — Supervisor enablement, namespace creation, VKS cluster deployment, platform services (Contour, Harbor, Velero, ArgoCD)
@@ -192,6 +192,7 @@ See [Logical Design](logical-design.md) for phase details and [Delivery Guide](d
 | R-015 | Kubernetes backup and restore | VKS-12 | Phase 8 — Velero installation | `velero backup get` shows recent Completed backup |
 | R-016 | GitOps-based application deployment | VKS-13 | Phase 8 — ArgoCD installation | `argocd app list` shows Synced/Healthy |
 | R-017 | Centralised log collection | VCF-05 | Phase 5 — VCF Operations for Logs deployment | VCF Operations for Logs UI accessible; log sources connected |
+| R-018 | Network visibility and flow analytics | VCF-08 | Phase 5 — VCF Operations for Networks deployment | VCF Operations for Networks UI accessible; data sources connected |
 
 ### Constraint Traceability
 
