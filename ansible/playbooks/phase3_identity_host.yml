@@ -1,5 +1,5 @@
 ---
-# Included by phase2_esxi.yml — runs once per ESXi host from the gateway.
+# Included by phase3_esxi.yml — runs once per ESXi host from the gateway.
 # Sets hostname, regenerates SSL cert, restarts hostd, waits for recovery.
 # All commands run via sshpass to avoid Ansible SSH connection issues
 # during hostd restarts.

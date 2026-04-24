@@ -1,10 +1,10 @@
 ---
-# Phase 6 — VKS: Content library, Supervisor, Namespace, VKS cluster
+# Phase 8 — VCF Workload VKS: Content library, Supervisor, Namespace, VKS cluster
 #
 # All vCenter API calls go through vmware_vcf.ansible collection modules
 # which use the requests library (SOCKS proxy compatible).
 
-# --- Ensure DNS for Phase 7 dependencies ---
+# --- Ensure DNS for Phase 8 dependencies ---
 
 - name: Ensure DNS for VKS
   ansible.builtin.include_tasks: ../../common/tasks/ensure_dns.yml

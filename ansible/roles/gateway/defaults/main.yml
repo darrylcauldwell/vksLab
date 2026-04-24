@@ -13,13 +13,13 @@ gateway_packages:
   - frr
   - jq
   - conky-all
-  - sshpass                     # Used by Phase 2 bootstrap to set ESXi passwords
+  - sshpass                     # Used by Phase 3 bootstrap to set ESXi passwords
   - expect                      # Used to handle SSH banners on VCF appliances
   - zsh
   - git                          # Required for Oh My Zsh, plugin installs, and repo clone
   # zsh-autosuggestions and zsh-syntax-highlighting are cloned from git
   # into Oh My Zsh custom plugins directory (apt packages lack full structure)
-  - ansible                     # Phases 2+ run from gateway
+  - ansible                     # Phases 3+ run from gateway
   - python3-pip                 # For Ansible collection dependencies
 
 gateway_keyboard_layout: gb
@@ -57,7 +57,7 @@ gateway_upstream_dns:
 gateway_dns_records:
   - {hostname: gateway, ip: "{{ host_ip['gateway'] }}"}
 
-# DHCP reservations — MACs are discovered by Phase 1B (phase1b_discover_macs.yml).
+# DHCP reservations — MACs are discovered by Phase 2 (phase2_discover_macs.yml).
 # IPs come from the physical design document via DDA.
 # These placeholder MACs get overwritten at runtime.
 gateway_dhcp_reservations:

@@ -14,7 +14,7 @@ VMware Kubernetes Service (VKS) lab environment — infrastructure-as-documentat
 
 ## Ansible Automation
 
-Ansible roles and playbooks automate all 6 deployment phases. Runs from the operator's laptop via SSH ProxyJump through the gateway, with secrets from 1Password.
+Ansible roles and playbooks automate all 9 deployment phases. Runs from the operator's laptop via SSH ProxyJump through the gateway, with secrets from 1Password.
 
 ### Setup
 
@@ -32,14 +32,14 @@ pip install -e /path/to/vmware-vcf
 ### Running Playbooks
 
 ```bash
-# Run full deployment (all 6 phases)
+# Run full deployment (all 9 phases)
 ansible-playbook -i ansible/inventory/hosts.yml ansible/playbooks/site.yml
 
 # Run a single phase
-ansible-playbook -i ansible/inventory/hosts.yml ansible/playbooks/phase2_esxi.yml
+ansible-playbook -i ansible/inventory/hosts.yml ansible/playbooks/phase3_esxi.yml
 
 # Dry run
-ansible-playbook -i ansible/inventory/hosts.yml ansible/playbooks/phase2_esxi.yml --check
+ansible-playbook -i ansible/inventory/hosts.yml ansible/playbooks/phase3_esxi.yml --check
 ```
 
 See [`ansible/`](ansible/) for roles, custom VCF modules, and inventory configuration.

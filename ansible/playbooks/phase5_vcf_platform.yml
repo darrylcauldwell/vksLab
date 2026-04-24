@@ -1,9 +1,9 @@
 ---
-# Phase 5 — Platform Services
-# Identity Broker (Keycloak OIDC) and CA certificate replacement.
-# Run after Phase 4 (workload domain) so SSO and trusted certs are
-# available before NSX networking and VKS configuration.
-- name: Phase 5 — Platform services
+# Phase 5 — VCF Platform Services
+# VCF Operations, Identity Broker (Keycloak OIDC), and CA certificate replacement.
+# Run after Phase 4 (management domain) so management components and trusted certs
+# are in place before the workload domain is created.
+- name: Phase 5 — VCF Platform Services
   hosts: localhost
   connection: local
   gather_facts: false

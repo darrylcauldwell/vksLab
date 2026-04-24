@@ -191,7 +191,7 @@ The CA root certificate must be distributed to ESXi hosts and management applian
 Lab credentials follow a two-tier model: **bootstrap** (simple, typed manually) and **runtime** (complex, injected by Ansible).
 
 - **Bootstrap password**: A single, simple password stored in 1Password as "Lab Bootstrap". The operator types this into the vCD console during Ubuntu gateway install and into the ESXi Direct Console User Interface (DCUI) to set the initial root password. Ansible connects to hosts using this password.
-- **Runtime passwords**: Complex, auto-generated passwords stored as separate 1Password items. Ansible injects these into VCF components during deployment. The `esxi_prepare` role (Phase 2) changes ESXi root passwords from bootstrap to runtime credentials so that VCF bringup specs reference the correct values.
+- **Runtime passwords**: Complex, auto-generated passwords stored as separate 1Password items. Ansible injects these into VCF components during deployment. The `esxi_prepare` role (Phase 3) changes ESXi root passwords from bootstrap to runtime credentials so that VCF bringup specs reference the correct values.
 - **Derived credentials**: Service passwords that do not need to be stored in 1Password are derived deterministically from the bootstrap password via salted SHA-256 hash (e.g., `(bootstrap_password + 'step-ca') | hash('sha256')`). This ensures playbook idempotency — reruns produce the same password rather than generating a new random value that would desynchronise with previously initialised services.
 
 ### 1Password Secret Store
@@ -235,7 +235,7 @@ Keycloak runs as a Docker container on the gateway (port 8443, HTTPS) and provid
 | R-009 | SVC-09 | step-ca max certificate duration set to 1 year (8760h) | Default step-ca provisioner limits certificates to 24 hours, which is too short for lab services like Keycloak that need stable TLS. 1-year duration avoids frequent renewal while remaining shorter than the 10-year root CA lifetime | Risk: Long-lived certificates are not rotated. Mitigation: Lab environment — acceptable; see [Operations Guide](operate.md) for renewal SOP |
 | R-009 | SVC-10 | step-ca binds to 127.0.0.1 only | Avoids dependency on VLAN sub-interface readiness during startup; all certificate operations originate from the gateway itself | Risk: Remote ACME clients cannot reach step-ca directly. Mitigation: All cert issuance is performed by Ansible from the gateway; no remote ACME clients are needed |
 | R-009 | SVC-11 | Keycloak container managed via Docker CLI (not community.docker Ansible module) | Avoids requiring the Python `docker` library on the gateway; reduces gateway package dependencies | Risk: Slightly less declarative than Ansible module. Mitigation: Idempotency achieved via `docker inspect` check before `docker run` |
-| R-002 | SVC-12 | Bootstrap-to-runtime password rotation during ESXi preparation | ESXi hosts start with a simple bootstrap password (typed via DCUI) and are rotated to complex runtime credentials by the `esxi_prepare` role. VCF bringup specs then reference the runtime passwords | Risk: Phase 2 playbook cannot be rerun after password change without DCUI reset. Mitigation: Lab deployment is a one-pass process; DCUI reset is documented as fallback |
+| R-002 | SVC-12 | Bootstrap-to-runtime password rotation during ESXi preparation | ESXi hosts start with a simple bootstrap password (typed via DCUI) and are rotated to complex runtime credentials by the `esxi_prepare` role. VCF bringup specs then reference the runtime passwords | Risk: Phase 3 playbook cannot be rerun after password change without DCUI reset. Mitigation: Lab deployment is a one-pass process; DCUI reset is documented as fallback |
 | R-002 | SVC-13 | Deterministic password derivation for service credentials | Service passwords (e.g., step-ca) are derived from the bootstrap password via salted SHA-256 hash rather than random generation. This ensures Ansible playbooks are idempotent — reruns produce the same password | Risk: Derived password security depends on bootstrap password entropy. Mitigation: Bootstrap password stored in 1Password; SHA-256 output provides sufficient complexity for lab services |
 | R-002 | SVC-14 | GNOME + gnome-remote-desktop for Wayland-native RDP | Replaces X11-only XFCE + xrdp; gnome-remote-desktop is built into Ubuntu 24.04 GNOME; Wayland provides correct keyboard mapping and is the modern display protocol | Risk: gnome-remote-desktop is newer than xrdp. Mitigation: Ubuntu 24.04 ships it as default; fallback to xrdp is straightforward |
 
@@ -244,7 +244,7 @@ Keycloak runs as a Docker container on the gateway (port 8443, HTTPS) and provid
 The step-ca root CA certificate must be trusted by ESXi hosts and VCF management appliances for TLS validation. The distribution mechanism spans two Ansible phases:
 
 1. **Phase 1** (gateway role): step-ca generates the root CA during initialisation. The certificate is exported to a local path on the gateway and then fetched to the Ansible controller using `ansible.builtin.fetch`.
-2. **Phase 2** (esxi_prepare role): The controller pushes the root CA certificate to each ESXi host via `ansible.builtin.copy`, then imports it into the ESXi trust store with `esxcli security cert import`.
+2. **Phase 3** (esxi_prepare role): The controller pushes the root CA certificate to each ESXi host via `ansible.builtin.copy`, then imports it into the ESXi trust store with `esxcli security cert import`.
 
 This two-step fetch-then-push pattern is necessary because the Ansible `copy` module sources files from the controller, not from intermediate hosts.
 
@@ -446,7 +446,7 @@ The VCF Installer appliance drives the initial management domain bringup. It is 
 
 The workload domain is created via SDDC Manager by commissioning the workload ESXi hosts into the free pool, then creating a new VI workload domain.
 
-Phases 3–7 run from the operator's laptop via SOCKS proxy (`ssh -D 1080`) through the gateway. All VCF API calls use the `vmware_vcf.ansible` collection modules which route through the `requests` library (SOCKS-compatible). Each phase includes DNS quality gates that ensure and verify required DNS records on the gateway's dnsmasq before proceeding.
+Phases 4–8 run from the operator's laptop via SOCKS proxy (`ssh -D 1080`) through the gateway. All VCF API calls use the `vmware_vcf.ansible` collection modules which route through the `requests` library (SOCKS-compatible). Each phase includes DNS quality gates that ensure and verify required DNS records on the gateway's dnsmasq before proceeding.
 
 ### Design Decisions
 
@@ -641,7 +641,7 @@ Infrastructure VLANs (10.0.10–60.0/24)
 | Req. | Decision ID | Design Decision | Design Justification | Risk / Mitigation |
 |------|-------------|-----------------|----------------------|-------------------|
 | R-006 | NSX-01 | Two-node NSX Edge cluster sized Large | Follows "Host Fault Tolerant NSX Edge Model" — minimum for Active-Standby HA within single rack; Large sizing required for VKS workloads | Risk: Large Edges consume significant resources (8 vCPU, 32 GB each). Mitigation: Workload domain hosts sized accordingly |
-| R-006 | NSX-02 | Active-Standby Tier-0 with BGP uplink to gateway (FRR) (keepalive 60s, hold 180s) | Provides dynamic route exchange; gateway advertises infrastructure subnets, NSX advertises VPC prefixes; conservative timers tolerate nested virtualisation overhead | Risk: BGP misconfiguration breaks north-south routing. Mitigation: Verify adjacency and route tables in Phase 5 |
+| R-006 | NSX-02 | Active-Standby Tier-0 with BGP uplink to gateway (FRR) (keepalive 60s, hold 180s) | Provides dynamic route exchange; gateway advertises infrastructure subnets, NSX advertises VPC prefixes; conservative timers tolerate nested virtualisation overhead | Risk: BGP misconfiguration breaks north-south routing. Mitigation: Verify adjacency and route tables in Phase 7 |
 | R-008 | NSX-03 | Centralised VPC connectivity model (via Edge cluster) | Follows "Multi-Tenancy Pattern 1: Single VPC for Multiple Businesses in One Supervisor Zone" — all north-south traffic traverses Edge; simpler than distributed model for lab | Risk: Edge cluster becomes throughput bottleneck. Mitigation: Acceptable for lab traffic volumes |
 | R-008 | NSX-04 | Source NAT on Tier-0 for outbound VPC traffic | Simplifies return routing — external networks see traffic from Tier-0 uplink IP | Risk: NAT hides source IPs. Mitigation: Acceptable for lab; can add specific SNAT rules if needed |
 
@@ -667,7 +667,7 @@ VCF 9 supports three networking stacks for the vSphere Supervisor. The choice de
 | Edge cluster required | Yes | Yes | No |
 | VCF Automation integration | Full | Limited | None |
 
-The lab uses **NSX with VPC** — the recommended default for VCF 9. This provides VPC-based network isolation, microsegmentation via Distributed Firewall (DFW), and the NSX embedded load balancer for Kubernetes services. The NSX Edge cluster and Tier-0/Tier-1 gateways deployed in Phase 5 are prerequisites.
+The lab uses **NSX with VPC** — the recommended default for VCF 9. This provides VPC-based network isolation, microsegmentation via Distributed Firewall (DFW), and the NSX embedded load balancer for Kubernetes services. The NSX Edge cluster and Tier-0/Tier-1 gateways deployed in Phase 7 are prerequisites.
 
 VDS was not selected because it lacks vSphere Pods support, microsegmentation, and requires a separate load balancer appliance. NSX (legacy) was not selected because NSX with VPC is the recommended architecture for new VCF 9 deployments and provides superior multi-tenancy and VCF Automation integration.
 

@@ -5,10 +5,10 @@
 # which uses the requests library (SOCKS proxy compatible).
 #
 # Prerequisites (manual):
-#   - VCF Installer OVA deployed (Phase 3 Play 1)
+#   - VCF Installer OVA deployed (Phase 4 Play 1)
 #   - vSAN ESA HCL bypass applied (deliver guide §6.2.2)
 
-# --- Ensure DNS for Phase 3 dependencies ---
+# --- Ensure DNS for Phase 4 dependencies ---
 
 - name: Ensure DNS for bringup
   ansible.builtin.include_tasks: ../../common/tasks/ensure_dns.yml

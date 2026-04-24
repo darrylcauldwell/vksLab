@@ -2,7 +2,7 @@ nsx_manager_hostname: "nsx-mgr-wld.{{ lab_domain }}"
 nsx_username: admin
 nsx_password: "{{ nsx_admin_password }}"
 
-# Transport zone names (defined in the workload domain spec, Phase 4)
+# Transport zone names (defined in the workload domain spec, Phase 6)
 nsx_vlan_tz_name: workload-vlan-tz
 nsx_overlay_tz_name: workload-overlay-tz
 

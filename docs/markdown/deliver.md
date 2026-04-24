@@ -9,22 +9,23 @@ date: "March 2026"
 
 ## 1. Deployment Overview
 
-The lab is built in two tiers. **Phase 0** is a one-time operation that creates a reusable vApp template containing 8 VMs (1 gateway + 7 ESXi). This template is stored in the vCD catalog where it is exempt from lease expiry, so it survives the 14-day runtime and 30-day storage leases. **Phases 1–6** run on each rebuild by deploying from that template — dramatically faster than building from scratch.
+The lab is built in two tiers. **Phase 0** is a one-time operation that creates a reusable vApp template containing 8 VMs (1 gateway + 7 ESXi). This template is stored in the vCD catalog where it is exempt from lease expiry, so it survives the 14-day runtime and 30-day storage leases. **Phases 1–8** run on each rebuild by deploying from that template — dramatically faster than building from scratch.
 
 | Phase | Name | Frequency |
 |-------|------|-----------|
 | 0 | vApp Template | One-time |
 | 1 | Foundation | Each rebuild |
-| 2 | Nested ESXi | Each rebuild |
-| 3 | VCF Management Domain | Each rebuild |
-| 4 | VCF Workload Domain | Each rebuild |
-| 5 | Platform Services | Each rebuild |
-| 6 | NSX Networking | Each rebuild |
-| 7 | VKS | Each rebuild |
+| 2 | MAC Discovery | Each rebuild |
+| 3 | Nested ESXi | Each rebuild |
+| 4 | VCF Management Domain | Each rebuild |
+| 5 | VCF Platform Services | Each rebuild |
+| 6 | VCF Workload Domain | Each rebuild |
+| 7 | VCF Workload NSX Networking | Each rebuild |
+| 8 | VCF Workload VKS | Each rebuild |
 
-**Phase 0** creates the baseline vApp with a gateway VM (Ubuntu, Open Virtual Appliance (OVA) pre-staged) and 7 ESXi VMs, then saves it as a catalog template. **Phase 1** deploys the template, configures the gateway (Domain Name System (DNS), Network Time Protocol (NTP), Certificate Authority (CA), inter-Virtual LAN (VLAN) routing, Free Range Routing (FRR) Border Gateway Protocol (BGP), Keycloak OIDC). **Phase 2** configures all seven nested ESXi hosts. **Phase 3** runs the VMware Cloud Foundation (VCF) Installer to bring up the management domain (vCenter, Software-Defined Data Center (SDDC) Manager, VCF Networking (NSX) Manager). **Phase 4** commissions workload hosts and creates the workload domain. **Phase 5** deploys VCF Management Components (VCF Operations, Collector, Fleet Management), configures VCF Identity Broker OIDC with Keycloak, replaces self-signed certificates with step-ca issued certificates, and configures SDDC Manager backups. **Phase 6** deploys the NSX Edge cluster, configures NSX Tier-0 Gateway / NSX Tier-1 Gateway, establishes BGP peering, and creates the NSX Virtual Private Cloud (VPC). **Phase 7** enables the vSphere Supervisor, creates a vSphere Namespace, deploys a vSphere Kubernetes Services (VKS) cluster with a test workload, and installs platform services.
+**Phase 0** creates the baseline vApp with a gateway VM (Ubuntu, Open Virtual Appliance (OVA) pre-staged) and 7 ESXi VMs, then saves it as a catalog template. **Phase 1** deploys the template, configures the gateway (Domain Name System (DNS), Network Time Protocol (NTP), Certificate Authority (CA), inter-Virtual LAN (VLAN) routing, Free Range Routing (FRR) Border Gateway Protocol (BGP), Keycloak OIDC). **Phase 2** discovers ESXi MAC addresses and assigns static DHCP reservations. **Phase 3** configures all seven nested ESXi hosts. **Phase 4** runs the VMware Cloud Foundation (VCF) Installer to bring up the management domain (vCenter, Software-Defined Data Center (SDDC) Manager, VCF Networking (NSX) Manager). **Phase 5** deploys VCF Management Components (VCF Operations, Collector, Fleet Management), configures VCF Identity Broker OIDC with Keycloak, replaces self-signed certificates with step-ca issued certificates, and configures SDDC Manager backups. **Phase 6** commissions workload hosts and creates the workload domain. **Phase 7** deploys the NSX Edge cluster, configures NSX Tier-0 Gateway / NSX Tier-1 Gateway, establishes BGP peering, and creates the NSX Virtual Private Cloud (VPC). **Phase 8** enables the vSphere Supervisor, creates a vSphere Namespace, deploys a vSphere Kubernetes Services (VKS) cluster with a test workload, and installs platform services.
 
-> **Execution model**: Phases 1–2 run from the operator's laptop targeting the gateway and ESXi hosts via SSH. Phases 3–7 run from localhost via SOCKS proxy (`ssh -D 1080 -N ubuntu@<gateway-ip>`), routing all VCF API calls through the gateway using the `vmware_vcf.ansible` collection modules. Each phase includes DNS quality gates that ensure and verify required DNS records on the gateway before proceeding. A single 1Password prompt per phase provides authentication credentials.
+> **Execution model**: Phases 1–3 run from the operator's laptop targeting the gateway and ESXi hosts via SSH. Phases 4–8 run from localhost via SOCKS proxy (`ssh -D 1080 -N ubuntu@<gateway-ip>`), routing all VCF API calls through the gateway using the `vmware_vcf.ansible` collection modules. Each phase includes DNS quality gates that ensure and verify required DNS records on the gateway before proceeding. A single 1Password prompt per phase provides authentication credentials.
 
 ## 2. Prerequisites
 
@@ -190,18 +191,18 @@ Phase 1 also prepares the gateway as the Ansible control node for all subsequent
 ssh ubuntu@<gateway-ip>
 cd ~/vksLab/ansible
 op signin    # authenticate 1Password CLI
-ansible-playbook -i inventory/hosts-gateway.yml playbooks/phase2_esxi.yml
+ansible-playbook -i inventory/hosts-gateway.yml playbooks/phase3_esxi.yml
 ```
 
 > **Note**: The gateway-local inventory (`hosts-gateway.yml`) eliminates SSH ProxyJump — the gateway connects directly to ESXi hosts on the management VLAN. This is faster and more reliable than running from the laptop over the internet. To pull latest changes before running: `cd ~/vksLab && git pull`.
 
-### 4.3 Discover ESXi MACs (Automated)
+### 4.3 Phase 2 — Discover ESXi MACs (Automated)
 
-After the gateway is configured (§4.2), the 7 ESXi VMs will have obtained dynamic DHCP addresses in the `.100–.199` range. The `phase1b_discover_macs.yml` playbook reads these leases, maps each MAC to a static reservation (esxi-01 through esxi-07), writes the reservations into the dnsmasq config, and restarts dnsmasq so the hosts pick up their static IPs (`.11–.17`).
+After the gateway is configured (§4.2), the 7 ESXi VMs will have obtained dynamic DHCP addresses in the `.100–.199` range. The `phase2_discover_macs.yml` playbook reads these leases, maps each MAC to a static reservation (esxi-01 through esxi-07), writes the reservations into the dnsmasq config, and restarts dnsmasq so the hosts pick up their static IPs (`.11–.17`).
 
 ```bash
 cd ansible
-ansible-playbook playbooks/phase1b_discover_macs.yml
+ansible-playbook playbooks/phase2_discover_macs.yml
 ```
 
 The playbook:
@@ -230,11 +231,11 @@ The `phase1_foundation.yml` playbook runs automated verification checks at the e
 | VLAN sub-interfaces | Yes | All 6 VLAN sub-interfaces have their expected CIDRs (including management on ens34.10) |
 | Inter-VLAN routing | Yes | Ping to vMotion gateway succeeds |
 | FRR service | Yes | FRR is active |
-| FRR BGP config | Yes | `router bgp 65000` block is present (BGP adjacency establishes in Phase 6 when the NSX Tier-0 is configured) |
+| FRR BGP config | Yes | `router bgp 65000` block is present (BGP adjacency establishes in Phase 7 when the NSX Tier-0 is configured) |
 
-## 5. Phase 2 — Nested ESXi
+## 5. Phase 3 — Nested ESXi
 
-> Phase 2 implements R-004, R-007 via ESX-01 through ESX-04 and NET-03, NET-04.
+> Phase 3 implements R-004, R-007 via ESX-01 through ESX-04 and NET-03, NET-04.
 
 ### 5.1 Prepare Hosts (Automated)
 
@@ -244,9 +245,9 @@ The `esxi_prepare` role then configures all hosts — hostname, DNS, NTP, root p
 
 ```bash
 cd ansible
-ansible-playbook playbooks/phase2_esxi.yml
+ansible-playbook playbooks/phase3_esxi.yml
 # Or prepare a single host
-ansible-playbook playbooks/phase2_esxi.yml --ask-become-pass --limit esxi-01
+ansible-playbook playbooks/phase3_esxi.yml --ask-become-pass --limit esxi-01
 ```
 
 The `prepare` command performs these steps on each host via SSH:
@@ -266,12 +267,12 @@ The `prepare` command performs these steps on each host via SSH:
 
 ### 5.3 ESXi Host Verification
 
-The Phase 2 playbook (`phase2_esxi.yml`) includes built-in validation tasks that verify gateway connectivity, DNS server reachability, SSL certificate CN matching, and system UUID uniqueness. Successful completion of the playbook confirms that all ESXi hosts are correctly configured for VCF bringup — no additional manual verification is required.
+The Phase 3 playbook (`phase3_esxi.yml`) includes built-in validation tasks that verify gateway connectivity, DNS server reachability, SSL certificate CN matching, and system UUID uniqueness. Successful completion of the playbook confirms that all ESXi hosts are correctly configured for VCF bringup — no additional manual verification is required.
 
 To re-validate after changes, run the playbook in check mode:
 
 ```bash
-cd ansible && ansible-playbook playbooks/phase2_esxi.yml --limit esxi --check
+cd ansible && ansible-playbook playbooks/phase3_esxi.yml --limit esxi --check
 ```
 
 | Check | Command / Method | Expected Result |
@@ -282,11 +283,11 @@ cd ansible && ansible-playbook playbooks/phase2_esxi.yml --limit esxi --check
 | NTP sync | `esxcli system ntp get` on each host | NTP is configured with server 10.0.10.1 |
 | Time sync | Compare time across all hosts | Time across all hosts is within 1 second |
 | vSAN ESA ready | `esxcli vsan storage list` on each host | The NVMe device is marked as SSD |
-| Host status | `cd ansible && ansible-playbook playbooks/phase2_esxi.yml --check` | All tasks report ok with no changes required |
+| Host status | `cd ansible && ansible-playbook playbooks/phase3_esxi.yml --check` | All tasks report ok with no changes required |
 
-## 6. Phase 3 — VCF Management Domain
+## 6. Phase 4 — VCF Management Domain
 
-> Phase 3 implements R-004 via VCF-01, VCF-03, VCF-04. VCF Installer drives initial bringup of vCenter, SDDC Manager, and NSX Manager.
+> Phase 4 implements R-004 via VCF-01, VCF-03, VCF-04. VCF Installer drives initial bringup of vCenter, SDDC Manager, and NSX Manager.
 
 ### 6.1 Pre-Bringup DNS Records
 
@@ -303,10 +304,10 @@ DNS records for all VCF appliances are statically configured in the dnsmasq temp
 
 In VCF 9.0, the SDDC Manager appliance doubles as the VCF Installer (Cloud Builder functionality is consolidated into it). The OVA was pre-staged on the gateway in Phase 0 (`~/vcf-installer.ova`).
 
-The Phase 3 playbook (`phase3_vcf_mgmt.yml`) has two plays: the first deploys the VCF Installer, and the second (§6.3) drives the bringup workflow. Run the full playbook:
+The Phase 4 playbook (`phase4_vcf_mgmt.yml`) has two plays: the first deploys the VCF Installer, and the second (§6.3) drives the bringup workflow. Run the full playbook:
 
 ```bash
-cd ansible && ansible-playbook playbooks/phase3_vcf_mgmt.yml
+cd ansible && ansible-playbook playbooks/phase4_vcf_mgmt.yml
 ```
 
 The first play deploys the VCF Installer OVA to esxi-01 with the correct network properties, powers it on, and waits for the installer services to become accessible. The deployment is idempotent — if the VM already exists, it skips straight to the service readiness check.
@@ -424,10 +425,10 @@ Then select **Re-run Validations** in the VCF Installer UI.
 
 > The bringup workflow takes approximately **2–3 hours** to complete end-to-end. Run `caffeinate -d` in a separate terminal to prevent the operator laptop from sleeping during this process.
 
-The second play of the Phase 3 playbook (`phase3_vcf_mgmt.yml`) drives bringup end-to-end via the `vcf_bringup` role. It configures the offline depot, validates the bringup spec against the VCF Installer API, then submits the deployment and polls until completion. If the VCF Installer was already deployed in a previous run, restart the playbook from the bringup tasks:
+The second play of the Phase 4 playbook (`phase4_vcf_mgmt.yml`) drives bringup end-to-end via the `vcf_bringup` role. It configures the offline depot, validates the bringup spec against the VCF Installer API, then submits the deployment and polls until completion. If the VCF Installer was already deployed in a previous run, restart the playbook from the bringup tasks:
 
 ```bash
-cd ansible && ansible-playbook playbooks/phase3_vcf_mgmt.yml --start-at-task="Get VCF Installer API token"
+cd ansible && ansible-playbook playbooks/phase4_vcf_mgmt.yml --start-at-task="Get VCF Installer API token"
 ```
 
 | Step | Automated Action | Expected Result | Verification |
@@ -445,10 +446,10 @@ cd ansible && ansible-playbook playbooks/phase3_vcf_mgmt.yml --start-at-task="Ge
 
 | Step | Action | Expected Result | Verification |
 |------|--------|-----------------|--------------|
-| 6.4.1 | Start downloading VCF Operations bundles from SDDC Manager UI (**Lifecycle Management** > **Bundle Management**) — VROPS, VRSLCM, VCF_OPS_CLOUD_PROXY for current VCF version. This is optional but saves time — Phase 5 automation will trigger downloads if not done manually | Bundles are downloading or downloaded | Bundle status shows SUCCESS |
+| 6.4.1 | Start downloading VCF Operations bundles from SDDC Manager UI (**Lifecycle Management** > **Bundle Management**) — VROPS, VRSLCM, VCF_OPS_CLOUD_PROXY for current VCF version. This is optional but saves time — Phase 5 automation will trigger downloads if not done manually (see §7.4) | Bundles are downloading or downloaded | Bundle status shows SUCCESS |
 | 6.4.2 | Remove VCF Installer VM from vCenter (manual — no SDDC Manager API for this). Right-click VM > Power Off, then Delete from Disk | Resources (4 vCPU, 24 GB RAM) are reclaimed from the management cluster | The VM is deleted from the inventory |
 
-> **Note**: VCF Operations, Collector, and Fleet Management are deployed automatically in Phase 5 via the SDDC Manager API. VCF Automation is optional.
+> **Note**: VCF Operations, Collector, and Fleet Management are deployed automatically in Phase 5 (§7.4) via the SDDC Manager API. VCF Automation is optional.
 
 ### 6.5 Management Domain Verification
 
@@ -459,17 +460,17 @@ cd ansible && ansible-playbook playbooks/phase3_vcf_mgmt.yml --start-at-task="Ge
 | SDDC Manager | Login to `https://sddc-manager.lab.dreamfold.dev` | The management domain shows Active status |
 | NSX Manager | Login to `https://nsx-mgr-mgmt.lab.dreamfold.dev` | The dashboard is accessible and all transport nodes are connected |
 
-## 7. Phase 4 — VCF Workload Domain
+## 7. Phase 6 — VCF Workload Domain
 
-> Phase 4 implements R-004 via VCF-01, VCF-02. Workload hosts are commissioned into the free pool and a VI workload domain is created.
+> Phase 6 implements R-004 via VCF-01, VCF-02. Workload hosts are commissioned into the free pool and a VI workload domain is created.
 
 ### 7.0 Prerequisites — vSAN ESA SDDC Manager Host Commissioning Bypass (VCF 9.0.1+)
 
 **For nested lab environments**, SDDC Manager host validation will fail with "Host does not have enough capacity disks" because real hardware checks reject lab storage configurations. This workaround is required before commissioning workload hosts.
 
-> **Note**: SSH banner automation with `sshpass` is unreliable (SSH welcome message interferes with command execution). This must be applied manually, similar to the VCF Installer vSAN HCL workaround in Phase 3.
+> **Note**: SSH banner automation with `sshpass` is unreliable (SSH welcome message interferes with command execution). This must be applied manually, similar to the VCF Installer vSAN HCL workaround in Phase 4.
 
-**Manual step** (run ONCE before first Phase 4 execution):
+**Manual step** (run ONCE before first Phase 6 execution):
 
 SSH to SDDC Manager as root and append properties to **both** operationsmanager and domainmanager:
 
@@ -511,11 +512,11 @@ grep "enable.speed.of.physical.nics.validation" /etc/vmware/vcf/operationsmanage
 
 ### 7.1 Automate Host Commissioning and Domain Creation
 
-Once the vSAN ESA workaround (Section 7.0) has been applied to SDDC Manager, run the Phase 4 Ansible playbook from the operator laptop:
+Once the vSAN ESA workaround (Section 7.0) has been applied to SDDC Manager, run the Phase 6 Ansible playbook from the operator laptop:
 
 ```bash
 cd ansible/
-ansible-playbook playbooks/phase4_vcf_workload.yml
+ansible-playbook playbooks/phase6_vcf_workload.yml
 ```
 
 **What the playbook does:**
@@ -534,7 +535,7 @@ ansible-playbook playbooks/phase4_vcf_workload.yml
 - Check the error message in the console output — it will include the actual SDDC Manager error response
 - Verify the vSAN ESA workaround properties are present (Section 7.0)
 - Verify SDDC Manager is operational (`systemctl status operationsmanager` on the SDDC Manager VM)
-- Retry: `ansible-playbook playbooks/phase4_vcf_workload.yml`
+- Retry: `ansible-playbook playbooks/phase6_vcf_workload.yml`
 
 ### 7.2 Workload Domain Verification
 
@@ -548,7 +549,7 @@ ansible-playbook playbooks/phase4_vcf_workload.yml
 
 ### 7.3 Keycloak OIDC and VCF Identity Broker
 
-Keycloak OIDC integration is automated in Phase 5 (`phase5_platform.yml`). Phase 1 creates the Keycloak realm, groups (`vcf-admins`, `vcf-operators`), users (`lab-admin`, `lab-operator`), and the `vcf-identity-broker` OIDC client with group membership mapper. Phase 5 deploys VCF Operations (required prerequisite) then configures the Identity Broker via VCF Operations internal APIs.
+Keycloak OIDC integration is automated in Phase 5 (`phase5_vcf_platform.yml`). Phase 1 creates the Keycloak realm, groups (`vcf-admins`, `vcf-operators`), users (`lab-admin`, `lab-operator`), and the `vcf-identity-broker` OIDC client with group membership mapper. Phase 5 deploys VCF Operations (required prerequisite) then configures the Identity Broker via VCF Operations internal APIs.
 
 > **Note**: The OIDC configuration uses VCF Operations internal `/suite-api/internal/vidb/` APIs based on [William Lam's automation](https://williamlam.com/2026/04/automating-vcf-9-0-single-sign-on-sso-with-oidc-based-identity-provider.html). These are unsupported APIs that may change between VCF versions.
 
@@ -560,14 +561,14 @@ Keycloak OIDC integration is automated in Phase 5 (`phase5_platform.yml`). Phase
 | SSO login (NSX) | Browse to `https://nsx-mgr-wld.lab.dreamfold.dev` and select Keycloak login | The NSX Manager dashboard loads after SSO login |
 | Identity Broker | In VCF Operations, check Identity Broker federation status | All VCF components are federated |
 
-## 7.4 Phase 5 — Platform Services
+## 7.4 Phase 5 — VCF Platform Services
 
 > Phase 5 deploys VCF Management Components, configures the Identity Broker, replaces certificates, and sets up backups. Run after Phase 4.
 
 **Prerequisites**: SOCKS tunnel running (`ssh -D 1080 -N ubuntu@<gateway-ip>`), VCF Operations bundles downloaded (automated safety net if not done manually).
 
 ```bash
-ansible-playbook playbooks/phase5_platform.yml
+ansible-playbook playbooks/phase5_vcf_platform.yml
 ```
 
 The playbook runs three roles in order:
@@ -576,7 +577,7 @@ The playbook runs three roles in order:
 2. **vcf_identity** — Configures VCF Identity Broker with Keycloak OIDC via VCF Operations internal APIs. Registers `vcf-identity-broker` client, maps `vcf-admins` group to administrator role, configures SSO for vCenter, NSX, and VCF Operations.
 3. **vcf_platform** — Configures OpenSSL CA in SDDC Manager, generates CSRs for all domains, signs them with step-ca on the gateway, installs signed certificates. Configures SDDC Manager backups to gateway via SFTP.
 
-> **Bundle download best practice**: Start downloading VCF Operations bundles via SDDC Manager UI immediately after Phase 3 bringup completes. The bundles are large and take time. Phase 5 automation includes a safety net that triggers downloads if not done manually, but this adds 30+ minutes of waiting.
+> **Bundle download best practice**: Start downloading VCF Operations bundles via SDDC Manager UI immediately after Phase 4 bringup completes. The bundles are large and take time. Phase 5 automation includes a safety net that triggers downloads if not done manually, but this adds 30+ minutes of waiting.
 
 | Verification | Method | Expected Result |
 |--------------|--------|-----------------|
@@ -584,9 +585,9 @@ The playbook runs three roles in order:
 | SSO working | Login to vCenter via Keycloak | SSO login succeeds |
 | Backup configured | SDDC Manager → Backup Configuration | Shows SFTP target on gateway |
 
-## 8. Phase 6 — NSX Networking
+## 8. Phase 7 — VCF Workload NSX Networking
 
-> Phase 6 implements R-006, R-008 via NET-02, NSX-01 through NSX-04. Edge cluster, gateways, BGP, and VPC are configured.
+> Phase 7 implements R-006, R-008 via NET-02, NSX-01 through NSX-04. Edge cluster, gateways, BGP, and VPC are configured.
 
 ### 8.1 Deploy NSX Edge Cluster
 
@@ -693,9 +694,9 @@ SNAT rule parameters:
 | Tier-0 status | NSX Manager → Networking → Tier-0 Gateways | The Tier-0 status is Realised with all interfaces Up |
 | VPC status | NSX Manager → VPC overview | The vks-vpc status shows Realised |
 
-## 9. Phase 7 — VKS
+## 9. Phase 8 — VCF Workload VKS
 
-> Phase 7 implements R-005 via VKS-01 through VKS-04. Supervisor enablement, namespace creation, and VKS cluster deployment.
+> Phase 8 implements R-005 via VKS-01 through VKS-04. Supervisor enablement, namespace creation, and VKS cluster deployment.
 
 ### 9.1 Create Content Library
 
@@ -849,11 +850,11 @@ spec:
 
 ## 10. Platform Services (VKS)
 
-> Implements R-012 through R-016 via VKS-09 through VKS-14. A shared-services VKS cluster is deployed within Phase 7, then platform services are installed in dependency order.
+> Implements R-012 through R-016 via VKS-09 through VKS-14. A shared-services VKS cluster is deployed within Phase 8, then platform services are installed in dependency order.
 
 ### 10.1 Deploy Shared-Services VKS Cluster
 
-Create a new vSphere Namespace and VKS cluster for platform services, following the same process as Phase 7.
+Create a new vSphere Namespace and VKS cluster for platform services, following the same process as Phase 8.
 
 | Step | Action | Expected Result | Verification |
 |------|--------|-----------------|--------------|
@@ -1061,18 +1062,18 @@ For additional troubleshooting, see [Operations Guide](operate.md) Section 4.
 
 For additional troubleshooting, see [Operations Guide](operate.md) Section 4.
 
-### 12.3 Phase 2 — Nested ESXi
+### 12.3 Phase 3 — Nested ESXi
 
 | Symptom | Cause | Resolution |
 |---------|-------|------------|
-| DHCP does not assign a static IP to an ESXi host | The Phase 1b playbook did not run, or the host had no dynamic lease when discovery ran | Re-run `ansible-playbook playbooks/phase1b_discover_macs.yml` from the `ansible/` directory. If the host has no dynamic lease, verify it is powered on and connected to the `lab-trunk` network, then check `cat /var/lib/misc/dnsmasq.leases` on the gateway |
+| DHCP does not assign a static IP to an ESXi host | The Phase 2 MAC discovery playbook did not run, or the host had no dynamic lease when discovery ran | Re-run `ansible-playbook playbooks/phase2_discover_macs.yml` from the `ansible/` directory. If the host has no dynamic lease, verify it is powered on and connected to the `lab-trunk` network, then check `cat /var/lib/misc/dnsmasq.leases` on the gateway |
 | SSH to ESXi host is refused | SSH was not enabled via DCUI, or the ESXi firewall is blocking connections | Re-enable SSH via DCUI (**F2** > **Troubleshooting Options** > **Enable SSH**) |
-| NVMe device is not marked as SSD after running the playbook | The `esxi_prepare` role did not execute the SSD marking step, or the ESXi host was rebooted after preparation | Re-run `ansible-playbook playbooks/phase2_esxi.yml --limit <host>` and verify with `esxcli vsan storage list` |
+| NVMe device is not marked as SSD after running the playbook | The `esxi_prepare` role did not execute the SSD marking step, or the ESXi host was rebooted after preparation | Re-run `ansible-playbook playbooks/phase3_esxi.yml --limit <host>` and verify with `esxcli vsan storage list` |
 | vSAN ESA health check shows "disk not claimed" | The NVMe device was not tagged for vSAN use | Run `esxcli vsan storage tag add -d <device-id> -t capacityFlash` on the affected host |
 
 For additional troubleshooting, see [Operations Guide](operate.md) Section 4.
 
-### 12.4 Phase 3 — VCF Management Domain
+### 12.4 Phase 4 — VCF Management Domain
 
 | Symptom | Cause | Resolution |
 |---------|-------|------------|
@@ -1086,7 +1087,7 @@ For additional troubleshooting, see [Operations Guide](operate.md) Section 4.
 
 For additional troubleshooting, see [Operations Guide](operate.md) Section 4.
 
-### 12.5 Phase 4 — VCF Workload Domain
+### 12.5 Phase 6 — VCF Workload Domain
 
 | Symptom | Cause | Resolution |
 |---------|-------|------------|
@@ -1097,7 +1098,7 @@ For additional troubleshooting, see [Operations Guide](operate.md) Section 4.
 
 For additional troubleshooting, see [Operations Guide](operate.md) Section 4.
 
-### 12.6 Phase 6 — NSX Networking
+### 12.6 Phase 7 — VCF Workload NSX Networking
 
 | Symptom | Cause | Resolution |
 |---------|-------|------------|
@@ -1109,7 +1110,7 @@ For additional troubleshooting, see [Operations Guide](operate.md) Section 4.
 
 For additional troubleshooting, see [Operations Guide](operate.md) Section 4.
 
-### 12.7 Phase 7 — VKS
+### 12.7 Phase 8 — VCF Workload VKS
 
 | Symptom | Cause | Resolution |
 |---------|-------|------------|

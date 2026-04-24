@@ -1,5 +1,5 @@
 ---
-# Phase 3 — VCF Management Domain Bringup
+# Phase 4 — VCF Management Domain Bringup
 #
 # Play 1 — Deploy VCF Installer OVA (via gateway):
 #   Uses govc to deploy the VCF Installer appliance to esxi-01.
@@ -9,7 +9,7 @@
 #   Drives the VCF Installer API to deploy vCenter, SDDC Manager,
 #   and NSX Manager.
 
-- name: Phase 3 — Deploy VCF Installer OVA
+- name: Phase 4 — Deploy VCF Installer OVA
   hosts: gateways
   gather_facts: false
   become: true
@@ -154,7 +154,7 @@
           VCF Installer is accessible at https://{{ vcf_installer_fqdn }}.
           {{ 'VM was already deployed.' if vm_check.rc == 0 else 'OVA deployed and powered on.' }}
 
-- name: Phase 3 — VCF management domain bringup
+- name: Phase 4 — VCF management domain bringup
   hosts: localhost
   connection: local
   gather_facts: false

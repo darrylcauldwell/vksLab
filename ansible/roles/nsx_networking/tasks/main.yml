@@ -1,11 +1,11 @@
 ---
-# Phase 5 — NSX Networking via collection modules
+# Phase 7 — VCF Workload NSX Networking via collection modules
 # Edge cluster, Tier-0/1 gateways, BGP, VPC, SNAT
 #
 # All API calls go through the vmware-vcf SDK (requests library)
 # which honours the HTTPS_PROXY for SOCKS proxy support.
 
-# --- Ensure DNS records for Phase 6 dependencies ---
+# --- Ensure DNS records for Phase 7 dependencies ---
 
 - name: Ensure DNS for NSX networking
   ansible.builtin.include_tasks: ../../common/tasks/ensure_dns.yml
@@ -17,7 +17,7 @@
       - { hostname: edge-02, ip: "{{ host_ip['edge-02'] }}" }
 
 # --- Discover transport zones ---
-# Transport zone names are defined in the workload domain spec (Phase 4).
+# Transport zone names are defined in the workload domain spec (Phase 6).
 # Look them up to get the full path (which includes the UUID).
 
 - name: Get all transport zones

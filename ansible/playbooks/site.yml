@@ -1,19 +1,28 @@
 ---
-# Full lab deployment — all 6 phases in order
-- name: Phase 1a — Configure gateway
+# Full lab deployment — all 9 phases in order
+- name: Phase 0 — Operator Workstation
+  ansible.builtin.import_playbook: phase0_operator.yml
+
+- name: Phase 1 — Foundation Services
   ansible.builtin.import_playbook: phase1_foundation.yml
 
-- name: Phase 2 — Prepare ESXi hosts
-  ansible.builtin.import_playbook: phase2_esxi.yml
+- name: Phase 2 — Discover MACs
+  ansible.builtin.import_playbook: phase2_discover_macs.yml
 
-- name: Phase 3 — VCF management domain
-  ansible.builtin.import_playbook: phase3_vcf_mgmt.yml
+- name: Phase 3 — ESXi Hosts
+  ansible.builtin.import_playbook: phase3_esxi.yml
 
-- name: Phase 4 — VCF workload domain
-  ansible.builtin.import_playbook: phase4_vcf_workload.yml
+- name: Phase 4 — VCF Management Domain
+  ansible.builtin.import_playbook: phase4_vcf_mgmt.yml
 
-- name: Phase 5 — NSX networking
-  ansible.builtin.import_playbook: phase5_nsx.yml
+- name: Phase 5 — VCF Platform Services
+  ansible.builtin.import_playbook: phase5_vcf_platform.yml
 
-- name: Phase 6 — VKS deployment
-  ansible.builtin.import_playbook: phase6_vks.yml
+- name: Phase 6 — VCF Workload Domain
+  ansible.builtin.import_playbook: phase6_vcf_workload.yml
+
+- name: Phase 7 — VCF Workload NSX Networking
+  ansible.builtin.import_playbook: phase7_vcf_workload_nsx.yml
+
+- name: Phase 8 — VCF Workload VKS
+  ansible.builtin.import_playbook: phase8_vcf_workload_vks.yml

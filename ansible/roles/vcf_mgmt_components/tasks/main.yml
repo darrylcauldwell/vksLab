@@ -1,5 +1,5 @@
 ---
-# Phase 5 — Deploy VCF Management Components
+# Phase 5 — VCF Management Components
 #
 # Deploys VCF Operations, Collector, and Fleet Management via SDDC Manager API.
 # Must complete before Identity Broker OIDC (which uses VCF Operations APIs).

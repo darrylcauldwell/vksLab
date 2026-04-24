@@ -1,0 +1,110 @@
+---
+# Reusable certificate replacement tasks
+# Generates CSRs, signs with step-ca, and installs for all existing VCF domains.
+# Called by Phase 5 (after CA config) and Phase 6 (after workload domain creation).
+#
+# Required variables:
+#   sddc_token, sddc_refresh_token — SDDC Manager auth tokens
+#   lab_domain — lab DNS domain
+#   vcf_ca_country, vcf_ca_state, vcf_ca_locality, vcf_ca_organization,
+#   vcf_ca_organization_unit, vcf_ca_key_size, vcf_ca_key_algorithm — CSR fields
+#   ca_cert_path — path to step-ca root cert on gateway
+
+- name: Get list of domains
+  vmware_vcf.ansible.vcf_sddc_info:
+    sddc_hostname: "sddc-manager.{{ lab_domain }}"
+    sddc_bearer_token: "{{ sddc_token }}"
+    sddc_refresh_token: "{{ sddc_refresh_token }}"
+    gather: domains
+  register: domains_list
+
+- name: Generate CSRs for each domain
+  vmware_vcf.ansible.vcf_certificate:
+    sddc_hostname: "sddc-manager.{{ lab_domain }}"
+    sddc_bearer_token: "{{ sddc_token }}"
+    sddc_refresh_token: "{{ sddc_refresh_token }}"
+    action: generate_csrs
+    domain_name: "{{ item.name }}"
+    spec:
+      csrGenerationSpec:
+        country: "{{ vcf_ca_country }}"
+        state: "{{ vcf_ca_state }}"
+        locality: "{{ vcf_ca_locality }}"
+        organization: "{{ vcf_ca_organization }}"
+        organizationUnit: "{{ vcf_ca_organization_unit }}"
+        keySize: "{{ vcf_ca_key_size }}"
+        keyAlgorithm: "{{ vcf_ca_key_algorithm }}"
+  loop: "{{ domains_list.result }}"
+  loop_control:
+    label: "{{ item.name }}"
+  register: csr_results
+
+- name: Get generated CSRs for each domain
+  vmware_vcf.ansible.vcf_certificate:
+    sddc_hostname: "sddc-manager.{{ lab_domain }}"
+    sddc_bearer_token: "{{ sddc_token }}"
+    sddc_refresh_token: "{{ sddc_refresh_token }}"
+    action: get_csrs
+    domain_name: "{{ item.name }}"
+  loop: "{{ domains_list.result }}"
+  loop_control:
+    label: "{{ item.name }}"
+  register: csrs_per_domain
+
+- name: Display CSR count per domain
+  ansible.builtin.debug:
+    msg: "{{ item.item.name }}: {{ item.csrs | default([]) | length }} CSR(s)"
+  loop: "{{ csrs_per_domain.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+
+- name: Sign CSRs with step-ca on gateway
+  ansible.builtin.shell: |
+    set -e
+    RESOURCE="{{ csr_item.1.resource.fqdn | default(csr_item.1.resource.name | default('unknown')) }}"
+    CSR_FILE="/tmp/csr-${RESOURCE}.csr"
+    CERT_FILE="/tmp/cert-${RESOURCE}.crt"
+
+    cat > "$CSR_FILE" << 'CSREOF'
+    {{ csr_item.1.csrString }}
+    CSREOF
+
+    step ca sign "$CSR_FILE" "$CERT_FILE" \
+      --ca-url https://127.0.0.1:443 \
+      --root {{ ca_cert_path }} \
+      --provisioner lab-admin \
+      --provisioner-password-file /root/.step-ca-password \
+      --not-after 8760h
+
+    cat "$CERT_FILE"
+  delegate_to: gateway
+  become: true
+  vars:
+    ansible_connection: ssh
+  loop: "{{ csrs_per_domain.results | subelements('csrs', skip_missing=True) }}"
+  loop_control:
+    loop_var: csr_item
+    label: "{{ csr_item.1.resource.fqdn | default(csr_item.1.resource.name | default('unknown')) }}"
+  register: signed_certs
+  when: csr_item.1.csrString is defined
+
+- name: Install signed certificates for each domain
+  vmware_vcf.ansible.vcf_certificate:
+    sddc_hostname: "sddc-manager.{{ lab_domain }}"
+    sddc_bearer_token: "{{ sddc_token }}"
+    sddc_refresh_token: "{{ sddc_refresh_token }}"
+    action: install_certs
+    domain_name: "{{ item.name }}"
+    spec:
+      operationType: INSTALL
+  loop: "{{ domains_list.result }}"
+  loop_control:
+    label: "{{ item.name }}"
+  register: cert_install
+
+- name: Display certificate installation results
+  ansible.builtin.debug:
+    msg: "Certificates installed for {{ item.item.name }}"
+  loop: "{{ cert_install.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"

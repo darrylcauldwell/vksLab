@@ -1,5 +1,5 @@
 ---
-# Phase 2 — Nested ESXi Host Preparation
+# Phase 3 — Nested ESXi Host Preparation
 #
 # Play 1 — Bootstrap passwords (gateway-delegated):
 #   After Reset System Configuration (§4.3), root password is blank.
@@ -19,7 +19,7 @@
 #   Storage (NVMe discovery, VMFS), CA cert, validation.
 #   All tasks that don't disrupt SSH connectivity.
 
-- name: Phase 2 — Pre-flight ESXi connectivity check
+- name: Phase 3 — Pre-flight ESXi connectivity check
   hosts: gateways
   gather_facts: false
   tasks:
@@ -36,7 +36,7 @@
       ansible.builtin.debug:
         msg: "All {{ groups['esxi'] | length }} ESXi hosts are reachable"
 
-- name: Phase 2 — Bootstrap ESXi passwords (via gateway)
+- name: Phase 3 — Bootstrap ESXi passwords (via gateway)
   hosts: gateways
   gather_facts: false
   become: true
@@ -103,7 +103,7 @@
           {{ blank_check.results | selectattr('rc', 'eq', 0) | list | length }} host(s) bootstrapped,
           {{ blank_check.results | rejectattr('rc', 'eq', 0) | list | length }} already had password.
 
-- name: Phase 2 — Set ESXi identity (via gateway, one host at a time)
+- name: Phase 3 — Set ESXi identity (via gateway, one host at a time)
   hosts: gateways
   gather_facts: false
   become: true
@@ -112,13 +112,13 @@
     esxi_hosts: "{{ groups['esxi'] }}"
   tasks:
     - name: Set hostname, regenerate SSL cert, restart hostd
-      ansible.builtin.include_tasks: phase2_identity_host.yml
+      ansible.builtin.include_tasks: phase3_identity_host.yml
       loop: "{{ esxi_hosts }}"
       loop_control:
         loop_var: esxi_host
         label: "{{ esxi_host }}"
 
-- name: Phase 2 — Configure ESXi networking and services (via gateway)
+- name: Phase 3 — Configure ESXi networking and services (via gateway)
   hosts: gateways
   gather_facts: false
   become: true
@@ -127,13 +127,13 @@
     esxi_hosts: "{{ groups['esxi'] }}"
   tasks:
     - name: Configure networking, services, and settings
-      ansible.builtin.include_tasks: phase2_configure_host.yml
+      ansible.builtin.include_tasks: phase3_configure_host.yml
       loop: "{{ esxi_hosts }}"
       loop_control:
         loop_var: esxi_host
         label: "{{ esxi_host }}"
 
-- name: Phase 2 — Clear stale ESXi SSH keys from gateway
+- name: Phase 3 — Clear stale ESXi SSH keys from gateway
   hosts: gateways
   gather_facts: false
   become: true
@@ -146,7 +146,7 @@
         {% endfor %}
       changed_when: false
 
-- name: Phase 2 — Prepare ESXi hosts
+- name: Phase 3 — Prepare ESXi hosts
   hosts: esxi
   gather_facts: false
   serial: 1

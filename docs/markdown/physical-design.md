@@ -127,13 +127,13 @@ See [Delivery Guide](deliver.md) for netplan configuration. Key parameters:
 
 All VCF components point to 10.0.10.1 for DNS and NTP. systemd-resolved is disabled on the gateway to free port 53 for dnsmasq.
 
-**CA certificate distribution**: The step-ca root certificate is fetched from the gateway to the Ansible controller during Phase 1, then pushed to each ESXi host during Phase 2 via `ansible.builtin.copy` and imported with `esxcli security cert import`. See [Logical Design](logical-design.md) SVC-10 and "Certificate Distribution" for details.
+**CA certificate distribution**: The step-ca root certificate is fetched from the gateway to the Ansible controller during Phase 1, then pushed to each ESXi host during Phase 3 via `ansible.builtin.copy` and imported with `esxcli security cert import`. See [Logical Design](logical-design.md) SVC-10 and "Certificate Distribution" for details.
 
 **DNS configuration**: dnsmasq listens on ens34.10 (management VLAN 10) for lab DNS/DHCP. The gateway's own `/etc/resolv.conf` points to upstream DNS (192.19.189.20) — not through its own dnsmasq — so that package installation and external resolution work independently of dnsmasq state.
 
 ### Dynamic Host Configuration Protocol (DHCP) Reservations (VLAN 10)
 
-ESXi hosts receive their management IP via DHCP with static MAC→IP reservations. MAC addresses are discovered automatically by the `phase1b_discover_macs.yml` playbook, which reads dnsmasq dynamic leases and writes static reservations — see [Delivery Guide](deliver.md) §4.3.
+ESXi hosts receive their management IP via DHCP with static MAC→IP reservations. MAC addresses are discovered automatically by the `phase2_discover_macs.yml` playbook, which reads dnsmasq dynamic leases and writes static reservations — see [Delivery Guide](deliver.md) §4.3.
 
 | Hostname | IP Address |
 |----------|------------|
@@ -145,7 +145,7 @@ ESXi hosts receive their management IP via DHCP with static MAC→IP reservation
 | esxi-06 | 10.0.10.16 |
 | esxi-07 | 10.0.10.17 |
 
-> MAC addresses are assigned by vCD when deploying VMs from template and vary on each rebuild. The Phase 1b playbook discovers them from dnsmasq leases — no manual lookup required.
+> MAC addresses are assigned by vCD when deploying VMs from template and vary on each rebuild. The Phase 2 playbook discovers them from dnsmasq leases — no manual lookup required.
 
 ## 4. Nested ESXi Host Specification
 
@@ -269,7 +269,7 @@ Before running the VCF Installer:
 3. NTP is reachable from all hosts (gateway chrony)
 4. ESXi hosts have matching passwords and are in maintenance mode
 
-See [Delivery Guide](deliver.md) Phase 3 for the step-by-step bringup procedure.
+See [Delivery Guide](deliver.md) Phase 4 for the step-by-step bringup procedure.
 
 ## 6. VCF Workload Domain
 
@@ -283,7 +283,7 @@ See [Delivery Guide](deliver.md) Phase 3 for the step-by-step bringup procedure.
 | NSX Manager | nsx-mgr-wld | 10.0.10.10 | Workload domain NSX (single node) |
 | NSX Manager VIP | nsx-vip-wld | 10.0.10.22 | NSX cluster virtual IP (required even for single node) |
 
-See [Delivery Guide](deliver.md) Phase 4 for the host commissioning and domain creation procedure.
+See [Delivery Guide](deliver.md) Phase 6 for the host commissioning and domain creation procedure.
 
 ## 7. NSX Edge Cluster
 
@@ -328,7 +328,7 @@ Edge VMs are sized as **Large** (8 vCPU, 32 GB RAM) to support VKS workloads.
 | NAT | Source NAT on Tier-0 for outbound traffic |
 | Load Balancing | NSX LB via Tier-1 for Kubernetes services |
 
-### Expected Route Tables (Post-Phase 5)
+### Expected Route Tables (Post-Phase 7)
 
 After NSX networking is configured and BGP is established, the following routes should be present.
 

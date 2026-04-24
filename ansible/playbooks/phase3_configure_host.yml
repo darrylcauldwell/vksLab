@@ -1,5 +1,5 @@
 ---
-# Included by phase2_esxi.yml — runs once per ESXi host from the gateway.
+# Included by phase3_esxi.yml — runs once per ESXi host from the gateway.
 # Switches vmk0 from DHCP to static, configures DNS/NTP/gateway, enables
 # SSH/Shell services, disables lockdown and CEIP.
 #

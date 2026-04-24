@@ -1,6 +1,7 @@
 ---
-# Phase 7 — VKS: Supervisor, Namespace, VKS cluster, test workload
-- name: Phase 7 — VKS deployment
+# Phase 7 — VCF Workload NSX Networking
+# Edge cluster, Tier-0/1, BGP, VPC, SNAT (all API calls from localhost)
+- name: Phase 7 — VCF Workload NSX Networking
   hosts: localhost
   connection: local
   gather_facts: false
@@ -10,4 +11,4 @@
     - name: Ensure SOCKS proxy
       ansible.builtin.include_tasks: ../roles/common/tasks/ensure_socks.yml
   roles:
-    - vks
+    - nsx_networking

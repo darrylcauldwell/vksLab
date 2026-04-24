@@ -1,5 +1,5 @@
 ---
-# Phase 5 — Keycloak Configuration + VCF Identity Broker OIDC
+# Phase 5 — VCF Identity Broker OIDC (Keycloak Configuration)
 #
 # Step 1: Configure Keycloak (realm, groups, users, OIDC client)
 #   Delegates to gateway where Keycloak runs (deployed in Phase 1).

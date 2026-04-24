@@ -1,5 +1,5 @@
 ---
-# Phase 1b — Discover ESXi MACs from dnsmasq dynamic leases
+# Phase 2 — Discover ESXi MACs from dnsmasq dynamic leases
 #
 # Prerequisites:
 #   - Phase 1 complete (gateway configured with dnsmasq)
@@ -20,9 +20,9 @@
 #
 # Usage:
 #   cd ansible
-#   ansible-playbook playbooks/phase1b_discover_macs.yml
+#   ansible-playbook playbooks/phase2_discover_macs.yml
 
-- name: Phase 1b — Discover ESXi MACs
+- name: Phase 2 — Discover ESXi MACs
   hosts: gateways
   gather_facts: false
   become: true
@@ -37,7 +37,7 @@
     - name: Fail if dnsmasq is not active
       ansible.builtin.assert:
         that: ansible_facts.services['dnsmasq.service'].state == 'running'
-        fail_msg: "dnsmasq is not running — cannot discover DHCP leases. Run Phase 1 first."
+        fail_msg: "dnsmasq is not running — cannot discover DHCP leases. Run phase1_foundation.yml first."
 
     - name: Check if MAC reservations already exist
       ansible.builtin.command:
@@ -62,7 +62,7 @@
         - name: Remove stale DHCP reservation block
           ansible.builtin.blockinfile:
             path: /etc/dnsmasq.d/lab.conf
-            marker: "# {mark} ANSIBLE MANAGED — ESXi DHCP reservations (phase1b)"
+            marker: "# {mark} ANSIBLE MANAGED — ESXi DHCP reservations (phase2)"
             state: absent
 
         - name: Restart dnsmasq after clearing stale reservations
@@ -136,7 +136,7 @@
         - name: Write static DHCP reservations to dnsmasq config
           ansible.builtin.blockinfile:
             path: /etc/dnsmasq.d/lab.conf
-            marker: "# {mark} ANSIBLE MANAGED — ESXi DHCP reservations (phase1b)"
+            marker: "# {mark} ANSIBLE MANAGED — ESXi DHCP reservations (phase2)"
             block: "{{ reservation_entries | join('\n') }}"
 
         - name: Extract dynamic IPs for discovered MACs

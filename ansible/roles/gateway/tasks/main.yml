@@ -587,7 +587,7 @@
 
 # step-ca provides an internal CA with ACME support. TLS certificates for
 # Keycloak and other lab services are issued from this CA. The root cert
-# is distributed to ESXi hosts in Phase 2 (esxi_prepare role).
+# is distributed to ESXi hosts in Phase 3 (esxi_prepare role).
 - name: Add Smallstep apt repository key
   become: true
   ansible.builtin.get_url:
@@ -666,7 +666,7 @@
     state: present
   tags: repos
 
-# govc CLI for programmatic OVA deployment to ESXi (used in Phase 3)
+# govc CLI for programmatic OVA deployment to ESXi (used in Phase 4)
 - name: Install govc
   become: true
   ansible.builtin.shell: |
@@ -811,7 +811,7 @@
     mode: "0644"
   tags: [ca, desktop]
 
-# Fetch to controller so Phase 2 can push it to ESXi hosts via copy module
+# Fetch to controller so Phase 3 can push it to ESXi hosts via copy module
 - name: Fetch root CA certificate to controller
   ansible.builtin.fetch:
     src: "{{ ca_cert_path }}"
@@ -861,7 +861,7 @@
   tags: ca
 
 # --- Ansible execution environment ---
-# Phases 2+ run from the gateway for speed and reliability.
+# Phases 3+ run from the gateway for speed and reliability.
 # The laptop runs Phase 0 (OVA upload) and Phase 1 (gateway bootstrap),
 # then the gateway runs all subsequent phases locally.
 

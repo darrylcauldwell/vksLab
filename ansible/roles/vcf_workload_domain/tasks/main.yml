@@ -5,10 +5,10 @@
 # Authenticates once and reuses the bearer token for all subsequent tasks.
 #
 # Note: vSAN ESA SDDC Manager host commissioning bypass (VCF 9.0.1+) must be applied manually
-# due to SSH banner interfering with sshpass automation (see deliver.md Phase 4 prerequisites).
+# due to SSH banner interfering with sshpass automation (see deliver.md Phase 6 prerequisites).
 # Manual prerequisite: SSH to SDDC Manager and append these properties before running this role.
 
-# --- Ensure DNS for Phase 4 dependencies ---
+# --- Ensure DNS for Phase 6 dependencies ---
 
 - name: Ensure DNS for workload domain
   ansible.builtin.include_tasks: ../../common/tasks/ensure_dns.yml
@@ -204,3 +204,10 @@
 - name: Display workload domain status
   ansible.builtin.debug:
     msg: "Workload domain status: {{ domain_info.domain.status | default('UNKNOWN') }}"
+
+# --- Replace certificates for the new workload domain ---
+# CA config was done in Phase 5 (vcf_platform). Now sign and install certs
+# for the newly created workload domain components.
+
+- name: Replace certificates for workload domain
+  ansible.builtin.include_tasks: ../../vcf_platform/tasks/replace_certs.yml
