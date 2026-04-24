@@ -13,6 +13,7 @@
   ansible.builtin.pip:
     name: vmware-vcf
     state: latest
+    break_system_packages: true
   changed_when: false
 
 - name: "SOCKS | Check if tunnel is active on port 1080"

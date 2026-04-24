@@ -941,6 +941,7 @@
   ansible.builtin.pip:
     name: vmware-vcf
     state: latest
+    break_system_packages: true
   become: true
   tags: ansible-env
 
