@@ -34,7 +34,7 @@ cat > "$SECRETS_FILE" <<EOF
 ---
 gateway_public_ip: "$(op read "op://$VAULT/Jumpbox Ubuntu/ip_address")"
 gateway_password: "$(op read "op://$VAULT/Jumpbox Ubuntu/password")"
-bootstrap_password: "$(op read "op://$VAULT/Lab Bootstrap/password")"
+bootstrap_password: "$(op read "op://$VAULT/Jumpbox Ubuntu/password")"
 esxi_root_password: "$(op read "op://$VAULT/ESXi Root/password")"
 vcenter_sso_password: "$(op read "op://$VAULT/vCenter SSO/password")"
 sddc_admin_password: "$(op read "op://$VAULT/SDDC Manager/password")"
