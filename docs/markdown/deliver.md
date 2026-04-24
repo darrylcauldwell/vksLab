@@ -87,10 +87,12 @@ brew install hudochenkov/sshpass/sshpass
 python3 -m venv .venv
 source .venv/bin/activate
 
-# Install Ansible and required collections
+# Install dependencies and sync (also run this before each rebuild)
 pip install ansible-core
-ansible-galaxy collection install -r ansible/collections/requirements.yml
+ansible-playbook playbooks/sop/sync.yml
 ```
+
+The `sop/sync.yml` playbook installs the vmware-vcf SDK, Ansible Galaxy collections, and vendored vmware_vcf.ansible collection. Run it before each rebuild to pick up the latest changes.
 
 > **Note**: Activate the virtual environment (`source .venv/bin/activate`) and run all `ansible-playbook` commands from the `ansible/` directory (where `ansible.cfg` lives). The `.venv/` directory is already in `.gitignore`.
 
