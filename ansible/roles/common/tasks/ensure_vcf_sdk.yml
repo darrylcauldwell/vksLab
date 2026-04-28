@@ -2,6 +2,15 @@
 # Ensure vcf_sdk and its dependencies are available on the current host.
 # Installs apt packages if missing, copies vendored vcf_sdk if not importable.
 
+- name: "vcf_sdk | Update lab repo on gateway"
+  ansible.builtin.git:
+    repo: https://github.com/darrylcauldwell/dda-vcf.git
+    dest: /home/ubuntu/dda-vcf
+    version: main
+    force: true
+  become: true
+  become_user: ubuntu
+
 - name: "vcf_sdk | Ensure Python dependencies are installed"
   ansible.builtin.apt:
     name:
