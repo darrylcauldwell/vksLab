@@ -937,10 +937,10 @@
   changed_when: "'was installed' in collections_install.stdout"
   tags: ansible-env
 
-- name: Install vmware-vcf SDK from PyPI
+- name: Install vmware-vcf SDK from GitHub
   ansible.builtin.pip:
-    name: vmware-vcf
-    state: latest
+    name: git+https://github.com/darrylcauldwell/vcf-sdk.git
+    state: present
     break_system_packages: true
   become: true
   tags: ansible-env
