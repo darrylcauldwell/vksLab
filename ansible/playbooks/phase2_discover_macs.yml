@@ -162,11 +162,11 @@
             name: dnsmasq
             state: restarted
 
-        - name: Restart management network on each ESXi host to force DHCP renewal
+        - name: Force DHCP renewal on each ESXi host to pick up static reservation
           ansible.builtin.shell: >
             sshpass -p '' ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10
             root@{{ item.stdout }}
-            "esxcli network ip interface set -e false -i vmk0; esxcli network ip interface set -e true -i vmk0"
+            "esxcli network ip interface ipv4 set -i vmk0 -t DHCP"
           loop: "{{ dynamic_ips.results }}"
           loop_control:
             label: "{{ esxi_hosts[idx].hostname }} ({{ item.stdout }} -> {{ esxi_hosts[idx].ip }})"
