@@ -185,6 +185,12 @@ def main():
             result["execution_status"] = resp.get("executionStatus", "UNKNOWN")
             result["result_status"] = resp.get("resultStatus", "")
             result["validation_checks"] = resp.get("validationChecks", [])
+            # Summary for display during polling
+            checks = resp.get("validationChecks", [])
+            passed = len([c for c in checks if c.get("resultStatus") == "SUCCEEDED"])
+            failed = len([c for c in checks if c.get("resultStatus") == "FAILED"])
+            total = len(checks)
+            result["msg"] = f"Validation {result['execution_status']}: {passed}/{total} passed, {failed} failed"
 
         elif state == "start_bringup":
             if module.check_mode:
@@ -196,6 +202,7 @@ def main():
         elif state == "get_bringup":
             resp = cb.get_sddc(module.params["id"])
             result["status"] = resp.get("status", "UNKNOWN")
+            result["msg"] = f"Bringup status: {result['status']}"
 
         cb.close()
 
