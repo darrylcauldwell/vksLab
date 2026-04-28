@@ -22,7 +22,7 @@ fi
 
 # Use python to build JSON body — avoids shell escaping issues with ! in password
 TMPFILE=$(mktemp)
-python3 -c "import json; print(json.dumps({'username': 'admin@local', 'password': '$PASS'}))" > "$TMPFILE"
+VCF_PASS="$PASS" python3 -c "import json,os; print(json.dumps({'username': 'admin@local', 'password': os.environ['VCF_PASS']}))" > "$TMPFILE"
 
 TOKEN=$(curl -sk -x "$PROXY" -X POST \
   -H 'Content-Type: application/json' \
