@@ -9,19 +9,23 @@
 #     - name: Ensure SOCKS proxy
 #       ansible.builtin.include_tasks: roles/common/tasks/ensure_socks.yml
 
-- name: "SDK | Show Python diagnostics"
+- name: "SDK | Show Python and Ansible diagnostics"
   ansible.builtin.shell: |
     echo "which python3: $(which python3)"
     echo "python3 version: $(python3 --version)"
-    echo "ansible_playbook_python: {{ ansible_playbook_python | default('not set') }}"
-    echo "sys.executable: $(python3 -c 'import sys; print(sys.executable)')"
+    echo "which ansible-playbook: $(which ansible-playbook)"
+    echo "ansible-playbook version: $(ansible-playbook --version | head -3)"
+    echo "ansible python: {{ ansible_playbook_python | default('not set') }}"
+    echo "module python: $(python3 -c 'import sys; print(sys.executable)')"
     echo "site-packages: $(python3 -c 'import site; print(site.getsitepackages()[0])')"
     echo "vcf_sdk import: $(python3 -c 'from vcf_sdk import SDDCManager; print("OK")' 2>&1)"
+    echo "requests import: $(python3 -c 'import requests; print("OK")' 2>&1)"
+    echo "pydantic import: $(python3 -c 'import pydantic; print(pydantic.__version__)' 2>&1)"
   register: sdk_diag
   changed_when: false
   failed_when: false
 
-- name: "SDK | Display Python diagnostics"
+- name: "SDK | Display diagnostics"
   ansible.builtin.debug:
     msg: "{{ sdk_diag.stdout }}"
 
