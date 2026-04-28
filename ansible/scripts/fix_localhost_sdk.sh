@@ -33,10 +33,10 @@ sudo cp -r "$REPO_ROOT/ansible/python/vcf_sdk" "$SITE_PACKAGES/vcf_sdk"
 sudo find "$SITE_PACKAGES/vcf_sdk" -type d -exec chmod 755 {} +
 sudo find "$SITE_PACKAGES/vcf_sdk" -type f -exec chmod 644 {} +
 
-echo "Installing pydantic v2 from vendored wheels..."
+echo "Installing pydantic v2 and pysocks from vendored wheels..."
 sudo -H $ANSIBLE_PYTHON -m pip install --no-index --ignore-installed \
   --find-links "$REPO_ROOT/ansible/python/wheels" \
-  pydantic pydantic_core typing_extensions annotated_types typing_inspection
+  pydantic pydantic_core typing_extensions annotated_types typing_inspection pysocks
 
 echo ""
 echo "Verifying..."
