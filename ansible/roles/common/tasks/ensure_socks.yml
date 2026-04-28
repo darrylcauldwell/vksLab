@@ -9,16 +9,32 @@
 #     - name: Ensure SOCKS proxy
 #       ansible.builtin.include_tasks: roles/common/tasks/ensure_socks.yml
 
-- name: "SDK | Verify vmware-vcf SDK is available"
+- name: "SDK | Check if vcf_sdk is importable"
   ansible.builtin.command:
-    cmd: python3 -c "from vcf_sdk import SDDCManager; print('vcf_sdk OK')"
+    cmd: python3 -c "from vcf_sdk import SDDCManager; print('OK')"
   changed_when: false
   failed_when: false
   register: sdk_check
 
-- name: "SDK | Warn if vmware-vcf SDK is missing"
-  ansible.builtin.debug:
-    msg: "WARNING: vmware-vcf SDK not found. Install with: pip install vmware-vcf"
+- name: "SDK | Get Python site-packages path"
+  ansible.builtin.command:
+    cmd: python3 -c "import site; print(site.getsitepackages()[0])"
+  register: site_packages
+  changed_when: false
+  when: sdk_check.rc != 0
+
+- name: "SDK | Install vendored vcf_sdk into venv"
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../python/vcf_sdk/"
+    dest: "{{ site_packages.stdout }}/vcf_sdk/"
+    mode: "0644"
+    directory_mode: "0755"
+  when: sdk_check.rc != 0
+
+- name: "SDK | Verify vcf_sdk is now importable"
+  ansible.builtin.command:
+    cmd: python3 -c "from vcf_sdk import SDDCManager; print('OK')"
+  changed_when: false
   when: sdk_check.rc != 0
 
 - name: "SOCKS | Check if tunnel is active on port 1080"
