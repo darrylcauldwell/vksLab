@@ -24,6 +24,22 @@
     - name: Ensure dnsmasq is running
       ansible.builtin.include_tasks: ../roles/common/tasks/ensure_dnsmasq.yml
 
+- name: Phase 4 — Ensure ESXi DNS records
+  hosts: gateways
+  gather_facts: false
+  tasks:
+    - name: Ensure ESXi DNS records on gateway
+      ansible.builtin.include_tasks: ../roles/common/tasks/ensure_dns.yml
+      vars:
+        dns_records:
+          - { hostname: esxi-01, ip: "{{ host_ip['esxi-01'] }}" }
+          - { hostname: esxi-02, ip: "{{ host_ip['esxi-02'] }}" }
+          - { hostname: esxi-03, ip: "{{ host_ip['esxi-03'] }}" }
+          - { hostname: esxi-04, ip: "{{ host_ip['esxi-04'] }}" }
+          - { hostname: esxi-05, ip: "{{ host_ip['esxi-05'] }}" }
+          - { hostname: esxi-06, ip: "{{ host_ip['esxi-06'] }}" }
+          - { hostname: esxi-07, ip: "{{ host_ip['esxi-07'] }}" }
+
 - name: Phase 4 — Deploy VCF Installer OVA
   hosts: gateways
   gather_facts: false
