@@ -90,6 +90,12 @@ def main():
                 failed = len([c for c in checks if c.get("resultStatus") == "FAILED"])
                 total = len(checks)
                 print(f"  [{elapsed}s] {status} — {passed}/{total} passed, {failed} failed {f'({result})' if result else ''}")
+                for c in checks:
+                    s = c.get("resultStatus", "PENDING")
+                    desc = c.get("description", "Unknown")
+                    icon = "✓" if s == "SUCCEEDED" else "✗" if s == "FAILED" else "…"
+                    print(f"    {icon} {desc}")
+                print()
                 sys.stdout.flush()
 
                 if status == "COMPLETED":
