@@ -942,6 +942,7 @@
     name: git+https://github.com/darrylcauldwell/vcf-sdk.git
     state: present
     break_system_packages: true
+  become: true
   tags: ansible-env
 
 - name: Create VCF backup directory
