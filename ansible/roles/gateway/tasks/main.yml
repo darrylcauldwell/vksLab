@@ -677,19 +677,26 @@
   tags: repos
 
 # govc CLI for programmatic OVA deployment to ESXi (used in Phase 4)
-- name: Install govc
+- name: Download govc binary
   become: true
-  ansible.builtin.shell: |
-    if command -v govc > /dev/null 2>&1; then
-      echo "already_installed"
-    else
-      curl -fsSL https://github.com/vmware/govmomi/releases/latest/download/govc_Linux_x86_64.tar.gz \
-        | tar -xz -C /usr/local/bin govc
-      chmod +x /usr/local/bin/govc
-      echo "installed"
-    fi
-  register: govc_install
-  changed_when: "'installed' in govc_install.stdout"
+  ansible.builtin.get_url:
+    url: "https://github.com/vmware/govmomi/releases/download/v0.53.1/govc_Linux_x86_64.tar.gz"
+    dest: /tmp/govc_Linux_x86_64.tar.gz
+    checksum: "sha256:3a617abfeaf342199745c8699846bbc7396cbd423fbb99c93312808136638dae"
+    timeout: 60
+  register: govc_download
+  tags: repos
+
+- name: Extract govc to /usr/local/bin
+  become: true
+  ansible.builtin.unarchive:
+    src: /tmp/govc_Linux_x86_64.tar.gz
+    dest: /usr/local/bin
+    remote_src: true
+    include:
+      - govc
+    mode: "0755"
+  when: govc_download is changed
   tags: repos
 
 # Derived deterministically from bootstrap_password so reruns always
@@ -935,14 +942,20 @@
     cmd: ansible-galaxy collection install -r /home/ubuntu/dda-vcf/ansible/collections/requirements.yml
   register: collections_install
   changed_when: "'was installed' in collections_install.stdout"
+  async: 300
+  poll: 15
   tags: ansible-env
 
-- name: Install vmware-vcf SDK from GitHub
-  ansible.builtin.command:
-    cmd: /usr/bin/python3.12 -m pip install --no-build-isolation --break-system-packages git+https://github.com/darrylcauldwell/vmware-vcf.git
+- name: Install vendored vcf_sdk to system Python
+  ansible.builtin.copy:
+    src: /home/ubuntu/dda-vcf/ansible/python/vcf_sdk/
+    dest: /usr/lib/python3/dist-packages/vcf_sdk/
+    remote_src: true
+    owner: root
+    group: root
+    mode: "0644"
+    directory_mode: "0755"
   become: true
-  register: vcf_sdk_install
-  changed_when: "'Successfully installed' in vcf_sdk_install.stdout"
   tags: ansible-env
 
 - name: Create VCF backup directory

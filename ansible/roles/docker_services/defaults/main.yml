@@ -1,4 +1,4 @@
-keycloak_image: quay.io/keycloak/keycloak:latest
+keycloak_image: quay.io/keycloak/keycloak:26.2
 keycloak_container_name: keycloak
 keycloak_port: 8443
 keycloak_hostname: "gateway.{{ lab_domain }}"

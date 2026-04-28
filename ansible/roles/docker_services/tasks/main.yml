@@ -129,6 +129,3 @@
 # Keycloak realm, users, groups, and OIDC client configuration is done
 # in Phase 5 (vcf_identity role) — right before the Identity Broker
 # needs it. This keeps Phase 1 focused on infrastructure services.
-  loop: "{{ keycloak_oidc_clients }}"
-  no_log: true
-  tags: keycloak

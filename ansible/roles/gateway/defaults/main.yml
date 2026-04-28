@@ -21,6 +21,9 @@ gateway_packages:
   # into Oh My Zsh custom plugins directory (apt packages lack full structure)
   - ansible                     # Phases 3+ run from gateway
   - python3-pip                 # For Ansible collection dependencies
+  - python3-requests              # vcf_sdk dependency
+  - python3-pydantic              # vcf_sdk dependency
+  - python3-urllib3               # vcf_sdk dependency
 
 gateway_keyboard_layout: gb
 
