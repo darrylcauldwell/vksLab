@@ -135,6 +135,28 @@
   notify: restart chrony
   tags: ntp
 
+- name: Create /run/dnsmasq directory
+  become: true
+  ansible.builtin.file:
+    path: /run/dnsmasq
+    state: directory
+    owner: dnsmasq
+    group: nogroup
+    mode: "0755"
+  tags: dns
+
+- name: Create /run/dnsmasq/resolv.conf
+  become: true
+  ansible.builtin.file:
+    path: /run/dnsmasq/resolv.conf
+    state: touch
+    owner: dnsmasq
+    group: nogroup
+    mode: "0644"
+    modification_time: preserve
+    access_time: preserve
+  tags: dns
+
 - name: Enable and start dnsmasq
   become: true
   ansible.builtin.service:
