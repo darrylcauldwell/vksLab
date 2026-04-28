@@ -6,6 +6,11 @@
 # Step 2: Configure VCF Identity Broker with Keycloak OIDC
 #   Uses VCF Operations internal APIs from localhost via SOCKS proxy.
 
+# --- Ensure vcf_sdk is available ---
+
+- name: Ensure vcf_sdk is available
+  ansible.builtin.include_tasks: ../../common/tasks/ensure_vcf_sdk.yml
+
 # --- Ensure DNS ---
 
 - name: Ensure DNS for Identity Broker

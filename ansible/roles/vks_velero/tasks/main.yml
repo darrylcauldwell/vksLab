@@ -2,6 +2,11 @@
 # Phase 8 — Velero backup/restore (VKS Standard Package)
 # Requires MinIO as S3-compatible storage backend.
 
+# --- Ensure vcf_sdk is available ---
+
+- name: Ensure vcf_sdk is available
+  ansible.builtin.include_tasks: ../../common/tasks/ensure_vcf_sdk.yml
+
 - name: Check if Velero is already enabled
   vmware_vcf.ansible.vcf_vcenter_supervisor_service:
     vcenter_hostname: "{{ vcenter_wld_hostname }}"

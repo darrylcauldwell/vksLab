@@ -8,6 +8,11 @@
 #   - VCF Installer OVA deployed (Phase 4 Play 1)
 #   - vSAN ESA HCL bypass applied (deliver guide §6.2.2)
 
+# --- Ensure vcf_sdk and dependencies are available ---
+
+- name: Ensure vcf_sdk is available
+  ansible.builtin.include_tasks: ../../common/tasks/ensure_vcf_sdk.yml
+
 # --- Ensure DNS for Phase 4 dependencies ---
 
 - name: Ensure DNS for bringup

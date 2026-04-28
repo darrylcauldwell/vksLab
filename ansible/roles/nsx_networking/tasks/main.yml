@@ -5,6 +5,11 @@
 # All API calls go through the vmware-vcf SDK (requests library)
 # which honours the HTTPS_PROXY for SOCKS proxy support.
 
+# --- Ensure vcf_sdk is available ---
+
+- name: Ensure vcf_sdk is available
+  ansible.builtin.include_tasks: ../../common/tasks/ensure_vcf_sdk.yml
+
 # --- Ensure DNS records for Phase 7 dependencies ---
 
 - name: Ensure DNS for NSX networking

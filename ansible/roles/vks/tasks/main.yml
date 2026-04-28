@@ -4,6 +4,11 @@
 # All vCenter API calls go through vmware_vcf.ansible collection modules
 # which use the requests library (SOCKS proxy compatible).
 
+# --- Ensure vcf_sdk is available ---
+
+- name: Ensure vcf_sdk is available
+  ansible.builtin.include_tasks: ../../common/tasks/ensure_vcf_sdk.yml
+
 # --- Ensure DNS for Phase 8 dependencies ---
 
 - name: Ensure DNS for VKS

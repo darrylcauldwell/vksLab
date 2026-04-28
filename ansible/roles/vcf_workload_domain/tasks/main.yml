@@ -8,6 +8,11 @@
 # due to SSH banner interfering with sshpass automation (see deliver.md Phase 6 prerequisites).
 # Manual prerequisite: SSH to SDDC Manager and append these properties before running this role.
 
+# --- Ensure vcf_sdk is available ---
+
+- name: Ensure vcf_sdk is available
+  ansible.builtin.include_tasks: ../../common/tasks/ensure_vcf_sdk.yml
+
 # --- Ensure DNS for Phase 6 dependencies ---
 
 - name: Ensure DNS for workload domain

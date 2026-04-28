@@ -2,6 +2,11 @@
 # Phase 8 — cert-manager (VKS Standard Package)
 # Prerequisite for Contour and Harbor TLS certificate management.
 
+# --- Ensure vcf_sdk is available ---
+
+- name: Ensure vcf_sdk is available
+  ansible.builtin.include_tasks: ../../common/tasks/ensure_vcf_sdk.yml
+
 - name: List available Supervisor Services
   vmware_vcf.ansible.vcf_vcenter_supervisor_service:
     vcenter_hostname: "{{ vcenter_wld_hostname }}"

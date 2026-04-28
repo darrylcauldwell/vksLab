@@ -7,6 +7,11 @@
 # VCF Operations for Logs is deployed separately via Fleet Management UI
 # after this deployment completes.
 
+# --- Ensure vcf_sdk is available ---
+
+- name: Ensure vcf_sdk is available
+  ansible.builtin.include_tasks: ../../common/tasks/ensure_vcf_sdk.yml
+
 # --- Ensure DNS records exist on gateway ---
 
 - name: Ensure DNS for management components

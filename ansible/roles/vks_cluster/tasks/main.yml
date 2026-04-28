@@ -1,6 +1,11 @@
 ---
 # Phase 8 — VKS Cluster: create workload and services clusters
 
+# --- Ensure vcf_sdk is available ---
+
+- name: Ensure vcf_sdk is available
+  ansible.builtin.include_tasks: ../../common/tasks/ensure_vcf_sdk.yml
+
 # --- Discover Kubernetes versions ---
 
 - name: Discover available Kubernetes versions

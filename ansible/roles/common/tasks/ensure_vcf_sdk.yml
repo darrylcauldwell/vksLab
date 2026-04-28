@@ -1,0 +1,37 @@
+---
+# Ensure vcf_sdk and its dependencies are available on the current host.
+# Installs apt packages if missing, copies vendored vcf_sdk if not importable.
+
+- name: "vcf_sdk | Ensure Python dependencies are installed"
+  ansible.builtin.apt:
+    name:
+      - python3-requests
+      - python3-pydantic
+      - python3-urllib3
+    state: present
+  become: true
+
+- name: "vcf_sdk | Check if vcf_sdk is importable"
+  ansible.builtin.command:
+    cmd: python3 -c "from vcf_sdk import SDDCManager; print('OK')"
+  register: _vcf_sdk_check
+  changed_when: false
+  failed_when: false
+
+- name: "vcf_sdk | Install vendored vcf_sdk to system Python"
+  ansible.builtin.copy:
+    src: /home/ubuntu/dda-vcf/ansible/python/vcf_sdk/
+    dest: /usr/lib/python3/dist-packages/vcf_sdk/
+    remote_src: true
+    owner: root
+    group: root
+    mode: "0644"
+    directory_mode: "0755"
+  become: true
+  when: _vcf_sdk_check.rc != 0
+
+- name: "vcf_sdk | Verify vcf_sdk is now importable"
+  ansible.builtin.command:
+    cmd: python3 -c "from vcf_sdk import SDDCManager, CloudBuilder; print('vcf_sdk OK')"
+  changed_when: false
+  when: _vcf_sdk_check.rc != 0

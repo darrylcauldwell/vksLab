@@ -3,6 +3,11 @@
 # CA certificate replacement and backup configuration
 # Note: VCF Installer VM removal is a manual step (no SDDC Manager API for it)
 
+# --- Ensure vcf_sdk is available ---
+
+- name: Ensure vcf_sdk is available
+  ansible.builtin.include_tasks: ../../common/tasks/ensure_vcf_sdk.yml
+
 # --- Ensure DNS for platform dependencies ---
 
 - name: Ensure DNS for platform services

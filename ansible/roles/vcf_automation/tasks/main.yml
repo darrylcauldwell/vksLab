@@ -3,6 +3,11 @@
 # Deploy VCF Automation, configure Provider/Tenant organisations,
 # enable VKSM, and configure self-service catalog.
 
+# --- Ensure vcf_sdk is available ---
+
+- name: Ensure vcf_sdk is available
+  ansible.builtin.include_tasks: ../../common/tasks/ensure_vcf_sdk.yml
+
 # --- Ensure DNS ---
 
 - name: Ensure DNS for VCF Automation

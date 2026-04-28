@@ -2,6 +2,11 @@
 # Phase 8 — Contour L7 ingress controller (VKS Standard Package)
 # Requires cert-manager. Provides HTTPProxy CRD for multi-service routing.
 
+# --- Ensure vcf_sdk is available ---
+
+- name: Ensure vcf_sdk is available
+  ansible.builtin.include_tasks: ../../common/tasks/ensure_vcf_sdk.yml
+
 - name: Check if Contour is already enabled
   vmware_vcf.ansible.vcf_vcenter_supervisor_service:
     vcenter_hostname: "{{ vcenter_wld_hostname }}"

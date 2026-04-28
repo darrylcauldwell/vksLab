@@ -1,6 +1,11 @@
 ---
 # Phase 8 — VKS Supervisor: Content library, Supervisor enablement, namespaces
 
+# --- Ensure vcf_sdk is available ---
+
+- name: Ensure vcf_sdk is available
+  ansible.builtin.include_tasks: ../../common/tasks/ensure_vcf_sdk.yml
+
 # --- Ensure DNS for Phase 8 dependencies ---
 
 - name: Ensure DNS for VKS

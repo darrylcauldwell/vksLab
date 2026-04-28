@@ -2,6 +2,11 @@
 # Phase 8 — Harbor container registry (VKS Standard Package)
 # Requires cert-manager and Contour. Provides proxy cache for container images.
 
+# --- Ensure vcf_sdk is available ---
+
+- name: Ensure vcf_sdk is available
+  ansible.builtin.include_tasks: ../../common/tasks/ensure_vcf_sdk.yml
+
 - name: Check if Harbor is already enabled
   vmware_vcf.ansible.vcf_vcenter_supervisor_service:
     vcenter_hostname: "{{ vcenter_wld_hostname }}"
