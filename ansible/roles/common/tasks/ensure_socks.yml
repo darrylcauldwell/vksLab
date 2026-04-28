@@ -9,12 +9,17 @@
 #     - name: Ensure SOCKS proxy
 #       ansible.builtin.include_tasks: roles/common/tasks/ensure_socks.yml
 
-- name: "SDK | Ensure latest vmware-vcf SDK"
-  ansible.builtin.pip:
-    name: vmware-vcf
-    state: latest
-    break_system_packages: true
+- name: "SDK | Verify vmware-vcf SDK is available"
+  ansible.builtin.command:
+    cmd: python3 -c "from vcf_sdk import SDDCManager; print('vcf_sdk OK')"
   changed_when: false
+  failed_when: false
+  register: sdk_check
+
+- name: "SDK | Warn if vmware-vcf SDK is missing"
+  ansible.builtin.debug:
+    msg: "WARNING: vmware-vcf SDK not found. Install with: pip install vmware-vcf"
+  when: sdk_check.rc != 0
 
 - name: "SOCKS | Check if tunnel is active on port 1080"
   ansible.builtin.wait_for:
