@@ -66,9 +66,7 @@ class CloudBuilder:
         Returns:
             Depot configuration response
         """
-        response = self.client.request(
-            "PUT", "/v1/sddcs/depot", data=spec, auth=self._auth
-        )
+        response = self._request("PUT", "/v1/sddcs/depot", data=spec)
         logger.info("Depot configuration updated")
         return response
 
