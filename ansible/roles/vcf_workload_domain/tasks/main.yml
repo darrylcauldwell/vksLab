@@ -105,15 +105,40 @@
     sddc_refresh_token: "{{ sddc_refresh_token }}"
     state: present
     host_spec: "{{ hosts_to_commission }}"
-    wait: true
-    wait_timeout: 3600
+    wait: false
   register: commission_result
+  when: hosts_to_commission | length > 0
+
+- name: Display commission task ID
+  ansible.builtin.debug:
+    msg: "Commission task started: {{ commission_result.task.id }}"
+  when: hosts_to_commission | length > 0
+
+- name: Poll commission task status
+  vmware_vcf.ansible.vcf_sddc_info:
+    sddc_hostname: "{{ vcf_wld_hostname }}"
+    sddc_bearer_token: "{{ sddc_token }}"
+    sddc_refresh_token: "{{ sddc_refresh_token }}"
+    gather: task
+    task_id: "{{ commission_result.task.id }}"
+  register: commission_poll
+  until: commission_poll.result.status in ['SUCCESSFUL', 'FAILED']
+  retries: 360
+  delay: 10
+  changed_when: false
   when: hosts_to_commission | length > 0
 
 - name: Display commission result
   ansible.builtin.debug:
-    msg: "Commissioned {{ hosts_to_commission | length }} host(s)."
+    msg: "Commission {{ commission_poll.result.status }} — {{ hosts_to_commission | length }} host(s)."
   when: hosts_to_commission | length > 0
+
+- name: Fail if commission failed
+  ansible.builtin.fail:
+    msg: "Host commissioning failed: {{ commission_poll.result }}"
+  when:
+    - hosts_to_commission | length > 0
+    - commission_poll.result.status == 'FAILED'
 
 - name: Skip commissioning message
   ansible.builtin.debug:
@@ -178,7 +203,7 @@
 
 - name: Progress — creating workload domain
   ansible.builtin.debug:
-    msg: "LONG RUNNING TASK — Creating workload domain (~2 hours). Monitor progress at https://{{ vcf_wld_hostname }}. Track in SDDC Manager → Tasks. This task will wait up to 2 hours for completion."
+    msg: "Creating workload domain (~2 hours). Monitor at https://{{ vcf_wld_hostname }} → Tasks."
 
 - name: Create workload domain (validates then creates)
   vmware_vcf.ansible.vcf_domain:
@@ -188,13 +213,34 @@
     state: present
     spec: "{{ vcf_wld_domain_spec }}"
     validate: true
-    wait: true
-    wait_timeout: 7200
+    wait: false
   register: domain_result
+
+- name: Display domain creation task ID
+  ansible.builtin.debug:
+    msg: "Domain creation task started: {{ domain_result.task.id }}"
+
+- name: Poll domain creation task
+  vmware_vcf.ansible.vcf_sddc_info:
+    sddc_hostname: "{{ vcf_wld_hostname }}"
+    sddc_bearer_token: "{{ sddc_token }}"
+    sddc_refresh_token: "{{ sddc_refresh_token }}"
+    gather: task
+    task_id: "{{ domain_result.task.id }}"
+  register: domain_poll
+  until: domain_poll.result.status in ['SUCCESSFUL', 'FAILED']
+  retries: 120
+  delay: 60
+  changed_when: false
 
 - name: Display domain creation result
   ansible.builtin.debug:
-    msg: "Domain creation complete: {{ domain_result }}"
+    msg: "Domain creation {{ domain_poll.result.status }}"
+
+- name: Fail if domain creation failed
+  ansible.builtin.fail:
+    msg: "Workload domain creation failed: {{ domain_poll.result }}"
+  when: domain_poll.result.status == 'FAILED'
 
 # --- Verify workload domain exists ---
 
