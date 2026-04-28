@@ -38,6 +38,19 @@ sudo -H $ANSIBLE_PYTHON -m pip install --no-index --ignore-installed \
   --find-links "$REPO_ROOT/ansible/python/wheels" \
   pydantic pydantic_core typing_extensions annotated_types typing_inspection pysocks
 
+# Also install into system Python (used by command/script tasks)
+SYSTEM_PYTHON=$(which python3)
+SYSTEM_SITE=$($SYSTEM_PYTHON -c "import site; print(site.getsitepackages()[0])")
+echo "Installing vcf_sdk and deps into system Python ($SYSTEM_PYTHON)..."
+sudo rm -rf "$SYSTEM_SITE/vcf_sdk"
+sudo cp -r "$REPO_ROOT/ansible/python/vcf_sdk" "$SYSTEM_SITE/vcf_sdk"
+sudo find "$SYSTEM_SITE/vcf_sdk" -type d -exec chmod 755 {} +
+sudo find "$SYSTEM_SITE/vcf_sdk" -type f -exec chmod 644 {} +
+sudo -H $SYSTEM_PYTHON -m pip install --no-index --ignore-installed \
+  --find-links "$REPO_ROOT/ansible/python/wheels" \
+  pydantic pydantic_core typing_extensions annotated_types typing_inspection pysocks \
+  2>/dev/null || true
+
 echo ""
 echo "Verifying..."
 $ANSIBLE_PYTHON -c "from vcf_sdk import SDDCManager, CloudBuilder; print('vcf_sdk OK')"
