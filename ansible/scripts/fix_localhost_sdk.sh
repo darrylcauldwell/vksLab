@@ -16,9 +16,14 @@ sudo cp -r "$REPO_ROOT/ansible/python/vcf_sdk" "$SITE_PACKAGES/vcf_sdk"
 sudo find "$SITE_PACKAGES/vcf_sdk" -type d -exec chmod 755 {} +
 sudo find "$SITE_PACKAGES/vcf_sdk" -type f -exec chmod 644 {} +
 
-echo "Installing Python dependencies (requests, pydantic, urllib3)..."
-sudo python3 -m pip install requests pydantic urllib3 --break-system-packages 2>/dev/null || \
-  sudo python3 -m pip install requests pydantic urllib3
+echo "Installing pydantic v2 from vendored wheels (no PyPI needed)..."
+sudo python3 -m pip install --no-index --force-reinstall \
+  --find-links "$REPO_ROOT/ansible/python/wheels" \
+  pydantic pydantic_core typing_extensions annotated_types typing_inspection \
+  --break-system-packages 2>/dev/null || \
+sudo python3 -m pip install --no-index --force-reinstall \
+  --find-links "$REPO_ROOT/ansible/python/wheels" \
+  pydantic pydantic_core typing_extensions annotated_types typing_inspection
 
 echo ""
 echo "Verifying..."
