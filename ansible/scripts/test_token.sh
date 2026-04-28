@@ -9,4 +9,4 @@ curl -vsk -x socks5h://localhost:1080 \
   -X POST \
   -H 'Content-Type: application/json' \
   -d "{\"username\":\"admin@local\",\"password\":\"$PASS\"}" \
-  2>&1 | head -40
+  2>&1
