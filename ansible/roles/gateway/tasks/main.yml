@@ -939,7 +939,7 @@
 
 - name: Install vmware-vcf SDK from GitHub
   ansible.builtin.pip:
-    name: git+https://github.com/darrylcauldwell/vcf-sdk.git
+    name: git+https://github.com/darrylcauldwell/vmware-vcf.git
     state: present
     break_system_packages: true
   become: true
