@@ -15,8 +15,8 @@ class CloudBuilder:
     """
     Cloud Builder API client.
 
-    Separate from SDDC Manager — uses Basic auth against the Cloud Builder appliance
-    for initial SDDC bringup and validation.
+    Uses Bearer token authentication against the VCF Installer appliance.
+    Obtains a token via POST /v1/tokens, then uses it for all subsequent requests.
     """
 
     def __init__(
@@ -29,14 +29,31 @@ class CloudBuilder:
     ):
         self.hostname = hostname
         self.client = BaseClient(hostname, verify_ssl=verify_ssl, timeout=timeout)
-        self._auth = (username, password)
+        self._username = username
+        self._password = password
+        self._access_token = None
 
-        # Validate connectivity
-        logger.debug(f"Connecting to Cloud Builder {hostname}")
+        # Authenticate on init
+        self._authenticate()
+        logger.debug(f"Authenticated to Cloud Builder {hostname}")
+
+    def _authenticate(self):
+        """Obtain Bearer token from /v1/tokens."""
+        response = self.client.request(
+            "POST",
+            "/v1/tokens",
+            data={"username": self._username, "password": self._password},
+        )
+        self._access_token = response.get("accessToken")
+        if not self._access_token:
+            from vcf_sdk.exceptions import AuthenticationError
+            raise AuthenticationError("Failed to obtain access token from VCF Installer")
 
     def _request(self, method: str, endpoint: str, data: Any = None, **kwargs) -> Dict[str, Any]:
-        """Make authenticated request to Cloud Builder API."""
-        return self.client.request(method, endpoint, data=data, auth=self._auth, **kwargs)
+        """Make authenticated request with Bearer token."""
+        headers = kwargs.pop("headers", {})
+        headers["Authorization"] = f"Bearer {self._access_token}"
+        return self.client.request(method, endpoint, data=data, headers=headers, **kwargs)
 
     def _get(self, endpoint: str, **kwargs) -> Dict[str, Any]:
         return self._request("GET", endpoint, **kwargs)
