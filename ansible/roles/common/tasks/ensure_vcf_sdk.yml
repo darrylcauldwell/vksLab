@@ -19,12 +19,21 @@
     state: present
   become: true
 
+- name: "vcf_sdk | Remove apt pydantic v1 to avoid conflict"
+  ansible.builtin.apt:
+    name:
+      - python3-pydantic
+      - python3-typing-extensions
+    state: absent
+    purge: true
+  become: true
+
 - name: "vcf_sdk | Install pydantic v2 from vendored wheels"
   ansible.builtin.command:
     cmd: >
-      python3 -m pip install --no-index --break-system-packages
+      python3 -m pip install --no-index --break-system-packages --force-reinstall
       --find-links /home/ubuntu/dda-vcf/ansible/python/wheels
-      pydantic pydantic_core
+      pydantic pydantic_core typing_extensions annotated_types typing_inspection
   become: true
   register: _pydantic_install
   changed_when: "'Successfully installed' in _pydantic_install.stdout"
