@@ -12,22 +12,18 @@ TASK_TYPE=${TASK_TYPE:-validation}
 
 echo ""
 echo "Getting token..."
+SECRETS="$(cd "$(dirname "$0")/.." && pwd)/inventory/group_vars/all/secrets.yml"
+if [ -f "$SECRETS" ]; then
+    PASS=$(grep sddc_admin_password "$SECRETS" | awk '{print $2}')
+else
+    read -sp "VCF Installer password: " PASS
+    echo ""
+fi
+
 TOKEN=$(curl -sk -x "$PROXY" -X POST \
   -H 'Content-Type: application/json' \
-  -d '{"username":"admin@local","password":"'"$1"'"}' \
-  "https://$INSTALLER/v1/tokens" | python3 -c "import sys,json; print(json.load(sys.stdin)['accessToken'])" 2>/dev/null)
-
-if [ -z "$TOKEN" ]; then
-    # Try reading password from secrets file
-    SECRETS="$(dirname "$0")/../inventory/group_vars/all/secrets.yml"
-    if [ -f "$SECRETS" ]; then
-        PASS=$(grep sddc_admin_password "$SECRETS" | awk '{print $2}')
-        TOKEN=$(curl -sk -x "$PROXY" -X POST \
-          -H 'Content-Type: application/json' \
-          -d "{\"username\":\"admin@local\",\"password\":\"$PASS\"}" \
-          "https://$INSTALLER/v1/tokens" | python3 -c "import sys,json; print(json.load(sys.stdin)['accessToken'])" 2>/dev/null)
-    fi
-fi
+  -d "{\"username\":\"admin@local\",\"password\":\"$PASS\"}" \
+  "https://$INSTALLER/v1/tokens" 2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin)['accessToken'])" 2>/dev/null)
 
 if [ -z "$TOKEN" ]; then
     echo "ERROR: Failed to get token. Check SOCKS tunnel and credentials."
