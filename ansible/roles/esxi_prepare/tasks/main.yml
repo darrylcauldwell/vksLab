@@ -61,12 +61,9 @@
 
 - name: Parse NVMe device list
   ansible.builtin.set_fact:
-    nvme_sorted: "{{ _parsed }}"
+    nvme_sorted: "{{ _json | from_json }}"
   vars:
-    _parsed: >-
-      [{% for line in nvme_raw.stdout_lines %}
-      {"id": "{{ line.split('|')[0] }}", "size": {{ line.split('|')[1] }}}{{ "," if not loop.last else "" }}
-      {% endfor %}]
+    _json: '[{% for line in nvme_raw.stdout_lines %}{"id": "{{ line.split("|")[0] }}", "size": {{ line.split("|")[1] }}}{{ "," if not loop.last else "" }}{% endfor %}]'
 
 - name: Display discovered NVMe devices
   ansible.builtin.debug:
