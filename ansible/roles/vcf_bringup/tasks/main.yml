@@ -95,6 +95,7 @@
     state: deployed
     spec: "{{ vcf_bringup_spec }}"
     nested_lab: true
+    validation_timeout: 3600
     deploy_timeout: 14400
     poll_interval: 60
   register: bringup_result
