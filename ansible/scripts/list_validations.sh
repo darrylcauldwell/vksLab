@@ -8,14 +8,18 @@ INSTALLER="vcf-installer.lab.dreamfold.dev"
 TMPFILE=$(mktemp)
 VCF_PASS="$PASS" python3 -c "import json,os; print(json.dumps({'username': 'admin@local', 'password': os.environ['VCF_PASS']}))" > "$TMPFILE"
 
-TOKEN=$(curl -sk -x "$PROXY" -X POST \
+RESPONSE=$(curl -sk -x "$PROXY" -X POST \
   -H 'Content-Type: application/json' \
   -d @"$TMPFILE" \
-  "https://$INSTALLER/v1/tokens" 2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin)['accessToken'])" 2>/dev/null)
+  "https://$INSTALLER/v1/tokens" 2>&1)
 rm -f "$TMPFILE"
 
+echo "Token response: $RESPONSE"
+
+TOKEN=$(echo "$RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin)['accessToken'])" 2>/dev/null)
+
 if [ -z "$TOKEN" ]; then
-    echo "ERROR: Failed to get token"
+    echo "ERROR: Failed to extract token from response"
     exit 1
 fi
 
