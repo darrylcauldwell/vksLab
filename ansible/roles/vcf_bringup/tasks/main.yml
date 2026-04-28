@@ -84,6 +84,35 @@
   ansible.builtin.debug:
     msg: "LONG RUNNING TASK — VCF management domain bringup (~3-4 hours). Monitor progress at https://{{ vcf_bringup_hostname }}. Track in VCF Installer UI. This task will wait up to 4 hours for completion."
 
+- name: Pre-flight — verify VCF Installer API auth
+  ansible.builtin.command:
+    cmd: "curl -sk -u '{{ vcf_bringup_username }}:{{ vcf_bringup_password }}' https://{{ vcf_bringup_hostname }}/v1/sddcs"
+  register: api_preflight
+  changed_when: false
+  failed_when: "'Unauthorized' in api_preflight.stdout"
+
+- name: Display API pre-flight result
+  ansible.builtin.debug:
+    msg: "API auth: {{ 'OK' if api_preflight.rc == 0 else 'FAILED' }} — {{ api_preflight.stdout[:200] }}"
+
+- name: Pre-flight — verify SDK auth via Python
+  ansible.builtin.command:
+    cmd: >
+      python3 -c "
+      from vcf_sdk import CloudBuilder
+      cb = CloudBuilder('{{ vcf_bringup_hostname }}', '{{ vcf_bringup_username }}', '{{ vcf_bringup_password }}')
+      print('SDK list_sddcs:', cb.list_sddcs())
+      cb.close()
+      "
+  register: sdk_preflight
+  changed_when: false
+  failed_when: false
+  no_log: false
+
+- name: Display SDK pre-flight result
+  ansible.builtin.debug:
+    msg: "{{ sdk_preflight.stdout | default(sdk_preflight.stderr) }}"
+
 - name: Validate and deploy management domain
   vmware_vcf.ansible.vcf_cloud_builder:
     hostname: "{{ vcf_bringup_hostname }}"
