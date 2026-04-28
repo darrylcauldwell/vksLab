@@ -50,6 +50,28 @@ class CloudBuilder:
     def _delete(self, endpoint: str, **kwargs) -> Dict[str, Any]:
         return self._request("DELETE", endpoint, **kwargs)
 
+    # Depot Configuration
+
+    def get_depot(self) -> Dict[str, Any]:
+        """Get current depot configuration."""
+        return self._get("/v1/sddcs/depot")
+
+    def set_depot(self, spec: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Configure the VCF offline depot.
+
+        Args:
+            spec: Depot configuration with offlineAccount and depotConfiguration
+
+        Returns:
+            Depot configuration response
+        """
+        response = self.client.request(
+            "PUT", "/v1/sddcs/depot", data=spec, auth=self._auth
+        )
+        logger.info("Depot configuration updated")
+        return response
+
     # SDDC Bringup
 
     def list_sddcs(self) -> List[Dict[str, Any]]:

@@ -45,21 +45,17 @@
 # --- Configure depot and download bundles ---
 
 - name: Configure VCF offline depot
-  ansible.builtin.uri:
-    url: "https://{{ vcf_bringup_hostname }}/v1/sddcs/depot"
-    method: PUT
-    user: "{{ vcf_bringup_username }}"
+  vmware_vcf.ansible.vcf_cloud_builder:
+    hostname: "{{ vcf_bringup_hostname }}"
+    username: "{{ vcf_bringup_username }}"
     password: "{{ vcf_bringup_password }}"
-    force_basic_auth: true
-    validate_certs: false
-    body_format: json
-    body: "{{ vcf_bringup_depot_spec }}"
-    status_code: [200, 202]
+    state: depot
+    depot_spec: "{{ vcf_bringup_depot_spec }}"
   register: depot_result
 
 - name: Display depot configuration
   ansible.builtin.debug:
-    msg: "Depot configured: {{ depot_result.json | default('OK') }}"
+    msg: "Depot configured: {{ depot_result.depot | default('OK') }}"
 
 # Note: Bundle download is triggered automatically by the VCF Installer
 # after depot configuration. Bundles must complete downloading before
