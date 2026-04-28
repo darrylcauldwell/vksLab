@@ -17,6 +17,13 @@
     - name: Load 1Password secrets
       ansible.builtin.include_tasks: ../roles/common/tasks/ensure_1password.yml
 
+- name: Phase 4 — Ensure gateway services after vApp power cycle
+  hosts: gateways
+  gather_facts: false
+  tasks:
+    - name: Ensure dnsmasq is running
+      ansible.builtin.include_tasks: ../roles/common/tasks/ensure_dnsmasq.yml
+
 - name: Phase 4 — Deploy VCF Installer OVA
   hosts: gateways
   gather_facts: false

@@ -27,6 +27,13 @@
     - name: Ensure 1Password session
       ansible.builtin.include_tasks: ../roles/common/tasks/ensure_1password.yml
 
+- name: Phase 3 — Ensure gateway services after vApp power cycle
+  hosts: gateways
+  gather_facts: false
+  tasks:
+    - name: Ensure dnsmasq is running
+      ansible.builtin.include_tasks: ../roles/common/tasks/ensure_dnsmasq.yml
+
 - name: Phase 3 — Pre-flight ESXi connectivity check
   hosts: gateways
   gather_facts: false

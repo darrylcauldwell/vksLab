@@ -39,28 +39,8 @@
       {{ pd_hosts | selectattr('hostname', 'search', 'esxi-')
          | list }}
   tasks:
-    - name: Create /run/dnsmasq directory
-      ansible.builtin.file:
-        path: /run/dnsmasq
-        state: directory
-        owner: dnsmasq
-        group: nogroup
-        mode: "0755"
-
-    - name: Create /run/dnsmasq/resolv.conf
-      ansible.builtin.file:
-        path: /run/dnsmasq/resolv.conf
-        state: touch
-        owner: dnsmasq
-        group: nogroup
-        mode: "0644"
-        modification_time: preserve
-        access_time: preserve
-
-    - name: Restart dnsmasq to ensure config is loaded
-      ansible.builtin.service:
-        name: dnsmasq
-        state: restarted
+    - name: Ensure dnsmasq is running
+      ansible.builtin.include_tasks: ../roles/common/tasks/ensure_dnsmasq.yml
 
     - name: Verify dnsmasq is running
       ansible.builtin.service_facts:
