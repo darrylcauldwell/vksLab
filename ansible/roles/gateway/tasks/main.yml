@@ -938,11 +938,11 @@
   tags: ansible-env
 
 - name: Install vmware-vcf SDK from GitHub
-  ansible.builtin.pip:
-    name: git+https://github.com/darrylcauldwell/vmware-vcf.git
-    state: present
-    break_system_packages: true
+  ansible.builtin.command:
+    cmd: /usr/bin/python3.12 -m pip install --no-build-isolation --break-system-packages git+https://github.com/darrylcauldwell/vmware-vcf.git
   become: true
+  register: vcf_sdk_install
+  changed_when: "'Successfully installed' in vcf_sdk_install.stdout"
   tags: ansible-env
 
 - name: Create VCF backup directory
