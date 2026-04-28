@@ -12,14 +12,8 @@
       ansible.builtin.include_tasks: ../roles/common/tasks/ensure_1password.yml
 
 - name: Phase 5 — VCF Platform Services
-  hosts: localhost
-  connection: local
+  hosts: gateways
   gather_facts: false
-  environment:
-    HTTPS_PROXY: "socks5h://localhost:1080"
-  pre_tasks:
-    - name: Ensure SOCKS proxy
-      ansible.builtin.include_tasks: ../roles/common/tasks/ensure_socks.yml
   roles:
     - vcf_mgmt_components
     - vcf_identity

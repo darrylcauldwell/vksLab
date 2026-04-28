@@ -11,14 +11,8 @@
       ansible.builtin.include_tasks: ../roles/common/tasks/ensure_1password.yml
 
 - name: Phase 8 — VCF Workload VKS
-  hosts: localhost
-  connection: local
+  hosts: gateways
   gather_facts: false
-  environment:
-    HTTPS_PROXY: "socks5h://localhost:1080"
-  pre_tasks:
-    - name: Ensure SOCKS proxy
-      ansible.builtin.include_tasks: ../roles/common/tasks/ensure_socks.yml
   roles:
     - vks_supervisor      # Content library, Supervisor, namespaces
     - vks_cluster          # Workload + services VKS clusters
