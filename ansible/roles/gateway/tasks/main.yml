@@ -626,12 +626,29 @@
   notify: restart frr
   tags: routing
 
-- name: Enable and start FRR
+- name: Restart FRR to load config
   become: true
   ansible.builtin.service:
     name: frr
-    state: started
+    state: restarted
     enabled: true
+  tags: routing
+
+- name: Verify FRR bgpd is running
+  become: true
+  ansible.builtin.command:
+    cmd: vtysh -c 'show running-config'
+  register: frr_running
+  changed_when: false
+  failed_when: "'router bgp' not in frr_running.stdout"
+  tags: routing
+
+- name: Show FRR status on failure
+  become: true
+  ansible.builtin.command:
+    cmd: journalctl -u frr --no-pager -n 20
+  when: frr_running is failed
+  changed_when: false
   tags: routing
 
 # step-ca provides an internal CA with ACME support. TLS certificates for
