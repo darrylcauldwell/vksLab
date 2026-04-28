@@ -93,16 +93,20 @@ def main():
                 sys.stdout.flush()
 
                 if status == "COMPLETED":
-                    if failed > 0:
-                        print("\nFailed checks:")
-                        for c in checks:
-                            if c.get("resultStatus") == "FAILED":
-                                desc = c.get("description", "Unknown")
-                                err = c.get("errorResponse", {}).get("message", "No message")
-                                code = c.get("errorResponse", {}).get("errorCode", "")
-                                print(f"  ✗ {desc}: {err} [{code}]")
-                    print(f"\nValidation {result}")
-                    # Output JSON for Ansible to parse
+                    print(f"\n{'='*60}")
+                    print(f"Validation {result}")
+                    print(f"{'='*60}")
+                    for c in checks:
+                        s = c.get("resultStatus", "UNKNOWN")
+                        desc = c.get("description", "Unknown check")
+                        icon = "✓" if s == "SUCCEEDED" else "✗" if s == "FAILED" else "…"
+                        print(f"  {icon} [{s}] {desc}")
+                        if s == "FAILED":
+                            err = c.get("errorResponse", {})
+                            if err.get("message"):
+                                print(f"       Error: {err['message']}")
+                            if err.get("errorCode"):
+                                print(f"       Code:  {err['errorCode']}")
                     print(f"\nRESULT_JSON:{json.dumps({'execution_status': status, 'result_status': result, 'failed_checks': failed})}")
                     sys.exit(0 if result == "SUCCEEDED" or failed == 0 else 2)
 
@@ -113,7 +117,15 @@ def main():
                 sys.stdout.flush()
 
                 if status in ("COMPLETED_WITH_SUCCESS", "COMPLETED_WITH_FAILURE"):
-                    print(f"\nBringup {status}")
+                    print(f"\n{'='*60}")
+                    print(f"Bringup {status}")
+                    print(f"{'='*60}")
+                    # Print sub-tasks if available
+                    for sub in data.get("subTasks", []):
+                        s = sub.get("status", "UNKNOWN")
+                        name = sub.get("name", "Unknown")
+                        icon = "✓" if s == "SUCCESSFUL" else "✗" if s == "FAILED" else "…"
+                        print(f"  {icon} [{s}] {name}")
                     print(f"\nRESULT_JSON:{json.dumps({'status': status})}")
                     sys.exit(0 if "SUCCESS" in status else 2)
 
