@@ -29,9 +29,6 @@
 - name: Verify depot is reachable from gateway
   ansible.builtin.command:
     cmd: "curl -sk -o /dev/null -w '%{http_code}' https://{{ vcf_depot_url }}/"
-  delegate_to: gateway
-  vars:
-    ansible_connection: ssh
   changed_when: false
   failed_when: false
   register: depot_check
@@ -63,7 +60,7 @@
 
 - name: Validate bringup spec against VCF Installer OpenAPI schema
   ansible.builtin.command:
-    cmd: "python3 {{ playbook_dir }}/../scripts/validate_spec.py --schema vcf-installer --type SddcSpec -"
+    cmd: "python3 /home/ubuntu/dda-vcf/ansible/scripts/validate_spec.py --schema vcf-installer --type SddcSpec -"
     stdin: "{{ vcf_bringup_spec | to_json }}"
   register: spec_validation
   changed_when: false
