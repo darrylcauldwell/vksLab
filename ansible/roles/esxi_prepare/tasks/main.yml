@@ -128,13 +128,19 @@
 # Import step-ca root CA into trust store, then issue a proper
 # host certificate signed by step-ca (replaces ESXi self-signed cert).
 
-- name: Upload CA root certificate
+- name: Read CA root certificate from gateway
+  ansible.builtin.slurp:
+    src: "{{ ca_cert_path }}"
+  delegate_to: gateway
+  become: true
+  register: ca_cert_content
+
+- name: Upload CA root certificate to ESXi
   ansible.builtin.shell: |
     cat > /tmp/lab-root-ca.crt << 'CERT'
-    {{ lookup('file', esxi_ca_cert_path) }}
+    {{ ca_cert_content.content | b64decode }}
     CERT
     chmod 644 /tmp/lab-root-ca.crt
-  when: esxi_ca_cert_path is defined and esxi_ca_cert_path | length > 0
   changed_when: true
 
 - name: Import CA root certificate into ESXi trust store
@@ -147,7 +153,6 @@
     fi
   register: cert_result
   changed_when: "'imported' in cert_result.stdout"
-  when: esxi_ca_cert_path is defined and esxi_ca_cert_path | length > 0
 
 - name: Verify CA certificate was imported correctly
   ansible.builtin.shell: >
@@ -155,7 +160,6 @@
   register: cert_verify
   changed_when: false
   failed_when: cert_verify.rc != 0
-  when: esxi_ca_cert_path is defined and esxi_ca_cert_path | length > 0
 
 - name: Check if host cert is already signed by step-ca
   ansible.builtin.shell: >
