@@ -37,10 +37,28 @@
 
 - name: "MANUAL — Configure depot and download bundles via VCF Installer UI"
   ansible.builtin.pause:
-    prompt: >-
-      Configure the offline depot in the VCF Installer UI at
-      https://{{ vcf_bringup_hostname }}.
-      Wait for bundle download to complete, then press Enter to continue.
+    prompt: |
+
+      ============================================================
+      MANUAL STEP — VCF Installer depot configuration
+      ============================================================
+
+      Open https://{{ vcf_bringup_hostname }} in a browser.
+
+      1. Log in (admin@local / {{ vcf_bringup_username }})
+      2. Navigate to Depot Settings
+      3. Select Offline Depot and enter credentials:
+           Hostname: {{ vcf_depot_url }}
+           Username: (Broadcom depot username)
+           Password: (Broadcom depot password)
+      4. Save and wait for bundle downloads to complete:
+           - SDDC Manager
+           - vCenter Server
+           - NSX Manager
+         This typically takes 30-60 minutes.
+      5. Verify all three bundles show "Downloaded" status.
+
+      Press Enter when all bundles are downloaded to continue
 
 # --- Validate bringup spec against OpenAPI schema ---
 
