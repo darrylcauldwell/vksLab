@@ -84,33 +84,6 @@
   ansible.builtin.debug:
     msg: "LONG RUNNING TASK — VCF management domain bringup (~3-4 hours). Monitor progress at https://{{ vcf_bringup_hostname }}. Track in VCF Installer UI. This task will wait up to 4 hours for completion."
 
-- name: Pre-flight — construct and display auth header
-  ansible.builtin.shell:
-    cmd: |
-      AUTH_HEADER="Authorization: Basic $(echo -n '{{ vcf_bringup_username }}:{{ vcf_bringup_password }}' | base64)"
-      echo "=== Auth header ==="
-      echo "$AUTH_HEADER"
-      echo ""
-      echo "=== Request ==="
-      echo "GET https://{{ vcf_bringup_hostname }}/v1/sddcs"
-      echo "Content-Type: application/json"
-      echo "Accept: application/json"
-      echo "$AUTH_HEADER"
-      echo ""
-      echo "=== Response ==="
-      curl -sk \
-        -H "Content-Type: application/json" \
-        -H "Accept: application/json" \
-        -H "$AUTH_HEADER" \
-        https://{{ vcf_bringup_hostname }}/v1/sddcs
-  register: api_preflight
-  changed_when: false
-  failed_when: false
-
-- name: Display API pre-flight result
-  ansible.builtin.debug:
-    msg: "{{ api_preflight.stdout }}"
-
 - name: Validate and deploy management domain
   vmware_vcf.ansible.vcf_cloud_builder:
     hostname: "{{ vcf_bringup_hostname }}"

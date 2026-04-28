@@ -10,7 +10,13 @@
       ansible.builtin.include_tasks: ../roles/common/tasks/ensure_1password.yml
 
 - name: Phase 7 — VCF Workload NSX Networking
-  hosts: gateways
+  hosts: localhost
+  connection: local
   gather_facts: false
+  environment:
+    HTTPS_PROXY: "socks5h://localhost:1080"
+  pre_tasks:
+    - name: Ensure SOCKS proxy
+      ansible.builtin.include_tasks: ../roles/common/tasks/ensure_socks.yml
   roles:
     - nsx_networking
