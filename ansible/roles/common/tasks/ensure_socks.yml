@@ -9,33 +9,36 @@
 #     - name: Ensure SOCKS proxy
 #       ansible.builtin.include_tasks: roles/common/tasks/ensure_socks.yml
 
-- name: "SDK | Check if vcf_sdk is importable"
+- name: "SDK | Verify vcf_sdk is importable"
   ansible.builtin.command:
     cmd: python3 -c "from vcf_sdk import SDDCManager; print('OK')"
   changed_when: false
-  failed_when: false
   register: sdk_check
+  failed_when: >
+    sdk_check.rc != 0 and
+    "No module named 'vcf_sdk'" in sdk_check.stderr
 
-- name: "SDK | Get Python site-packages path"
-  ansible.builtin.command:
-    cmd: python3 -c "import site; print(site.getsitepackages()[0])"
-  register: site_packages
-  changed_when: false
+- name: "SDK | vcf_sdk not found — install to site-packages"
   when: sdk_check.rc != 0
+  block:
+    - name: "SDK | Get Python site-packages path"
+      ansible.builtin.command:
+        cmd: python3 -c "import site; print(site.getsitepackages()[0])"
+      register: site_packages
+      changed_when: false
 
-- name: "SDK | Install vendored vcf_sdk into venv"
-  ansible.builtin.copy:
-    src: "{{ playbook_dir }}/../python/vcf_sdk/"
-    dest: "{{ site_packages.stdout }}/vcf_sdk/"
-    mode: "0644"
-    directory_mode: "0755"
-  when: sdk_check.rc != 0
+    - name: "SDK | Copy vendored vcf_sdk"
+      ansible.builtin.shell: |
+        rm -rf {{ site_packages.stdout }}/vcf_sdk
+        cp -r {{ playbook_dir }}/../python/vcf_sdk {{ site_packages.stdout }}/vcf_sdk
+        find {{ site_packages.stdout }}/vcf_sdk -type d -exec chmod 755 {} +
+        find {{ site_packages.stdout }}/vcf_sdk -type f -exec chmod 644 {} +
+      changed_when: true
 
-- name: "SDK | Verify vcf_sdk is now importable"
-  ansible.builtin.command:
-    cmd: python3 -c "from vcf_sdk import SDDCManager; print('OK')"
-  changed_when: false
-  when: sdk_check.rc != 0
+    - name: "SDK | Verify vcf_sdk is now importable"
+      ansible.builtin.command:
+        cmd: python3 -c "from vcf_sdk import SDDCManager; print('OK')"
+      changed_when: false
 
 - name: "SOCKS | Check if tunnel is active on port 1080"
   ansible.builtin.wait_for:
