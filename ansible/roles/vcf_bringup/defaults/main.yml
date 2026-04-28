@@ -1,5 +1,5 @@
 vcf_bringup_hostname: "vcf-installer.{{ lab_domain }}"
-vcf_bringup_username: admin
+vcf_bringup_username: admin@local
 vcf_bringup_password: "{{ sddc_admin_password }}"
 
 vcf_bringup_depot_spec:
