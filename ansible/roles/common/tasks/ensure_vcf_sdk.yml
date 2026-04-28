@@ -38,24 +38,16 @@
   register: _pydantic_install
   changed_when: "'Successfully installed' in _pydantic_install.stdout"
 
-- name: "vcf_sdk | Check if vcf_sdk is importable"
-  ansible.builtin.command:
-    cmd: python3 -c "from vcf_sdk import SDDCManager; print('OK')"
-  register: _vcf_sdk_check
-  changed_when: false
-  failed_when: false
-
-- name: "vcf_sdk | Install vendored vcf_sdk to system Python"
+- name: "vcf_sdk | Sync vendored vcf_sdk to system Python"
   ansible.builtin.shell: |
     rm -rf /usr/lib/python3/dist-packages/vcf_sdk
     cp -r /home/ubuntu/dda-vcf/ansible/python/vcf_sdk /usr/lib/python3/dist-packages/vcf_sdk
     find /usr/lib/python3/dist-packages/vcf_sdk -type d -exec chmod 755 {} +
     find /usr/lib/python3/dist-packages/vcf_sdk -type f -exec chmod 644 {} +
   become: true
-  when: _vcf_sdk_check.rc != 0
+  changed_when: true
 
-- name: "vcf_sdk | Verify vcf_sdk is now importable"
+- name: "vcf_sdk | Verify vcf_sdk is importable"
   ansible.builtin.command:
     cmd: python3 -c "from vcf_sdk import SDDCManager, CloudBuilder; print('vcf_sdk OK')"
   changed_when: false
-  when: _vcf_sdk_check.rc != 0
