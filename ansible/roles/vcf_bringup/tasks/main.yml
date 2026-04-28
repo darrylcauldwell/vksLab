@@ -29,37 +29,18 @@
       - { hostname: esxi-03, ip: "{{ host_ip['esxi-03'] }}" }
       - { hostname: esxi-04, ip: "{{ host_ip['esxi-04'] }}" }
 
-# --- Verify depot connectivity ---
+# --- Manual step: configure depot via VCF Installer UI ---
+# Depot configuration is an SDDC Manager API (POST bringup), not available
+# on the VCF Installer. Configure the offline depot and wait for bundle
+# download to complete via the VCF Installer UI before proceeding.
+# See deliver guide §6.2.1.
 
-- name: Verify depot is reachable from gateway
-  ansible.builtin.command:
-    cmd: "curl -sk -o /dev/null -w '%{http_code}' https://{{ vcf_depot_url }}/"
-  changed_when: false
-  failed_when: false
-  register: depot_check
-
-- name: Display depot connectivity
-  ansible.builtin.debug:
-    msg: "Depot {{ vcf_depot_url }}: HTTP {{ depot_check.stdout | default('unreachable') }}"
-
-# --- Configure depot and download bundles ---
-
-- name: Configure VCF offline depot
-  vmware_vcf.ansible.vcf_cloud_builder:
-    hostname: "{{ vcf_bringup_hostname }}"
-    username: "{{ vcf_bringup_username }}"
-    password: "{{ vcf_bringup_password }}"
-    state: depot
-    depot_spec: "{{ vcf_bringup_depot_spec }}"
-  register: depot_result
-
-- name: Display depot configuration
-  ansible.builtin.debug:
-    msg: "Depot configured: {{ depot_result.depot | default('OK') }}"
-
-# Note: Bundle download is triggered automatically by the VCF Installer
-# after depot configuration. Bundles must complete downloading before
-# bringup can proceed. Check status via the VCF Installer UI (deliver guide §6.2.1).
+- name: "MANUAL — Configure depot and download bundles via VCF Installer UI"
+  ansible.builtin.pause:
+    prompt: >-
+      Configure the offline depot in the VCF Installer UI at
+      https://{{ vcf_bringup_hostname }}.
+      Wait for bundle download to complete, then press Enter to continue.
 
 # --- Validate bringup spec against OpenAPI schema ---
 
