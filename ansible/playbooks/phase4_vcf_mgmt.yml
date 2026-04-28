@@ -39,6 +39,7 @@
           - { hostname: esxi-05, ip: "{{ host_ip['esxi-05'] }}" }
           - { hostname: esxi-06, ip: "{{ host_ip['esxi-06'] }}" }
           - { hostname: esxi-07, ip: "{{ host_ip['esxi-07'] }}" }
+          - { hostname: vcf-installer, ip: "{{ host_ip['vcf-installer'] }}" }
 
 - name: Phase 4 — Deploy VCF Installer OVA
   hosts: gateways
