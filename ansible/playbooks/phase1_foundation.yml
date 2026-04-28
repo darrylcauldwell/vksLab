@@ -146,7 +146,7 @@
     - name: Fetch lab root CA certificate from gateway
       ansible.builtin.shell: >
         scp -o StrictHostKeyChecking=no
-        ubuntu@{{ gateway_public_ip }}:/tmp/lab-root-ca.crt
+        ubuntu@{{ gateway_public_ip }}:/usr/local/share/ca-certificates/lab-root-ca.crt
         {{ ansible_env.HOME }}/.lab-root-ca.crt
       args:
         creates: "{{ ansible_env.HOME }}/.lab-root-ca.crt"

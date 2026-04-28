@@ -38,7 +38,7 @@ onepassword_vault: Employee
 keycloak_realm: lab
 
 # CA certificate
-ca_cert_path: /tmp/lab-root-ca.crt
+ca_cert_path: /usr/local/share/ca-certificates/lab-root-ca.crt
 
 # VCF depot
 vcf_depot_url: depot.vcf-gcp.broadcom.net
