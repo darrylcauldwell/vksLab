@@ -157,12 +157,29 @@
     access_time: preserve
   tags: dns
 
-- name: Enable and start dnsmasq
+- name: Restart dnsmasq to pick up config and resolv.conf
   become: true
   ansible.builtin.service:
     name: dnsmasq
-    state: started
+    state: restarted
     enabled: true
+  tags: dns
+
+- name: Verify dnsmasq is healthy
+  become: true
+  ansible.builtin.command:
+    cmd: systemctl is-active dnsmasq
+  register: dnsmasq_status
+  changed_when: false
+  failed_when: dnsmasq_status.stdout != 'active'
+  tags: dns
+
+- name: Show dnsmasq status on failure
+  become: true
+  ansible.builtin.command:
+    cmd: journalctl -u dnsmasq --no-pager -n 20
+  when: dnsmasq_status.stdout != 'active'
+  changed_when: false
   tags: dns
 
 - name: Enable and start chrony
