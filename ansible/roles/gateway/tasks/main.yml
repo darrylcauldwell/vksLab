@@ -960,15 +960,13 @@
   tags: ansible-env
 
 - name: Install vendored vcf_sdk to system Python
-  ansible.builtin.copy:
-    src: /home/ubuntu/dda-vcf/ansible/python/vcf_sdk/
-    dest: /usr/lib/python3/dist-packages/vcf_sdk/
-    remote_src: true
-    owner: root
-    group: root
-    mode: "0644"
-    directory_mode: "0755"
+  ansible.builtin.shell: |
+    rm -rf /usr/lib/python3/dist-packages/vcf_sdk
+    cp -r /home/ubuntu/dda-vcf/ansible/python/vcf_sdk /usr/lib/python3/dist-packages/vcf_sdk
+    find /usr/lib/python3/dist-packages/vcf_sdk -type d -exec chmod 755 {} +
+    find /usr/lib/python3/dist-packages/vcf_sdk -type f -exec chmod 644 {} +
   become: true
+  changed_when: true
   tags: ansible-env
 
 - name: Create VCF backup directory
