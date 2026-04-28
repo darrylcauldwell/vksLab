@@ -14,9 +14,16 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-# Activate venv if not already active
+# Activate venv if healthy, otherwise use system Python
 if [ -z "$VIRTUAL_ENV" ] && [ -f "$REPO_ROOT/.venv/bin/activate" ]; then
-    source "$REPO_ROOT/.venv/bin/activate"
+    # Verify venv has a working ansible-playbook before activating
+    if [ -x "$REPO_ROOT/.venv/bin/ansible-playbook" ] && "$REPO_ROOT/.venv/bin/python3" -c "import ansible" 2>/dev/null; then
+        source "$REPO_ROOT/.venv/bin/activate"
+    else
+        echo "WARNING: .venv is broken (missing ansible). Using system Python."
+        echo "  To fix: rm -rf $REPO_ROOT/.venv && python3 -m venv .venv && pip install ansible vmware-vcf"
+        rm -rf "$REPO_ROOT/.venv"
+    fi
 fi
 mkdir -p "$SCRIPT_DIR/inventory/group_vars/all"
 SECRETS_FILE="$SCRIPT_DIR/inventory/group_vars/all/secrets.yml"
