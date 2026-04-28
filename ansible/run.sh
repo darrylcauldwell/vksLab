@@ -53,6 +53,4 @@ EOF
 chmod 600 "$SECRETS_FILE"
 
 echo "Secrets cached. Running playbook..."
-# Export venv path so inventory can set localhost Python interpreter
-export DDA_VENV_PYTHON="$VIRTUAL_ENV/bin/python3"
 exec ansible-playbook "$@"
