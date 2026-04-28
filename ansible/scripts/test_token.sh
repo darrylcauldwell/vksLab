@@ -3,10 +3,15 @@
 SECRETS="$(cd "$(dirname "$0")/.." && pwd)/inventory/group_vars/all/secrets.yml"
 PASS=$(grep sddc_admin_password "$SECRETS" | awk '{print $2}')
 
+# Write JSON body to temp file to avoid shell escaping issues with ! in password
+TMPFILE=$(mktemp)
+python3 -c "import json; print(json.dumps({'username': 'admin@local', 'password': '$PASS'}))" > "$TMPFILE"
+
 echo "Testing token endpoint..."
-curl -vsk -x socks5h://localhost:1080 \
+curl -sk -x socks5h://localhost:1080 \
   https://vcf-installer.lab.dreamfold.dev/v1/tokens \
   -X POST \
   -H 'Content-Type: application/json' \
-  -d "{\"username\":\"admin@local\",\"password\":\"$PASS\"}" \
-  2>&1
+  -d @"$TMPFILE" 2>&1
+
+rm -f "$TMPFILE"

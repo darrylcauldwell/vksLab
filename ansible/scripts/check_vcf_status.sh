@@ -20,10 +20,16 @@ else
     echo ""
 fi
 
+# Use python to build JSON body — avoids shell escaping issues with ! in password
+TMPFILE=$(mktemp)
+python3 -c "import json; print(json.dumps({'username': 'admin@local', 'password': '$PASS'}))" > "$TMPFILE"
+
 TOKEN=$(curl -sk -x "$PROXY" -X POST \
   -H 'Content-Type: application/json' \
-  -d "{\"username\":\"admin@local\",\"password\":\"$PASS\"}" \
+  -d @"$TMPFILE" \
   "https://$INSTALLER/v1/tokens" 2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin)['accessToken'])" 2>/dev/null)
+
+rm -f "$TMPFILE"
 
 if [ -z "$TOKEN" ]; then
     echo "ERROR: Failed to get token. Check SOCKS tunnel and credentials."
