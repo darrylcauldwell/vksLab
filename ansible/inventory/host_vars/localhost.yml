@@ -1,0 +1,5 @@
+---
+# Force localhost modules to use the same Python running ansible-playbook.
+# This ensures modules find packages installed in the venv (e.g. vcf_sdk).
+# ansible_playbook_python is a magic variable — always available, no lookup needed.
+ansible_python_interpreter: "{{ ansible_playbook_python }}"
