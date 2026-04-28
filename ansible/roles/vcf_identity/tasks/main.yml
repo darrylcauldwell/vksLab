@@ -10,6 +10,7 @@
 
 - name: Ensure vcf_sdk is available
   ansible.builtin.include_tasks: ../../common/tasks/ensure_vcf_sdk.yml
+  when: inventory_hostname != 'localhost'
 
 # --- Ensure DNS ---
 

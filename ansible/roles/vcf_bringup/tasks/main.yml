@@ -9,9 +9,12 @@
 #   - vSAN ESA HCL bypass applied (deliver guide §6.2.2)
 
 # --- Ensure vcf_sdk and dependencies are available ---
+# ensure_vcf_sdk is for gateway hosts (apt install, copy to dist-packages).
+# On localhost, vcf_sdk is pre-installed via scripts/fix_localhost_sdk.sh.
 
-- name: Ensure vcf_sdk is available
+- name: Ensure vcf_sdk is available (gateway only)
   ansible.builtin.include_tasks: ../../common/tasks/ensure_vcf_sdk.yml
+  when: inventory_hostname != 'localhost'
 
 # --- Ensure DNS for Phase 4 dependencies ---
 

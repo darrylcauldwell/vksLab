@@ -6,6 +6,7 @@
 
 - name: Ensure vcf_sdk is available
   ansible.builtin.include_tasks: ../../common/tasks/ensure_vcf_sdk.yml
+  when: inventory_hostname != 'localhost'
 
 - name: Check if Velero is already enabled
   vmware_vcf.ansible.vcf_vcenter_supervisor_service:
