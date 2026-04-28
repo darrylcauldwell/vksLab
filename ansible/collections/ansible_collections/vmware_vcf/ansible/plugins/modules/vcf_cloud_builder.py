@@ -13,14 +13,14 @@ module: vcf_cloud_builder
 short_description: Drive VCF SDDC bringup via Cloud Builder API
 description:
   - Validate and deploy management domain via VCF Cloud Builder.
-  - Supports known-safe warning bypass for nested lab environments.
+  - Uses discrete states so Ansible can poll with until/retries for visible progress.
 version_added: "0.1.0"
 options:
   state:
     description: Action to perform.
     type: str
-    choices: [validated, deployed]
-    default: validated
+    choices: [depot, start_validation, get_validation, start_bringup, get_bringup]
+    required: true
   hostname:
     description: Cloud Builder FQDN or IP.
     type: str
@@ -37,64 +37,90 @@ options:
   spec:
     description: SDDC bringup spec (JSON dict).
     type: dict
-    required: true
+  depot_spec:
+    description: Depot configuration spec (JSON dict).
+    type: dict
+  id:
+    description: Validation or bringup task ID (for get_validation/get_bringup).
+    type: str
   validate_certs:
     description: Verify SSL certificates.
     type: bool
     default: false
-  nested_lab:
-    description: >
-      If true, bypass known-safe validation failures for nested labs
-      (VSAN_ESA_HOST_NOT_HCL_COMPATIBLE, NO_VSAN_ESA_CERTIFIED_DISKS, EXISTING_SDDC_VALIDATION_WARNING).
-    type: bool
-    default: false
-  validation_timeout:
-    description: Timeout for validation in seconds.
-    type: int
-    default: 600
-  deploy_timeout:
-    description: Timeout for deployment in seconds.
-    type: int
-    default: 14400
-  poll_interval:
-    description: Poll interval in seconds.
-    type: int
-    default: 60
 """
 
 EXAMPLES = r"""
-- name: Validate bringup spec
+- name: Configure depot
   vmware_vcf.ansible.vcf_cloud_builder:
-    hostname: vcf-builder.lab.dev
-    username: admin
-    password: "{{ vault_cb_password }}"
-    state: validated
-    nested_lab: true
-    spec: "{{ bringup_spec }}"
+    hostname: vcf-installer.lab.dev
+    username: admin@local
+    password: "{{ password }}"
+    state: depot
+    depot_spec: "{{ depot_spec }}"
 
-- name: Deploy management domain
+- name: Start validation
   vmware_vcf.ansible.vcf_cloud_builder:
-    hostname: vcf-builder.lab.dev
-    username: admin
-    password: "{{ vault_cb_password }}"
-    state: deployed
-    nested_lab: true
+    hostname: vcf-installer.lab.dev
+    username: admin@local
+    password: "{{ password }}"
+    state: start_validation
     spec: "{{ bringup_spec }}"
-    deploy_timeout: 14400
+  register: validation
+
+- name: Poll validation
+  vmware_vcf.ansible.vcf_cloud_builder:
+    hostname: vcf-installer.lab.dev
+    username: admin@local
+    password: "{{ password }}"
+    state: get_validation
+    id: "{{ validation.id }}"
+  register: val_status
+  until: val_status.execution_status == 'COMPLETED'
+  retries: 360
+  delay: 10
+
+- name: Start bringup
+  vmware_vcf.ansible.vcf_cloud_builder:
+    hostname: vcf-installer.lab.dev
+    username: admin@local
+    password: "{{ password }}"
+    state: start_bringup
+    spec: "{{ bringup_spec }}"
+  register: bringup
+
+- name: Poll bringup
+  vmware_vcf.ansible.vcf_cloud_builder:
+    hostname: vcf-installer.lab.dev
+    username: admin@local
+    password: "{{ password }}"
+    state: get_bringup
+    id: "{{ bringup.id }}"
+  register: bringup_status
+  until: bringup_status.status in ['COMPLETED_WITH_SUCCESS', 'COMPLETED_WITH_FAILURE']
+  retries: 240
+  delay: 60
 """
 
 RETURN = r"""
-validation_id:
-  description: Validation task ID.
-  returned: always
+id:
+  description: Validation or bringup task ID.
+  returned: on start_validation, start_bringup
+  type: str
+execution_status:
+  description: Validation execution status (IN_PROGRESS, COMPLETED).
+  returned: on get_validation
   type: str
 result_status:
-  description: Validation result status.
-  returned: on validated
+  description: Validation result (SUCCEEDED, FAILED).
+  returned: on get_validation when completed
   type: str
-deployment_id:
-  description: Deployment task ID.
-  returned: on deployed
+validation_checks:
+  description: List of validation check results.
+  returned: on get_validation when completed
+  type: list
+status:
+  description: Bringup status.
+  returned: on get_bringup
   type: str
 """
 
@@ -102,46 +128,26 @@ from ansible.module_utils.basic import AnsibleModule
 
 try:
     from vcf_sdk import CloudBuilder
-    from vcf_sdk.exceptions import ValidationError, TimeoutError
-
     HAS_VCF_SDK = True
 except ImportError:
     HAS_VCF_SDK = False
-
-KNOWN_SAFE_CODES = {
-    "VSAN_ESA_HOST_NOT_HCL_COMPATIBLE",
-    "NO_VSAN_ESA_CERTIFIED_DISKS",
-    "EXISTING_SDDC_VALIDATION_WARNING",
-}
-
-
-def _is_all_known_safe(failed_checks):
-    """Check if all failed validation checks are known-safe for nested labs."""
-    for check in failed_checks:
-        error_code = check.get("errorResponse", {}).get("errorCode", "")
-        if error_code in KNOWN_SAFE_CODES:
-            continue
-        nested_errors = check.get("nestedErrors", [])
-        if all(e.get("errorCode") in KNOWN_SAFE_CODES for e in nested_errors):
-            continue
-        return False
-    return True
 
 
 def main():
     module = AnsibleModule(
         argument_spec=dict(
-            state=dict(type="str", choices=["validated", "deployed", "depot"], default="validated"),
+            state=dict(
+                type="str",
+                choices=["depot", "start_validation", "get_validation", "start_bringup", "get_bringup"],
+                required=True,
+            ),
             hostname=dict(type="str", required=True),
             username=dict(type="str", required=True),
             password=dict(type="str", required=True, no_log=True),
             spec=dict(type="dict"),
             depot_spec=dict(type="dict"),
+            id=dict(type="str"),
             validate_certs=dict(type="bool", default=False),
-            nested_lab=dict(type="bool", default=False),
-            validation_timeout=dict(type="int", default=600),
-            deploy_timeout=dict(type="int", default=14400),
-            poll_interval=dict(type="int", default=60),
         ),
         supports_check_mode=True,
     )
@@ -150,91 +156,51 @@ def main():
         module.fail_json(msg="vmware-vcf Python package required. pip install vmware-vcf")
 
     state = module.params["state"]
-    nested_lab = module.params["nested_lab"]
     result = dict(changed=False)
 
-    cb = CloudBuilder(
-        hostname=module.params["hostname"],
-        username=module.params["username"],
-        password=module.params["password"],
-        verify_ssl=module.params["validate_certs"],
-    )
-
     try:
-        # Depot configuration
+        cb = CloudBuilder(
+            hostname=module.params["hostname"],
+            username=module.params["username"],
+            password=module.params["password"],
+            verify_ssl=module.params["validate_certs"],
+        )
+
         if state == "depot":
             if module.check_mode:
                 module.exit_json(changed=True, msg="Would configure depot")
             depot_resp = cb.set_depot(module.params["depot_spec"])
             result["changed"] = True
             result["depot"] = depot_resp
-            module.exit_json(**result)
 
-        # Validate
-        if module.check_mode:
-            module.exit_json(changed=True, msg=f"Would {state} SDDC")
+        elif state == "start_validation":
+            if module.check_mode:
+                module.exit_json(changed=True, msg="Would start validation")
+            resp = cb.start_validation(module.params["spec"])
+            result["changed"] = True
+            result["id"] = resp.get("id")
 
-        val_resp = cb.start_validation(module.params["spec"])
-        validation_id = val_resp.get("id")
-        result["validation_id"] = validation_id
+        elif state == "get_validation":
+            resp = cb.get_validation(module.params["id"])
+            result["execution_status"] = resp.get("executionStatus", "UNKNOWN")
+            result["result_status"] = resp.get("resultStatus", "")
+            result["validation_checks"] = resp.get("validationChecks", [])
 
-        try:
-            val_result = cb.wait_for_validation(
-                validation_id,
-                timeout=module.params["validation_timeout"],
-                poll_interval=module.params["poll_interval"],
-            )
-            result["result_status"] = "SUCCEEDED"
-        except ValidationError:
-            # Check if failures are known-safe
-            val_status = cb.get_validation(validation_id)
-            checks = val_status.get("validationChecks", [])
-            failed = [c for c in checks if c.get("resultStatus") == "FAILED"]
+        elif state == "start_bringup":
+            if module.check_mode:
+                module.exit_json(changed=True, msg="Would start bringup")
+            resp = cb.start_bringup(module.params["spec"])
+            result["changed"] = True
+            result["id"] = resp.get("id")
 
-            if nested_lab and failed and _is_all_known_safe(failed):
-                result["result_status"] = "WARNING"
-                result["warnings"] = failed
-            else:
-                module.fail_json(
-                    msg="Validation failed",
-                    validation_id=validation_id,
-                    failed_checks=failed,
-                )
+        elif state == "get_bringup":
+            resp = cb.get_sddc(module.params["id"])
+            result["status"] = resp.get("status", "UNKNOWN")
 
-        if state == "validated":
-            module.exit_json(**result)
-
-        # Deploy
-        deploy_resp = cb.start_bringup(module.params["spec"])
-        deployment_id = deploy_resp.get("id")
-        result["deployment_id"] = deployment_id
-        result["changed"] = True
-
-        import time
-
-        start = time.time()
-        timeout = module.params["deploy_timeout"]
-        poll = module.params["poll_interval"]
-
-        while True:
-            status = cb.get_sddc(deployment_id)
-            exec_status = status.get("status", "")
-
-            if exec_status in ("COMPLETED_WITH_SUCCESS", "COMPLETED_WITH_FAILURE"):
-                result["deployment_status"] = exec_status
-                if "FAILURE" in exec_status:
-                    module.fail_json(msg=f"Deployment {exec_status}", **result)
-                break
-
-            if time.time() - start > timeout:
-                module.fail_json(msg=f"Deployment timed out after {timeout}s", **result)
-
-            time.sleep(poll)
+        cb.close()
 
     except Exception as e:
         module.fail_json(msg=str(e))
-    finally:
-        cb.close()
 
     module.exit_json(**result)
 

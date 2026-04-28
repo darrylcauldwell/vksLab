@@ -83,56 +83,39 @@
   ansible.builtin.debug:
     msg: "{{ vcf_bringup_spec | to_nice_json }}"
 
-- name: Obtain VCF Installer API token
-  ansible.builtin.uri:
-    url: "https://{{ vcf_bringup_hostname }}/v1/tokens"
-    method: POST
-    validate_certs: false
-    body_format: json
-    body:
-      username: "{{ vcf_bringup_username }}"
-      password: "{{ vcf_bringup_password }}"
-    status_code: [200]
-  register: vcf_token
-  no_log: true
-
 - name: Start SDDC validation
-  ansible.builtin.uri:
-    url: "https://{{ vcf_bringup_hostname }}/v1/sddcs/validations"
-    method: POST
-    validate_certs: false
-    body_format: json
-    body: "{{ vcf_bringup_spec }}"
-    headers:
-      Authorization: "Bearer {{ vcf_token.json.accessToken }}"
-    status_code: [200, 202]
+  vmware_vcf.ansible.vcf_cloud_builder:
+    hostname: "{{ vcf_bringup_hostname }}"
+    username: "{{ vcf_bringup_username }}"
+    password: "{{ vcf_bringup_password }}"
+    state: start_validation
+    spec: "{{ vcf_bringup_spec }}"
   register: validation_start
 
 - name: Display validation ID
   ansible.builtin.debug:
-    msg: "Validation started: {{ validation_start.json.id }}"
+    msg: "Validation started: {{ validation_start.id }}"
 
 - name: Poll validation status
-  ansible.builtin.uri:
-    url: "https://{{ vcf_bringup_hostname }}/v1/sddcs/validations/{{ validation_start.json.id }}"
-    method: GET
-    validate_certs: false
-    headers:
-      Authorization: "Bearer {{ vcf_token.json.accessToken }}"
-    status_code: [200]
+  vmware_vcf.ansible.vcf_cloud_builder:
+    hostname: "{{ vcf_bringup_hostname }}"
+    username: "{{ vcf_bringup_username }}"
+    password: "{{ vcf_bringup_password }}"
+    state: get_validation
+    id: "{{ validation_start.id }}"
   register: validation_poll
-  until: validation_poll.json.executionStatus == 'COMPLETED'
+  until: validation_poll.execution_status == 'COMPLETED'
   retries: 360
   delay: 10
   changed_when: false
 
 - name: Display validation result
   ansible.builtin.debug:
-    msg: "Validation {{ validation_poll.json.resultStatus }} — {{ validation_poll.json.validationChecks | default([]) | selectattr('resultStatus', 'equalto', 'FAILED') | list | length }} failed checks"
+    msg: "Validation {{ validation_poll.result_status }} — {{ validation_poll.validation_checks | default([]) | selectattr('resultStatus', 'equalto', 'FAILED') | list | length }} failed checks"
 
 - name: Check validation failures
   ansible.builtin.set_fact:
-    validation_failed_checks: "{{ validation_poll.json.validationChecks | default([]) | selectattr('resultStatus', 'equalto', 'FAILED') | list }}"
+    validation_failed_checks: "{{ validation_poll.validation_checks | default([]) | selectattr('resultStatus', 'equalto', 'FAILED') | list }}"
 
 - name: Display failed validation checks
   ansible.builtin.debug:
@@ -146,49 +129,45 @@
   ansible.builtin.fail:
     msg: "Validation failed with {{ validation_failed_checks | length }} errors. Review above."
   when:
-    - validation_poll.json.resultStatus != 'SUCCEEDED'
+    - validation_poll.result_status != 'SUCCEEDED'
     - validation_failed_checks | length > 0
-    - not (validation_failed_checks | map(attribute='errorResponse') | map(attribute='errorCode', default='') | reject('in', ['VSAN_ESA_HOST_NOT_HCL_COMPATIBLE', 'NO_VSAN_ESA_CERTIFIED_DISKS', 'EXISTING_SDDC_VALIDATION_WARNING']) | list | length > 0)
+    - validation_failed_checks | map(attribute='errorResponse') | map(attribute='errorCode', default='') | reject('in', ['VSAN_ESA_HOST_NOT_HCL_COMPATIBLE', 'NO_VSAN_ESA_CERTIFIED_DISKS', 'EXISTING_SDDC_VALIDATION_WARNING']) | list | length > 0
 
 - name: Progress — starting SDDC bringup
   ansible.builtin.debug:
-    msg: "LONG RUNNING TASK — Validation passed. Starting SDDC bringup (~3-4 hours). Monitor at https://{{ vcf_bringup_hostname }}"
+    msg: "Validation passed. Starting SDDC bringup (~3-4 hours). Monitor at https://{{ vcf_bringup_hostname }}"
 
 - name: Start SDDC bringup
-  ansible.builtin.uri:
-    url: "https://{{ vcf_bringup_hostname }}/v1/sddcs"
-    method: POST
-    validate_certs: false
-    body_format: json
-    body: "{{ vcf_bringup_spec }}"
-    headers:
-      Authorization: "Bearer {{ vcf_token.json.accessToken }}"
-    status_code: [200, 202]
+  vmware_vcf.ansible.vcf_cloud_builder:
+    hostname: "{{ vcf_bringup_hostname }}"
+    username: "{{ vcf_bringup_username }}"
+    password: "{{ vcf_bringup_password }}"
+    state: start_bringup
+    spec: "{{ vcf_bringup_spec }}"
   register: bringup_start
 
 - name: Display bringup ID
   ansible.builtin.debug:
-    msg: "Bringup started: {{ bringup_start.json.id }}"
+    msg: "Bringup started: {{ bringup_start.id }}"
 
 - name: Poll bringup status
-  ansible.builtin.uri:
-    url: "https://{{ vcf_bringup_hostname }}/v1/sddcs/{{ bringup_start.json.id }}"
-    method: GET
-    validate_certs: false
-    headers:
-      Authorization: "Bearer {{ vcf_token.json.accessToken }}"
-    status_code: [200]
+  vmware_vcf.ansible.vcf_cloud_builder:
+    hostname: "{{ vcf_bringup_hostname }}"
+    username: "{{ vcf_bringup_username }}"
+    password: "{{ vcf_bringup_password }}"
+    state: get_bringup
+    id: "{{ bringup_start.id }}"
   register: bringup_poll
-  until: bringup_poll.json.status in ['COMPLETED_WITH_SUCCESS', 'COMPLETED_WITH_FAILURE']
+  until: bringup_poll.status in ['COMPLETED_WITH_SUCCESS', 'COMPLETED_WITH_FAILURE']
   retries: 240
   delay: 60
   changed_when: false
 
 - name: Display bringup result
   ansible.builtin.debug:
-    msg: "Bringup {{ bringup_poll.json.status }}"
+    msg: "Bringup {{ bringup_poll.status }}"
 
 - name: Fail if bringup failed
   ansible.builtin.fail:
-    msg: "SDDC bringup failed: {{ bringup_poll.json.status }}"
-  when: "'FAILURE' in bringup_poll.json.status"
+    msg: "SDDC bringup failed: {{ bringup_poll.status }}"
+  when: "'FAILURE' in bringup_poll.status"
