@@ -96,42 +96,20 @@
   ansible.builtin.debug:
     msg: "Validation started: {{ validation_start.id }}"
 
-- name: Poll validation status
-  vmware_vcf.ansible.vcf_cloud_builder:
-    hostname: "{{ vcf_bringup_hostname }}"
-    username: "{{ vcf_bringup_username }}"
-    password: "{{ vcf_bringup_password }}"
-    state: get_validation
-    id: "{{ validation_start.id }}"
+- name: Poll validation status (live output)
+  ansible.builtin.command:
+    cmd: >
+      python3 {{ playbook_dir }}/../scripts/poll_vcf_task.py
+      {{ vcf_bringup_hostname }} {{ vcf_bringup_username }} {{ vcf_bringup_password }}
+      validation {{ validation_start.id }} 10 3600
   register: validation_poll
-  until: validation_poll.execution_status == 'COMPLETED'
-  retries: 360
-  delay: 10
+  failed_when: validation_poll.rc == 1
   changed_when: false
 
-- name: Display validation result
-  ansible.builtin.debug:
-    msg: "Validation {{ validation_poll.result_status }} — {{ validation_poll.validation_checks | default([]) | selectattr('resultStatus', 'equalto', 'FAILED') | list | length }} failed checks"
-
-- name: Check validation failures
-  ansible.builtin.set_fact:
-    validation_failed_checks: "{{ validation_poll.validation_checks | default([]) | selectattr('resultStatus', 'equalto', 'FAILED') | list }}"
-
-- name: Display failed validation checks
-  ansible.builtin.debug:
-    msg: "{{ item.description | default('Unknown check') }}: {{ item.errorResponse.message | default('No message') }}"
-  loop: "{{ validation_failed_checks }}"
-  loop_control:
-    label: "{{ item.description | default('check') }}"
-  when: validation_failed_checks | length > 0
-
-- name: Fail if validation has unexpected failures
+- name: Fail if validation had unexpected errors
   ansible.builtin.fail:
-    msg: "Validation failed with {{ validation_failed_checks | length }} errors. Review above."
-  when:
-    - validation_poll.result_status != 'SUCCEEDED'
-    - validation_failed_checks | length > 0
-    - validation_failed_checks | map(attribute='errorResponse') | map(attribute='errorCode', default='') | reject('in', ['VSAN_ESA_HOST_NOT_HCL_COMPATIBLE', 'NO_VSAN_ESA_CERTIFIED_DISKS', 'EXISTING_SDDC_VALIDATION_WARNING']) | list | length > 0
+    msg: "Validation failed. Review output above."
+  when: validation_poll.rc == 2
 
 - name: Progress — starting SDDC bringup
   ansible.builtin.debug:
@@ -150,24 +128,17 @@
   ansible.builtin.debug:
     msg: "Bringup started: {{ bringup_start.id }}"
 
-- name: Poll bringup status
-  vmware_vcf.ansible.vcf_cloud_builder:
-    hostname: "{{ vcf_bringup_hostname }}"
-    username: "{{ vcf_bringup_username }}"
-    password: "{{ vcf_bringup_password }}"
-    state: get_bringup
-    id: "{{ bringup_start.id }}"
+- name: Poll bringup status (live output)
+  ansible.builtin.command:
+    cmd: >
+      python3 {{ playbook_dir }}/../scripts/poll_vcf_task.py
+      {{ vcf_bringup_hostname }} {{ vcf_bringup_username }} {{ vcf_bringup_password }}
+      bringup {{ bringup_start.id }} 60 14400
   register: bringup_poll
-  until: bringup_poll.status in ['COMPLETED_WITH_SUCCESS', 'COMPLETED_WITH_FAILURE']
-  retries: 240
-  delay: 60
+  failed_when: bringup_poll.rc == 1
   changed_when: false
-
-- name: Display bringup result
-  ansible.builtin.debug:
-    msg: "Bringup {{ bringup_poll.status }}"
 
 - name: Fail if bringup failed
   ansible.builtin.fail:
-    msg: "SDDC bringup failed: {{ bringup_poll.status }}"
-  when: "'FAILURE' in bringup_poll.status"
+    msg: "SDDC bringup failed. Review output above."
+  when: bringup_poll.rc == 2
