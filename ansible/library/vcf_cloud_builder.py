@@ -64,8 +64,24 @@ import time
 
 from ansible.module_utils.basic import AnsibleModule
 
+# Enable SOCKS proxy for urllib if HTTPS_PROXY is set and PySocks is available
+_proxy = os.environ.get("HTTPS_PROXY", os.environ.get("https_proxy", ""))
+if "socks" in _proxy:
+    try:
+        import socks
+        import socket
+        # Parse socks5h://localhost:1080
+        from urllib.parse import urlparse
+        _p = urlparse(_proxy)
+        _socks_type = socks.SOCKS5 if "socks5" in _p.scheme else socks.SOCKS4
+        _rdns = "h" in _p.scheme  # socks5h = remote DNS
+        socks.set_default_proxy(_socks_type, _p.hostname, _p.port, rdns=_rdns)
+        socket.socket = socks.socksocket
+    except ImportError:
+        pass  # PySocks not available — SOCKS proxy won't work
+
 try:
-    from urllib.request import Request, urlopen
+    from urllib.request import Request, urlopen, install_opener, build_opener, ProxyHandler
     from urllib.error import URLError, HTTPError
 except ImportError:
     from urllib2 import Request, urlopen, URLError, HTTPError
