@@ -142,8 +142,9 @@ def main():
                 required=True,
             ),
             hostname=dict(type="str", required=True),
-            username=dict(type="str", required=True),
-            password=dict(type="str", required=True, no_log=True),
+            username=dict(type="str", default=""),
+            password=dict(type="str", default="", no_log=True),
+            bearer_token=dict(type="str", no_log=True),
             spec=dict(type="dict"),
             depot_spec=dict(type="dict"),
             id=dict(type="str"),
@@ -164,6 +165,7 @@ def main():
             username=module.params["username"],
             password=module.params["password"],
             verify_ssl=module.params["validate_certs"],
+            bearer_token=module.params.get("bearer_token"),
         )
 
         if state == "depot":
@@ -185,7 +187,6 @@ def main():
             result["execution_status"] = resp.get("executionStatus", "UNKNOWN")
             result["result_status"] = resp.get("resultStatus", "")
             result["validation_checks"] = resp.get("validationChecks", [])
-            # Summary for display during polling
             checks = resp.get("validationChecks", [])
             passed = len([c for c in checks if c.get("resultStatus") == "SUCCEEDED"])
             failed = len([c for c in checks if c.get("resultStatus") == "FAILED"])
@@ -203,6 +204,11 @@ def main():
             resp = cb.get_sddc(module.params["id"])
             result["status"] = resp.get("status", "UNKNOWN")
             result["msg"] = f"Bringup status: {result['status']}"
+
+        # Return token if we authenticated (not using pre-existing bearer_token)
+        if not module.params.get("bearer_token") and cb.access_token:
+            result["bearer_token"] = cb.access_token
+            result["refresh_token"] = cb.refresh_token
 
         cb.close()
 

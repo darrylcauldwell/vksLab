@@ -101,50 +101,30 @@
   ansible.builtin.debug:
     msg: "{{ spec_validation.stdout_lines }}"
 
-# --- Authenticate ---
-
-- name: Get VCF Installer API token
-  ansible.builtin.uri:
-    url: "https://{{ vcf_bringup_hostname }}/v1/tokens"
-    method: POST
-    validate_certs: false
-    body_format: json
-    body:
-      username: "{{ vcf_bringup_username }}"
-      password: "{{ vcf_bringup_password }}"
-    status_code: [200]
-  register: _token_response
-  no_log: true
-
-- name: Set token facts
-  ansible.builtin.set_fact:
-    _vcf_token: "{{ _token_response.json.accessToken }}"
-    _vcf_refresh_token: "{{ _token_response.json.refreshToken.id }}"
-  no_log: true
-
 # --- Bringup spec ---
 
 - name: Display bringup spec
   ansible.builtin.debug:
     msg: "{{ vcf_bringup_spec | to_nice_json }}"
 
-# --- Start and poll validation ---
+# --- Start validation (authenticates once, returns token) ---
 
 - name: Start SDDC validation
-  ansible.builtin.uri:
-    url: "https://{{ vcf_bringup_hostname }}/v1/sddcs/validations"
-    method: POST
-    validate_certs: false
-    body_format: json
-    body: "{{ vcf_bringup_spec }}"
-    headers:
-      Authorization: "Bearer {{ _vcf_token }}"
-    status_code: [200, 202]
+  vmware_vcf.ansible.vcf_cloud_builder:
+    hostname: "{{ vcf_bringup_hostname }}"
+    username: "{{ vcf_bringup_username }}"
+    password: "{{ vcf_bringup_password }}"
+    state: start_validation
+    spec: "{{ vcf_bringup_spec }}"
   register: _validation_start
+  no_log: false
 
-- name: Set validation ID
+- name: Set validation and token facts
   ansible.builtin.set_fact:
-    _validation_id: "{{ _validation_start.json.id }}"
+    _validation_id: "{{ _validation_start.id }}"
+    _vcf_token: "{{ _validation_start.bearer_token }}"
+    _vcf_refresh_token: "{{ _validation_start.refresh_token }}"
+  no_log: true
 
 - name: Display validation ID
   ansible.builtin.debug:
@@ -195,40 +175,21 @@
 
 # --- Start and poll bringup ---
 
-- name: Get fresh token for bringup
-  ansible.builtin.uri:
-    url: "https://{{ vcf_bringup_hostname }}/v1/tokens"
-    method: POST
-    validate_certs: false
-    body_format: json
-    body:
-      username: "{{ vcf_bringup_username }}"
-      password: "{{ vcf_bringup_password }}"
-    status_code: [200]
-  register: _token_response
-  no_log: true
-
-- name: Set fresh token facts
-  ansible.builtin.set_fact:
-    _vcf_token: "{{ _token_response.json.accessToken }}"
-    _vcf_refresh_token: "{{ _token_response.json.refreshToken.id }}"
-  no_log: true
-
 - name: Start SDDC bringup
-  ansible.builtin.uri:
-    url: "https://{{ vcf_bringup_hostname }}/v1/sddcs"
-    method: POST
-    validate_certs: false
-    body_format: json
-    body: "{{ vcf_bringup_spec }}"
-    headers:
-      Authorization: "Bearer {{ _vcf_token }}"
-    status_code: [200, 202]
+  vmware_vcf.ansible.vcf_cloud_builder:
+    hostname: "{{ vcf_bringup_hostname }}"
+    username: "{{ vcf_bringup_username }}"
+    password: "{{ vcf_bringup_password }}"
+    state: start_bringup
+    spec: "{{ vcf_bringup_spec }}"
   register: _bringup_start
 
-- name: Set bringup ID
+- name: Set bringup and token facts
   ansible.builtin.set_fact:
-    _bringup_id: "{{ _bringup_start.json.id }}"
+    _bringup_id: "{{ _bringup_start.id }}"
+    _vcf_token: "{{ _bringup_start.bearer_token }}"
+    _vcf_refresh_token: "{{ _bringup_start.refresh_token }}"
+  no_log: true
 
 - name: Display bringup ID
   ansible.builtin.debug:

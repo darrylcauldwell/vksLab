@@ -22,20 +22,34 @@ class CloudBuilder:
     def __init__(
         self,
         hostname: str,
-        username: str,
-        password: str,
+        username: str = "",
+        password: str = "",
         verify_ssl: bool = False,
         timeout: int = 30,
+        bearer_token: str = None,
     ):
         self.hostname = hostname
         self.client = BaseClient(hostname, verify_ssl=verify_ssl, timeout=timeout)
         self._username = username
         self._password = password
-        self._access_token = None
+        self._access_token = bearer_token
+        self._refresh_token = None
 
-        # Authenticate on init
-        self._authenticate()
-        logger.debug(f"Authenticated to Cloud Builder {hostname}")
+        if bearer_token:
+            logger.debug(f"Using provided Bearer token for Cloud Builder {hostname}")
+        else:
+            self._authenticate()
+            logger.debug(f"Authenticated to Cloud Builder {hostname}")
+
+    @property
+    def access_token(self):
+        """Current access token — for passing to subsequent calls."""
+        return self._access_token
+
+    @property
+    def refresh_token(self):
+        """Current refresh token ID — for token refresh."""
+        return self._refresh_token
 
     def _authenticate(self):
         """Obtain Bearer token from /v1/tokens."""
@@ -45,6 +59,8 @@ class CloudBuilder:
             data={"username": self._username, "password": self._password},
         )
         self._access_token = response.get("accessToken")
+        refresh = response.get("refreshToken", {})
+        self._refresh_token = refresh.get("id") if isinstance(refresh, dict) else refresh
         if not self._access_token:
             from vcf_sdk.exceptions import AuthenticationError
             raise AuthenticationError("Failed to obtain access token from VCF Installer")
