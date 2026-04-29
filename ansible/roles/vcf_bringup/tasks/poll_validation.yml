@@ -1,0 +1,31 @@
+---
+# Single validation poll iteration
+# Required vars: vcf_bringup_hostname, _vcf_token, _validation_id
+
+- name: "Poll validation [{{ poll_iteration }}]"
+  ansible.builtin.uri:
+    url: "https://{{ vcf_bringup_hostname }}/v1/sddcs/validations/{{ _validation_id }}"
+    method: GET
+    validate_certs: false
+    headers:
+      Authorization: "Bearer {{ _vcf_token }}"
+    status_code: [200]
+  register: _poll_response
+
+- name: "Validation [{{ poll_iteration }}] ({{ poll_iteration * 10 }}s)"
+  ansible.builtin.debug:
+    msg: >-
+      {{ _poll_response.json.executionStatus | default('UNKNOWN') }}
+      {% if _poll_response.json.resultStatus | default('') %}({{ _poll_response.json.resultStatus }}){% endif %}
+      — {{ _poll_response.json.validationChecks | default([]) | selectattr('resultStatus', 'equalto', 'SUCCEEDED') | list | length }}/{{ _poll_response.json.validationChecks | default([]) | length }} passed,
+      {{ _poll_response.json.validationChecks | default([]) | selectattr('resultStatus', 'equalto', 'FAILED') | list | length }} failed
+
+- name: Set completion state
+  ansible.builtin.set_fact:
+    _poll_complete: "{{ _poll_response.json.executionStatus | default('') == 'COMPLETED' }}"
+    _poll_final: "{{ _poll_response.json }}"
+
+- name: Wait 10s
+  ansible.builtin.pause:
+    seconds: 10
+  when: _poll_response.json.executionStatus | default('') != 'COMPLETED'

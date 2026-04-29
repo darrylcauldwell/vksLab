@@ -1,0 +1,74 @@
+---
+# Single bringup poll iteration
+# Required vars: vcf_bringup_hostname, vcf_bringup_username, vcf_bringup_password
+#                _vcf_token, _vcf_refresh_token, _bringup_id
+
+- name: "Refresh token [{{ poll_iteration }}]"
+  ansible.builtin.uri:
+    url: "https://{{ vcf_bringup_hostname }}/v1/tokens/access-token/refresh"
+    method: PATCH
+    validate_certs: false
+    headers:
+      Content-Type: text/plain
+      Accept: application/json
+    body: '"{{ _vcf_refresh_token }}"'
+    return_content: true
+    status_code: [200]
+  register: _refresh_response
+  failed_when: false
+  when: poll_iteration > 0 and poll_iteration % 50 == 0
+
+- name: Update token from refresh
+  ansible.builtin.set_fact:
+    _vcf_token: "{{ _refresh_response.content | trim | regex_replace('^\"|\"$', '') }}"
+  when:
+    - poll_iteration > 0 and poll_iteration % 50 == 0
+    - _refresh_response.status | default(0) == 200
+
+- name: Re-authenticate if refresh failed
+  when:
+    - poll_iteration > 0 and poll_iteration % 50 == 0
+    - _refresh_response.status | default(0) != 200
+  block:
+    - name: Full re-authentication
+      ansible.builtin.uri:
+        url: "https://{{ vcf_bringup_hostname }}/v1/tokens"
+        method: POST
+        validate_certs: false
+        body_format: json
+        body:
+          username: "{{ vcf_bringup_username }}"
+          password: "{{ vcf_bringup_password }}"
+        status_code: [200]
+      register: _reauth_response
+      no_log: true
+
+    - name: Update token from re-auth
+      ansible.builtin.set_fact:
+        _vcf_token: "{{ _reauth_response.json.accessToken }}"
+        _vcf_refresh_token: "{{ _reauth_response.json.refreshToken.id }}"
+      no_log: true
+
+- name: "Poll bringup [{{ poll_iteration }}] ({{ poll_iteration }}m)"
+  ansible.builtin.uri:
+    url: "https://{{ vcf_bringup_hostname }}/v1/sddcs/{{ _bringup_id }}"
+    method: GET
+    validate_certs: false
+    headers:
+      Authorization: "Bearer {{ _vcf_token }}"
+    status_code: [200]
+  register: _poll_response
+
+- name: "Bringup [{{ poll_iteration }}] ({{ poll_iteration }}m)"
+  ansible.builtin.debug:
+    msg: "{{ _poll_response.json.status | default('UNKNOWN') }}"
+
+- name: Set completion state
+  ansible.builtin.set_fact:
+    _poll_complete: "{{ _poll_response.json.status | default('') in ['COMPLETED_WITH_SUCCESS', 'COMPLETED_WITH_FAILURE'] }}"
+    _poll_final: "{{ _poll_response.json }}"
+
+- name: Wait 60s
+  ansible.builtin.pause:
+    seconds: 60
+  when: _poll_response.json.status | default('') not in ['COMPLETED_WITH_SUCCESS', 'COMPLETED_WITH_FAILURE']

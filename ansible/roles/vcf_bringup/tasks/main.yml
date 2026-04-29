@@ -101,68 +101,162 @@
   ansible.builtin.debug:
     msg: "{{ spec_validation.stdout_lines }}"
 
-# --- Bringup deployment ---
+# --- Authenticate ---
 
-- name: Display bringup spec being submitted
+- name: Get VCF Installer API token
+  ansible.builtin.uri:
+    url: "https://{{ vcf_bringup_hostname }}/v1/tokens"
+    method: POST
+    validate_certs: false
+    body_format: json
+    body:
+      username: "{{ vcf_bringup_username }}"
+      password: "{{ vcf_bringup_password }}"
+    status_code: [200]
+  register: _token_response
+  no_log: true
+
+- name: Set token facts
+  ansible.builtin.set_fact:
+    _vcf_token: "{{ _token_response.json.accessToken }}"
+    _vcf_refresh_token: "{{ _token_response.json.refreshToken.id }}"
+  no_log: true
+
+# --- Bringup spec ---
+
+- name: Display bringup spec
   ansible.builtin.debug:
     msg: "{{ vcf_bringup_spec | to_nice_json }}"
 
+# --- Start and poll validation ---
+
 - name: Start SDDC validation
-  vmware_vcf.ansible.vcf_cloud_builder:
-    hostname: "{{ vcf_bringup_hostname }}"
-    username: "{{ vcf_bringup_username }}"
-    password: "{{ vcf_bringup_password }}"
-    state: start_validation
-    spec: "{{ vcf_bringup_spec }}"
-  register: validation_start
+  ansible.builtin.uri:
+    url: "https://{{ vcf_bringup_hostname }}/v1/sddcs/validations"
+    method: POST
+    validate_certs: false
+    body_format: json
+    body: "{{ vcf_bringup_spec }}"
+    headers:
+      Authorization: "Bearer {{ _vcf_token }}"
+    status_code: [200, 202]
+  register: _validation_start
+
+- name: Set validation ID
+  ansible.builtin.set_fact:
+    _validation_id: "{{ _validation_start.json.id }}"
 
 - name: Display validation ID
   ansible.builtin.debug:
-    msg: "Validation started: {{ validation_start.id }}"
+    msg: "Validation started: {{ _validation_id }}"
 
-- name: Poll validation status (live output)
-  ansible.builtin.command:
-    cmd: >
-      python3 {{ playbook_dir }}/../scripts/poll_vcf_task.py
-      {{ vcf_bringup_hostname }} {{ vcf_bringup_username }} {{ vcf_bringup_password }}
-      validation {{ validation_start.id }} 10 3600
-  register: validation_poll
-  failed_when: validation_poll.rc == 1
-  changed_when: false
+- name: Reset poll state
+  ansible.builtin.set_fact:
+    _poll_complete: false
+    _poll_final: {}
 
-- name: Fail if validation had unexpected errors
+- name: Poll validation
+  ansible.builtin.include_tasks: poll_validation.yml
+  loop: "{{ range(360) | list }}"
+  loop_control:
+    loop_var: poll_iteration
+    label: "poll {{ poll_iteration }}"
+  when: not (_poll_complete | default(false) | bool)
+
+- name: Fail if validation timed out
   ansible.builtin.fail:
-    msg: "Validation failed. Review output above."
-  when: validation_poll.rc == 2
+    msg: "Validation timed out after 1 hour."
+  when: not (_poll_complete | bool)
 
-- name: Progress — starting SDDC bringup
+# --- Display validation results ---
+
+- name: Display all validation checks
   ansible.builtin.debug:
-    msg: "Validation passed. Starting SDDC bringup (~3-4 hours). Monitor at https://{{ vcf_bringup_hostname }}"
+    msg: "{{ ('✓' if item.resultStatus == 'SUCCEEDED' else '✗') }} [{{ item.resultStatus }}] {{ item.description | default('Unknown') }}"
+  loop: "{{ _poll_final.validationChecks | default([]) }}"
+  loop_control:
+    label: "{{ item.description | default('check') }}"
+
+- name: Fail if unexpected validation errors
+  vars:
+    _failed_checks: "{{ _poll_final.validationChecks | default([]) | selectattr('resultStatus', 'equalto', 'FAILED') | list }}"
+    _known_safe_codes:
+      - VSAN_ESA_HOST_NOT_HCL_COMPATIBLE
+      - NO_VSAN_ESA_CERTIFIED_DISKS
+      - EXISTING_SDDC_VALIDATION_WARNING
+    _unexpected: "{{ _failed_checks | map(attribute='errorResponse') | map(attribute='errorCode', default='') | reject('in', _known_safe_codes) | list }}"
+  ansible.builtin.fail:
+    msg: >-
+      Validation failed with {{ _unexpected | length }} unexpected error(s).
+      Failed checks: {{ _failed_checks | map(attribute='description') | list }}
+  when:
+    - _poll_final.resultStatus | default('') != 'SUCCEEDED'
+    - _unexpected | length > 0
+
+# --- Start and poll bringup ---
+
+- name: Get fresh token for bringup
+  ansible.builtin.uri:
+    url: "https://{{ vcf_bringup_hostname }}/v1/tokens"
+    method: POST
+    validate_certs: false
+    body_format: json
+    body:
+      username: "{{ vcf_bringup_username }}"
+      password: "{{ vcf_bringup_password }}"
+    status_code: [200]
+  register: _token_response
+  no_log: true
+
+- name: Set fresh token facts
+  ansible.builtin.set_fact:
+    _vcf_token: "{{ _token_response.json.accessToken }}"
+    _vcf_refresh_token: "{{ _token_response.json.refreshToken.id }}"
+  no_log: true
 
 - name: Start SDDC bringup
-  vmware_vcf.ansible.vcf_cloud_builder:
-    hostname: "{{ vcf_bringup_hostname }}"
-    username: "{{ vcf_bringup_username }}"
-    password: "{{ vcf_bringup_password }}"
-    state: start_bringup
-    spec: "{{ vcf_bringup_spec }}"
-  register: bringup_start
+  ansible.builtin.uri:
+    url: "https://{{ vcf_bringup_hostname }}/v1/sddcs"
+    method: POST
+    validate_certs: false
+    body_format: json
+    body: "{{ vcf_bringup_spec }}"
+    headers:
+      Authorization: "Bearer {{ _vcf_token }}"
+    status_code: [200, 202]
+  register: _bringup_start
+
+- name: Set bringup ID
+  ansible.builtin.set_fact:
+    _bringup_id: "{{ _bringup_start.json.id }}"
 
 - name: Display bringup ID
   ansible.builtin.debug:
-    msg: "Bringup started: {{ bringup_start.id }}"
+    msg: "Bringup started: {{ _bringup_id }}. Monitor at https://{{ vcf_bringup_hostname }}"
 
-- name: Poll bringup status (live output)
-  ansible.builtin.command:
-    cmd: >
-      python3 {{ playbook_dir }}/../scripts/poll_vcf_task.py
-      {{ vcf_bringup_hostname }} {{ vcf_bringup_username }} {{ vcf_bringup_password }}
-      bringup {{ bringup_start.id }} 60 14400
-  register: bringup_poll
-  failed_when: bringup_poll.rc == 1
-  changed_when: false
+- name: Reset poll state
+  ansible.builtin.set_fact:
+    _poll_complete: false
+    _poll_final: {}
+
+- name: Poll bringup
+  ansible.builtin.include_tasks: poll_bringup.yml
+  loop: "{{ range(240) | list }}"
+  loop_control:
+    loop_var: poll_iteration
+    label: "poll {{ poll_iteration }}"
+  when: not (_poll_complete | default(false) | bool)
+
+- name: Fail if bringup timed out
+  ansible.builtin.fail:
+    msg: "Bringup timed out after 4 hours."
+  when: not (_poll_complete | bool)
 
 - name: Fail if bringup failed
   ansible.builtin.fail:
-    msg: "SDDC bringup failed. Review output above."
-  when: bringup_poll.rc == 2
+    msg: "SDDC bringup failed: {{ _poll_final.status | default('UNKNOWN') }}"
+  when: "'FAILURE' in (_poll_final.status | default(''))"
+
+- name: Bringup complete
+  ansible.builtin.debug:
+    msg: "SDDC bringup {{ _poll_final.status }}"
