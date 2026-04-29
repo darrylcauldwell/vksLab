@@ -150,6 +150,16 @@ def run_module():
     timeout = module.params["timeout"]
     poll_interval = module.params["poll_interval"]
 
+    # Debug: show which Python is running this module
+    import sys
+    module.warn(f"Module Python: {sys.executable} ({sys.version.split()[0]})")
+    try:
+        import socks
+        module.warn(f"PySocks: available ({socks.__file__})")
+    except ImportError:
+        module.warn("PySocks: NOT available")
+    module.warn(f"HTTPS_PROXY: {os.environ.get('HTTPS_PROXY', 'not set')}")
+
     # Obtain initial bearer token
     try:
         auth_header = get_auth_token(base_url, username, password, validate_certs)
