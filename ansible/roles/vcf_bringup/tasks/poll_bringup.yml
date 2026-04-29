@@ -14,6 +14,7 @@
     state: get_bringup
     id: "{{ _bringup_id }}"
   register: _poll_result
+  failed_when: false
   when: poll_iteration % 50 == 0
 
 - name: Update token after refresh
@@ -31,6 +32,7 @@
     state: get_bringup
     id: "{{ _bringup_id }}"
   register: _poll_result
+  failed_when: false
   when: poll_iteration % 50 != 0
 
 - name: "Bringup [{{ poll_iteration }}] ({{ poll_iteration }}m): {{ _poll_result.msg | default(_poll_result.status | default('UNKNOWN')) }}"
@@ -41,6 +43,7 @@
   ansible.builtin.set_fact:
     _poll_complete: "{{ _poll_result.status | default('') in ['COMPLETED_WITH_SUCCESS', 'COMPLETED_WITH_FAILURE'] }}"
     _poll_final: "{{ _poll_result }}"
+  when: _poll_result is not failed
 
 - name: Wait 60s
   ansible.builtin.pause:

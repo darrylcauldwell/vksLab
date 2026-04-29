@@ -9,15 +9,17 @@
     state: get_validation
     id: "{{ _validation_id }}"
   register: _poll_result
+  failed_when: false
 
-- name: "Validation [{{ poll_iteration }}] ({{ poll_iteration * 10 }}s): {{ _poll_result.msg | default('polling...') }}"
+- name: "Validation [{{ poll_iteration }}] ({{ poll_iteration * 10 }}s): {{ _poll_result.msg | default(_poll_result.msg | default('connection error — retrying')) }}"
   ansible.builtin.debug:
-    msg: "{{ _poll_result.msg | default('polling...') }}"
+    msg: "{{ _poll_result.msg | default('connection error — will retry') }}"
 
 - name: Set completion state
   ansible.builtin.set_fact:
     _poll_complete: "{{ _poll_result.execution_status | default('') == 'COMPLETED' }}"
     _poll_final: "{{ _poll_result }}"
+  when: _poll_result is not failed
 
 - name: Wait 10s
   ansible.builtin.pause:

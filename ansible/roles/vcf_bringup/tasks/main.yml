@@ -64,17 +64,28 @@
 
       STEP 2 — vSAN ESA HCL bypass (SSH to VCF Installer)
 
-        From the gateway, SSH to the VCF Installer:
+        From the gateway, SSH to the VCF Installer and switch to root:
           ssh vcf@vcf-installer.lab.dreamfold.dev
+          su -
 
-        2a. Enable vSAN ESA HCL bypass in both properties files:
-          echo 'nsxt.manager.formfactor = medium' | sudo tee -a /opt/vmware/vcf/domainmanager/conf/domainmanager.properties
-          echo 'vsan.esa.hcl.check.enabled = false' | sudo tee -a /opt/vmware/vcf/domainmanager/conf/domainmanager.properties
-          echo 'vsan.esa.hcl.check.enabled = false' | sudo tee -a /opt/vmware/vcf/domainmanager/conf/application-prod.properties
-          sudo systemctl restart domainmanager
+        2a. Enable vSAN ESA disk claim bypass (both properties files):
+          grep -q 'vsan.esa.sddc.managed.disk.claim=true' \
+            /etc/vmware/vcf/domainmanager/application-prod.properties || \
+            echo 'vsan.esa.sddc.managed.disk.claim=true' >> \
+            /etc/vmware/vcf/domainmanager/application-prod.properties
 
-        2b. Patch vSAN HCL timestamp (if OVA is > 90 days old):
-          sudo python3 -c "
+          grep -q 'vsan.esa.sddc.managed.disk.claim=true' \
+            /etc/vmware/vcf/domainmanager/application.properties || \
+            echo 'vsan.esa.sddc.managed.disk.claim=true' >> \
+            /etc/vmware/vcf/domainmanager/application.properties
+
+        2b. Restart domainmanager and wait for it:
+          systemctl restart domainmanager
+          sleep 30
+          systemctl is-active domainmanager
+
+        2c. Patch vSAN HCL timestamp (if OVA is > 90 days old):
+          python3 -c "
           import json, time
           f = '/nfs/vmware/vcf/nfs-mount/vsan-hcl/all.json'
           d = json.load(open(f))
@@ -83,7 +94,11 @@
           print('Patched timestamp to', d['timestamp'])
           "
 
-        See deliver guide §6.2 for details.
+        2d. Verify:
+          grep vsan.esa.sddc.managed.disk.claim \
+            /etc/vmware/vcf/domainmanager/application-prod.properties
+
+        See deliver guide §6.2.2 and Broadcom KB 408300.
 
       Press Enter when both steps are complete
 
