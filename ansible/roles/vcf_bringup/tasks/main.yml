@@ -38,30 +38,54 @@
 # download to complete via the VCF Installer UI before proceeding.
 # See deliver guide §6.2.1.
 
-- name: "MANUAL — Configure depot and download bundles via VCF Installer UI"
+- name: "MANUAL — Configure depot, download bundles, and apply vSAN HCL bypass"
   ansible.builtin.pause:
     prompt: |
 
       ============================================================
-      MANUAL STEP — VCF Installer depot configuration
+      MANUAL STEPS — VCF Installer pre-bringup configuration
       ============================================================
 
-      Open https://{{ vcf_bringup_hostname }} in a browser.
+      STEP 1 — Depot configuration (VCF Installer UI)
 
-      1. Log in (admin@local / {{ vcf_bringup_username }})
-      2. Navigate to Depot Settings
-      3. Select Offline Depot and enter credentials:
-           Hostname: {{ vcf_depot_url }}
-           Username: (Broadcom depot username)
-           Password: (Broadcom depot password)
-      4. Save and wait for bundle downloads to complete:
-           - SDDC Manager
-           - vCenter Server
-           - NSX Manager
-         This typically takes 30-60 minutes.
-      5. Verify all three bundles show "Downloaded" status.
+        Open https://{{ vcf_bringup_hostname }} in a browser.
+        1. Log in (admin@local)
+        2. Navigate to Depot Settings
+        3. Select Offline Depot and enter credentials:
+             Hostname: {{ vcf_depot_url }}
+             Username: (Broadcom depot username)
+             Password: (Broadcom depot password)
+        4. Save and wait for bundle downloads to complete:
+             - SDDC Manager
+             - vCenter Server
+             - NSX Manager
+           This typically takes 30-60 minutes.
+        5. Verify all three bundles show "Downloaded" status.
 
-      Press Enter when all bundles are downloaded to continue
+      STEP 2 — vSAN ESA HCL bypass (SSH to VCF Installer)
+
+        From the gateway, SSH to the VCF Installer:
+          ssh vcf@vcf-installer.lab.dreamfold.dev
+
+        2a. Enable vSAN ESA HCL bypass in both properties files:
+          echo 'nsxt.manager.formfactor = medium' | sudo tee -a /opt/vmware/vcf/domainmanager/conf/domainmanager.properties
+          echo 'vsan.esa.hcl.check.enabled = false' | sudo tee -a /opt/vmware/vcf/domainmanager/conf/domainmanager.properties
+          echo 'vsan.esa.hcl.check.enabled = false' | sudo tee -a /opt/vmware/vcf/domainmanager/conf/application-prod.properties
+          sudo systemctl restart domainmanager
+
+        2b. Patch vSAN HCL timestamp (if OVA is > 90 days old):
+          sudo python3 -c "
+          import json, time
+          f = '/nfs/vmware/vcf/nfs-mount/vsan-hcl/all.json'
+          d = json.load(open(f))
+          d['timestamp'] = int(time.time())
+          json.dump(d, open(f, 'w'))
+          print('Patched timestamp to', d['timestamp'])
+          "
+
+        See deliver guide §6.2 for details.
+
+      Press Enter when both steps are complete
 
 # --- Validate bringup spec against OpenAPI schema ---
 
