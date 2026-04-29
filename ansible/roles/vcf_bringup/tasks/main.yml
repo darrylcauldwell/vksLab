@@ -68,12 +68,7 @@
           ssh vcf@vcf-installer.lab.dreamfold.dev
           su -
 
-        2a. Enable vSAN ESA disk claim bypass (both properties files):
-          grep -q 'vsan.esa.sddc.managed.disk.claim=true' \
-            /etc/vmware/vcf/domainmanager/application-prod.properties || \
-            echo 'vsan.esa.sddc.managed.disk.claim=true' >> \
-            /etc/vmware/vcf/domainmanager/application-prod.properties
-
+        2a. Enable vSAN ESA disk claim bypass (Broadcom KB 408300):
           grep -q 'vsan.esa.sddc.managed.disk.claim=true' \
             /etc/vmware/vcf/domainmanager/application.properties || \
             echo 'vsan.esa.sddc.managed.disk.claim=true' >> \
@@ -96,7 +91,7 @@
 
         2d. Verify:
           grep vsan.esa.sddc.managed.disk.claim \
-            /etc/vmware/vcf/domainmanager/application-prod.properties
+            /etc/vmware/vcf/domainmanager/application.properties
 
         See deliver guide §6.2.2 and Broadcom KB 408300.
 
